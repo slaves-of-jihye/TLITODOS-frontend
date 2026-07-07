@@ -1,0 +1,2618 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "TLITODOS Backend API",
+    "version": "0.1.0",
+    "description": "FastAPI endpoint server for the TLITODOS shared todo-list app. This OpenAPI document is written for frontend and AI-agent consumption: field names match the JSON API contract, authenticated operations use BearerAuth, and upload endpoints explicitly document multipart/form-data."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8000",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "health",
+      "description": "Server health check"
+    },
+    {
+      "name": "authorization",
+      "description": "Google login, current user profile, notifications, and Discord linking"
+    },
+    {
+      "name": "groups",
+      "description": "Shared todo groups and members"
+    },
+    {
+      "name": "categories",
+      "description": "Per-user todo categories. A user can create up to 5 categories."
+    },
+    {
+      "name": "todos",
+      "description": "Todo CRUD, subtasks, dependencies, and todo-scoped bet creation"
+    },
+    {
+      "name": "bets",
+      "description": "Bet status, proof upload, and verification"
+    },
+    {
+      "name": "diaries",
+      "description": "Diary entries with optional image uploads"
+    }
+  ],
+  "paths": {
+    "/ping": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health check",
+        "operationId": "ping",
+        "responses": {
+          "200": {
+            "description": "Server is reachable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "const": "pong"
+                },
+                "example": "pong"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/google": {
+      "post": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Log in with Google access token",
+        "description": "Validates a Google access token, creates or updates the user, stores an API access token, and returns the TLITODOS bearer token.",
+        "operationId": "loginWithGoogle",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerConfigError"
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Get current user",
+        "operationId": "getCurrentUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user profile.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Update current user profile",
+        "description": "Accepts either JSON fields or multipart/form-data. Multipart uses field name image and returns profileImageUrl as /uploads/profiles/{filename}.",
+        "operationId": "updateCurrentUser",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateJsonRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateMultipartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated public profile fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/discord": {
+      "post": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Link Discord account",
+        "description": "Exchanges a Discord OAuth authorization code for user information and stores the linked Discord username.",
+        "operationId": "linkDiscord",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiscordLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Discord account linked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscordLinkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/ServerConfigError"
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/notifications": {
+      "patch": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Update notification settings",
+        "operationId": "updateNotificationSettings",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Notification settings updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "List my groups",
+        "operationId": "listGroups",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Groups the current user belongs to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GroupListItem"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Create group",
+        "operationId": "createGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Group created. Creator becomes LEADER.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/join": {
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Join group with invite code",
+        "operationId": "joinGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupJoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Joined group.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupJoinResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{groupId}": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Get group detail",
+        "operationId": "getGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group detail and members.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{groupId}/members/{userId}": {
+      "delete": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Remove group member",
+        "description": "Only a LEADER can remove another member. The leader cannot remove themselves through this endpoint.",
+        "operationId": "removeGroupMember",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          },
+          {
+            "$ref": "#/components/parameters/UserId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Member removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": [
+          "categories"
+        ],
+        "summary": "List categories",
+        "operationId": "listCategories",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user's categories.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Category"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "categories"
+        ],
+        "summary": "Create category",
+        "operationId": "createCategory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/categories/{categoryId}": {
+      "patch": {
+        "tags": [
+          "categories"
+        ],
+        "summary": "Update category",
+        "operationId": "updateCategory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CategoryId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category updated. isDeletable is not included in this endpoint response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryUpdateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "categories"
+        ],
+        "summary": "Delete category",
+        "description": "Non-deletable default categories, such as 취미, cannot be deleted.",
+        "operationId": "deleteCategory",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CategoryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "List todos",
+        "description": "Returns todos owned by the current user. Optional filters are exact matches.",
+        "operationId": "listTodos",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Filter by group id."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "Filter by dueDate string. The backend stores this as a string and compares it exactly."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Todo"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Create todo",
+        "operationId": "createTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Todo created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}": {
+      "patch": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Update todo",
+        "operationId": "updateTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TodoPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Todo updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Delete todo",
+        "operationId": "deleteTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/subtasks": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Create subtask",
+        "operationId": "createSubtask",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubtaskCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subtask created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subtask"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/complete": {
+      "patch": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Complete todo",
+        "description": "A todo can be completed only when all subtasks are completed.",
+        "operationId": "completeTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo marked completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoCompleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/dependencies": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Add todo dependency",
+        "description": "Adds dependencyTodoId to the todo dependencies array. Todos in category id 1 cannot be linked as dependencies.",
+        "operationId": "createTodoDependency",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependencyCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dependency linked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoDependencyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/bets": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Create bet for todo",
+        "operationId": "createBetForTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BetCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bet created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/bets/{betId}/status": {
+      "patch": {
+        "tags": [
+          "bets"
+        ],
+        "summary": "Accept or reject bet",
+        "operationId": "updateBetStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BetStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bet status updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/bets/{betId}/proof": {
+      "post": {
+        "tags": [
+          "bets"
+        ],
+        "summary": "Upload bet proof image",
+        "operationId": "uploadBetProof",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageUploadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Proof image uploaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BetProofResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/bets/{betId}/verify": {
+      "patch": {
+        "tags": [
+          "bets"
+        ],
+        "summary": "Verify bet proof",
+        "description": "When approved is true, the bet status becomes VERIFIED.",
+        "operationId": "verifyBet",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BetId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BetVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bet verification updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/diaries": {
+      "get": {
+        "tags": [
+          "diaries"
+        ],
+        "summary": "List diaries",
+        "operationId": "listDiaries",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user's diary entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Diary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "diaries"
+        ],
+        "summary": "Create diary",
+        "description": "Accepts either JSON or multipart/form-data. Multipart image uploads return imageUrl as /uploads/diaries/{filename}.",
+        "operationId": "createDiary",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiaryCreateRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DiaryCreateMultipartRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Diary created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/diaries/{diaryId}": {
+      "get": {
+        "tags": [
+          "diaries"
+        ],
+        "summary": "Get diary",
+        "operationId": "getDiary",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DiaryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diary entry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "diaries"
+        ],
+        "summary": "Update diary",
+        "operationId": "updateDiary",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DiaryId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DiaryPatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Diary updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "diaries"
+        ],
+        "summary": "Delete diary",
+        "operationId": "deleteDiary",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/DiaryId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Diary deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Use the accessToken returned by POST /api/v1/auth/google as Authorization: Bearer {accessToken}."
+      }
+    },
+    "parameters": {
+      "BetId": {
+        "name": "betId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "CategoryId": {
+        "name": "categoryId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "DiaryId": {
+        "name": "diaryId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "GroupId": {
+        "name": "groupId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "TodoId": {
+        "name": "todoId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "UserId": {
+        "name": "userId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "BadRequestError": {
+        "description": "Bad request.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ConflictError": {
+        "description": "Conflict.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ForbiddenError": {
+        "description": "Forbidden.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFoundError": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "ServerConfigError": {
+        "description": "Server configuration error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "UnauthorizedError": {
+        "description": "Missing, expired, or invalid bearer token.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "detail": {
+                "message": "토큰이 제공되지 않았거나 유효하지 않습니다."
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Request validation failed.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/HTTPValidationError"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Bet": {
+        "type": "object",
+        "required": [
+          "betId",
+          "todoId",
+          "content",
+          "requesterId",
+          "status",
+          "proofImageUrl",
+          "isVerified"
+        ],
+        "properties": {
+          "betId": {
+            "type": "integer"
+          },
+          "todoId": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "requesterId": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/BetStatus"
+          },
+          "proofImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Static upload path such as /uploads/bet-proofs/{filename}."
+          },
+          "isVerified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "BetCreateRequest": {
+        "type": "object",
+        "required": [
+          "content",
+          "requesterId"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requesterId": {
+            "type": "integer"
+          }
+        }
+      },
+      "BetProofResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "betId",
+          "proofImageUrl"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "betId": {
+            "type": "integer"
+          },
+          "proofImageUrl": {
+            "type": "string"
+          }
+        }
+      },
+      "BetStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "ACCEPTED",
+          "REJECTED",
+          "VERIFIED"
+        ]
+      },
+      "BetStatusRequest": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "REJECTED"
+            ]
+          }
+        }
+      },
+      "BetVerifyRequest": {
+        "type": "object",
+        "properties": {
+          "approved": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "name",
+          "color",
+          "isDeletable"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "example": "#33FF57"
+          },
+          "isDeletable": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CategoryRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "color"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "example": "#33FF57"
+          }
+        }
+      },
+      "CategoryUpdateResponse": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "name",
+          "color"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        }
+      },
+      "DependencyCreateRequest": {
+        "type": "object",
+        "required": [
+          "dependencyTodoId"
+        ],
+        "properties": {
+          "dependencyTodoId": {
+            "type": "integer"
+          }
+        }
+      },
+      "Diary": {
+        "type": "object",
+        "required": [
+          "diaryId",
+          "userId",
+          "content",
+          "imageUrl",
+          "emotion",
+          "visibility",
+          "createdAt"
+        ],
+        "properties": {
+          "diaryId": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Static upload path such as /uploads/diaries/{filename}, or null."
+          },
+          "emotion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-like datetime string generated by the backend."
+          }
+        }
+      },
+      "DiaryCreateMultipartRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "image": {
+            "type": "string",
+            "format": "binary"
+          },
+          "emotion": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        }
+      },
+      "DiaryCreateRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "emotion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          }
+        }
+      },
+      "DiaryPatchRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "emotion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Visibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "DiscordLinkRequest": {
+        "type": "object",
+        "required": [
+          "discordAuthCode"
+        ],
+        "properties": {
+          "discordAuthCode": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "DiscordLinkResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "discordUsername"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "discordUsername": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ErrorDetail": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        }
+      },
+      "GoogleLoginRequest": {
+        "type": "object",
+        "required": [
+          "googleAccessToken"
+        ],
+        "properties": {
+          "googleAccessToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Google OAuth access token from the frontend login flow."
+          }
+        }
+      },
+      "GroupCreateRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          }
+        }
+      },
+      "GroupCreateResponse": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "name",
+          "inviteCode"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "inviteCode": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{8}$"
+          }
+        }
+      },
+      "GroupDetail": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "name",
+          "description",
+          "inviteCode",
+          "members"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inviteCode": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{8}$"
+          },
+          "members": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/GroupMember"
+            }
+          }
+        }
+      },
+      "GroupJoinRequest": {
+        "type": "object",
+        "required": [
+          "inviteCode"
+        ],
+        "properties": {
+          "inviteCode": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{8}$"
+          }
+        }
+      },
+      "GroupJoinResponse": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "name",
+          "message"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "GroupListItem": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "name",
+          "memberCount",
+          "isLeader"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "memberCount": {
+            "type": "integer"
+          },
+          "isLeader": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GroupMember": {
+        "type": "object",
+        "required": [
+          "userId",
+          "name",
+          "profileImageUrl",
+          "role"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "$ref": "#/components/schemas/GroupRole"
+          }
+        }
+      },
+      "GroupRole": {
+        "type": "string",
+        "enum": [
+          "LEADER",
+          "MEMBER"
+        ]
+      },
+      "HTTPValidationError": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValidationErrorItem"
+            }
+          }
+        }
+      },
+      "ImageUploadRequest": {
+        "type": "object",
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "Importance": {
+        "type": "string",
+        "enum": [
+          "NONE",
+          "LOW",
+          "HIGH"
+        ]
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "expiresAt",
+          "isNewUser"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Use as Authorization: Bearer {accessToken}."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "UTC datetime string without timezone suffix, generated by the backend."
+          },
+          "isNewUser": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "NotificationSettingsRequest": {
+        "type": "object",
+        "required": [
+          "discordAlertEnabled"
+        ],
+        "properties": {
+          "discordAlertEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NotificationSettingsResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "discordAlertEnabled"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "discordAlertEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Subtask": {
+        "type": "object",
+        "required": [
+          "subtaskId",
+          "content",
+          "isCompleted"
+        ],
+        "properties": {
+          "subtaskId": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "isCompleted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SubtaskCreateRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "Todo": {
+        "type": "object",
+        "required": [
+          "todoId",
+          "userId",
+          "title",
+          "categoryId",
+          "importance",
+          "hardship",
+          "dueDate",
+          "visibility",
+          "groupId",
+          "x",
+          "y",
+          "isRoutine",
+          "isCompleted",
+          "subtasks",
+          "dependencies",
+          "createdAt",
+          "completedAt"
+        ],
+        "properties": {
+          "todoId": {
+            "type": "integer"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "categoryId": {
+            "type": "integer"
+          },
+          "importance": {
+            "$ref": "#/components/schemas/Importance"
+          },
+          "hardship": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Stored as a string. Use a consistent frontend format such as YYYY-MM-DD."
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "groupId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "isRoutine": {
+            "type": "boolean"
+          },
+          "isCompleted": {
+            "type": "boolean"
+          },
+          "subtasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subtask"
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Array of dependency todo ids."
+          },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-like datetime string generated by the backend."
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO-like datetime string or null."
+          }
+        }
+      },
+      "TodoCompleteResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "todoId",
+          "isCompleted"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "todoId": {
+            "type": "integer"
+          },
+          "isCompleted": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "TodoCreateRequest": {
+        "type": "object",
+        "required": [
+          "title",
+          "categoryId"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "categoryId": {
+            "type": "integer"
+          },
+          "importance": {
+            "$ref": "#/components/schemas/Importance"
+          },
+          "hardship": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 1
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "groupId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "default": null
+          },
+          "x": {
+            "type": "number",
+            "format": "float",
+            "default": 0
+          },
+          "y": {
+            "type": "number",
+            "format": "float",
+            "default": 0
+          },
+          "isRoutine": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "TodoDependencyResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "todoId",
+          "dependencyTodoId"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "todoId": {
+            "type": "integer"
+          },
+          "dependencyTodoId": {
+            "type": "integer"
+          }
+        }
+      },
+      "TodoPatchRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "categoryId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "importance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Importance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hardship": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Visibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "groupId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "x": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "y": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": [
+          "userId",
+          "name",
+          "profileImageUrl",
+          "bio",
+          "isDiscordLinked",
+          "discordAlertEnabled"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "External URL, /uploads/profiles/{filename}, or null."
+          },
+          "bio": {
+            "type": "string"
+          },
+          "isDiscordLinked": {
+            "type": "boolean"
+          },
+          "discordAlertEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UserProfileUpdateResponse": {
+        "type": "object",
+        "required": [
+          "userId",
+          "name",
+          "profileImageUrl",
+          "bio"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": "string"
+          }
+        }
+      },
+      "UserUpdateJsonRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "bio": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "profileImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "UserUpdateMultipartRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "bio": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string",
+            "format": "binary"
+          }
+        }
+      },
+      "ValidationErrorItem": {
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "properties": {
+          "loc": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "msg": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "Visibility": {
+        "type": "string",
+        "enum": [
+          "PRIVATE",
+          "GROUP",
+          "PUBLIC"
+        ],
+        "default": "PRIVATE"
+      }
+    }
+  },
+  "x-ai-agent-notes": [
+    "Most endpoints except /ping and /api/v1/auth/google require Authorization: Bearer {accessToken}.",
+    "The backend uses camelCase JSON field names in request/response bodies even though many Python model attributes are snake_case.",
+    "Upload URLs are relative static paths served from /uploads.",
+    "The backend currently stores dueDate, createdAt, completedAt, expiresAt, and diary createdAt as strings rather than strict date-time schema values.",
+    "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image."
+  ]
+}

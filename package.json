@@ -1,0 +1,21 @@
+{
+  "name": "tlitodos-frontend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:desktop": "pnpm --filter desktop dev",
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:desktop\"",
+    "build:web": "pnpm --filter web build",
+    "build:desktop": "pnpm --filter desktop build",
+    "build": "pnpm build:web && pnpm build:desktop"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@11.0.9",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
