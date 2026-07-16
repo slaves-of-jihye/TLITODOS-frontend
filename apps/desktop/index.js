@@ -1,15 +1,34 @@
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, session } from "electron";
 import path from "path";
 
 const isDev = !app.isPackaged;
 
 let mainWindow;
 
+function installLocalApiBridge() {
+  const filter = { urls: ["http://localhost:8000/*", "http://127.0.0.1:8000/*"] };
+  session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+    const headers = { ...details.requestHeaders, Origin: "http://localhost:5173" };
+    callback({ requestHeaders: headers });
+  });
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    for (const key of Object.keys(responseHeaders)) {
+      if (key.toLowerCase() === "access-control-allow-origin") delete responseHeaders[key];
+    }
+    responseHeaders["Access-Control-Allow-Origin"] = ["*"];
+    responseHeaders["Access-Control-Allow-Headers"] = ["Authorization, Content-Type"];
+    callback({ responseHeaders });
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    backgroundColor: "#111",
+    minWidth: 960,
+    minHeight: 700,
+    backgroundColor: "#ffffff",
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -31,6 +50,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  installLocalApiBridge();
   createWindow();
 
   app.on("activate", () => {
