@@ -24,6 +24,7 @@ type EditorState = { category:Category|null; todo:Todo|null } | null;
 
 const TodoWorkspace = ({ own, ownerId, groupId, ownerName }: {own:boolean;ownerId?:number;groupId:number|null;ownerName?:string}) => {
   const navigate=useNavigate(); const today=formatLocalDate(new Date()); const [selectedDate,setSelectedDate]=useState(today); const [month,setMonth]=useState(()=>new Date());
+  const {data:me}=useMe();
   const {data:categoriesRaw=[]}=useCategories(); const categories=useMemo(()=>sortCategories(categoriesRaw),[categoriesRaw]);
   const {data:allTodosRaw=[],refetch}=useTodos(groupId,null); const ownerTodos=useMemo(()=>ownerId===undefined?allTodosRaw:allTodosRaw.filter((todo)=>todo.userId===ownerId),[allTodosRaw,ownerId]);
   const {data:diaries=[]}=useDiaries(); const complete=useCompleteTodo(); const [editor,setEditor]=useState<EditorState>(null); const [manage,setManage]=useState<Category|null>(null); const [blocked,setBlocked]=useState<Todo[]>([]); const [completionOverrides,setCompletionOverrides]=useState<Record<number,boolean>>({}); const [diaryPreview,setDiaryPreview]=useState<Diary|null>(null);
@@ -40,7 +41,7 @@ const TodoWorkspace = ({ own, ownerId, groupId, ownerName }: {own:boolean;ownerI
   };
   const nonHobby=categories.slice(0,-1); const hobby=categories.length?categories[categories.length-1]:undefined;
   return <>
-    <WorkspaceGrid><div><OwnerTitle>{own?"🎄 미수":`🐰 ${ownerName||"친구"}`}</OwnerTitle><CalendarPanel month={month} selectedDate={selectedDate} todos={todos} categories={categories} onMonthChange={setMonth} onDateChange={setSelectedDate}/></div>
+    <WorkspaceGrid><div><OwnerTitle>{own?`🌱 ${me?.name||"나"}`:`🐰 ${ownerName||"친구"}`}</OwnerTitle><CalendarPanel month={month} selectedDate={selectedDate} todos={todos} categories={categories} onMonthChange={setMonth} onDateChange={setSelectedDate}/></div>
     <TodoArea><TodoToolbar>{own||selectedDiary?<DiaryBadge emotion={selectedDiary?.emotion} nickname={selectedDiary?"일기":"일기쓰기"} date={selectedDate.replaceAll("-",".")} onClick={()=>own?navigate(`/diary?date=${selectedDate}`):selectedDiary&&setDiaryPreview(selectedDiary)}/>:<span/>}<h2>{getTodoTitle(selectedDate)}</h2></TodoToolbar>
       {!categories.length?<EmptyState>카테고리를 준비하고 있어요.</EmptyState>:<CategoryBoard><CategoryStack>{nonHobby.map((category,index)=><CategorySection key={category.categoryId} category={category} index={index} todos={sortTodos(selectedTodos.filter((todo)=>todo.categoryId===category.categoryId))} own={own} onAdd={(next)=>setEditor({category:next,todo:null})} onManage={setManage} onToggle={handleToggle} onEdit={(todo)=>setEditor({category:null,todo})}/>)}</CategoryStack>{hobby?<CategoryStack><CategorySection category={hobby} index={categories.length-1} todos={sortTodos(selectedTodos.filter((todo)=>todo.categoryId===hobby.categoryId))} own={own} onAdd={(next)=>setEditor({category:next,todo:null})} onManage={setManage} onToggle={handleToggle} onEdit={(todo)=>setEditor({category:null,todo})}/></CategoryStack>:null}</CategoryBoard>}
     </TodoArea></WorkspaceGrid>
@@ -74,7 +75,7 @@ export const AlarmPage = () => <AppShell><PageTitle>알림</PageTitle><PageNav a
 
 const EditableProfileRow = ({label,value,multiline,onSave}:{label:string;value:string;multiline?:boolean;onSave:(next:string)=>Promise<void>}) => {
   const [editing,setEditing]=useState(false); const [draft,setDraft]=useState(value); const [busy,setBusy]=useState(false);
-  const finish=async()=>{setBusy(true);try{await onSave(draft.trim());setEditing(false);}finally{setBusy(false);}};
+  const finish=async()=>{setBusy(true);try{await onSave(draft.trim());setEditing(false);}catch{/* 상위 행에서 오류 메시지를 표시합니다. */}finally{setBusy(false);}};
   return <ProfileRow><div><small>{label}</small>{editing?(multiline?<textarea value={draft} maxLength={80} onKeyDown={(e)=>{if(e.key==="Enter")e.preventDefault();}} onChange={(e)=>setDraft(e.target.value)}/>:<input value={draft} maxLength={20} onKeyDown={(e)=>{if(e.key==="Enter")e.preventDefault();}} onChange={(e)=>setDraft(e.target.value)}/>):<strong>{value||"아직 입력하지 않았어요"}</strong>}</div><div>{editing?<><Button onClick={()=>{setDraft(value);setEditing(false);}}>취소</Button><Button variant="primary" disabled={busy} onClick={finish}>완료</Button></>:<Button onClick={()=>{setDraft(value);setEditing(true);}}>›</Button>}</div></ProfileRow>;
 };
 
@@ -82,7 +83,7 @@ export const ProfilePage = () => {
   const {data:me}=useMe(); const update=useUpdateProfile(); const api=useApi(); const refreshToken=useSessionStore((s)=>s.refreshToken); const clear=useSessionStore((s)=>s.clearSession); const navigate=useNavigate(); const [error,setError]=useState("");
   const save=async(body:{name?:string;bio?:string})=>{setError("");try{await update.mutateAsync(body);}catch(reason){setError(message(reason));throw reason;}};
   return <AppShell><PageTitle>프로필</PageTitle><ProfilePanel><ProfileHero>{me?.profileImageUrl?<img src={me.profileImageUrl} alt="프로필"/>:<span>🌱</span>}<div><h2>{me?.name||"사용자"}</h2><p>{me?.bio||"오늘도 한 걸음씩"}</p></div></ProfileHero>{/* 프로필 사진 수정하기 버튼은 API·MVP 범위 확정 후 활성화 */}
-    <EditableProfileRow label="이름" value={me?.name??""} onSave={(name)=>save({name})}/><EditableProfileRow label="자기소개" value={me?.bio??""} multiline onSave={(bio)=>save({bio})}/>{error?<ErrorText>{error}</ErrorText>:null}<LogoutButton onClick={async()=>{try{if(refreshToken)await api.auth.logout({refreshToken});}finally{clear();navigate("/");}}}>로그아웃</LogoutButton></ProfilePanel><PageNav active="profile"/></AppShell>;
+    <EditableProfileRow label="이름" value={me?.name??""} onSave={(name)=>save({name})}/><EditableProfileRow label="자기소개" value={me?.bio??""} multiline onSave={(bio)=>save({bio})}/>{error?<ErrorText>{error}</ErrorText>:null}<LogoutButton onClick={async()=>{try{if(refreshToken)await api.auth.logout({refreshToken});}catch{/* 로컬 세션은 항상 종료합니다. */}finally{clear();navigate("/");}}}>로그아웃</LogoutButton></ProfilePanel><PageNav active="profile"/></AppShell>;
 };
 
 const DiaryForm = ({ selectedDate, existing, userName }: {selectedDate:string;existing?:Diary;userName?:string}) => {

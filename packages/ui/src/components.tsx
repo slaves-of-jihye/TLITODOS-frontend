@@ -86,10 +86,12 @@ const EmptyDot = styled.i`display:block;width:20px;height:20px;left:8px;top:8px;
 const DateLabel = styled.span<{selected:boolean;today:boolean}>`min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:${({selected,today})=>today?theme.colors.selected:selected?'#e2e5e8':'transparent'};color:${({today})=>today?'white':'inherit'};`;
 
 export const BottomNav = ({ active, onNavigate }: { active: "home"|"alarm"|"profile"; onNavigate: (next:"home"|"alarm"|"profile")=>void }) => <Nav>
-  {([['home','⌂'],['alarm','♟'],['profile','●']] as const).map(([key,icon])=><NavButton key={key} active={active===key} onClick={()=>onNavigate(key)} aria-label={key}>{icon}</NavButton>)}
+  <NavButton active={active==="home"} onClick={()=>onNavigate("home")} aria-label="home"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg></NavButton>
+  <NavButton active={active==="alarm"} onClick={()=>onNavigate("alarm")} aria-label="alarm"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></NavButton>
+  <NavButton active={active==="profile"} onClick={()=>onNavigate("profile")} aria-label="profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></NavButton>
 </Nav>;
 const Nav = styled.nav`position:absolute;left:0;right:0;bottom:0;height:100px;display:flex;justify-content:center;gap:110px;align-items:center;background:white;@media(max-width:600px){position:fixed;gap:72px;box-shadow:0 -8px 24px rgba(0,0,0,.05);}`;
-const NavButton = styled.button<{active:boolean}>`border:0;background:transparent;color:${({active})=>active?theme.colors.ink:"#c6d0df"};font-size:34px;line-height:1;`;
+const NavButton = styled.button<{active:boolean}>`border:0;background:transparent;color:${({active})=>active?theme.colors.ink:"#c6d0df"};line-height:1;svg{width:30px;height:30px;fill:${({active})=>active?"currentColor":"none"};stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}`;
 
 export const Modal = ({ open, title, children, onClose, nested=false, login=false }: { open:boolean; title?:string; children:ReactNode; onClose?:()=>void; nested?:boolean; login?:boolean }) => open ? <Overlay login={login} onMouseDown={(event)=>{if(event.target===event.currentTarget&&!nested)onClose?.();}}><Dialog role="dialog" aria-modal="true" aria-label={title}>{title?<h2>{title}</h2>:null}{children}</Dialog></Overlay> : null;
 const Overlay = styled.div<{login:boolean}>`position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:22px;background:${({login})=>login?theme.colors.loginOverlay:theme.colors.overlay};`;

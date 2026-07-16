@@ -101,8 +101,10 @@ export const GroupActionModals = ({ mode, onClose }: { mode: "create" | "join" |
     </> : <Field>초대코드<input value={code} maxLength={8} onChange={(e)=>setCode(e.target.value.toLowerCase())} placeholder="영문 소문자와 숫자 8자리"/></Field>}
     {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
     <ButtonStack><Button variant="primary" disabled={mode === "create" ? !name.trim() : !/^[a-z0-9]{8}$/.test(code)} onClick={async()=>{
-      if (mode === "create") { const group=await createGroup.mutateAsync({name:name.trim(),description:description.trim()}); close(); navigate(`/groups/${group.groupId}`); }
-      else { const group=await joinGroup.mutateAsync({inviteCode:code}); close(); navigate(`/groups/${group.groupId}`); }
+      try {
+        if (mode === "create") { const group=await createGroup.mutateAsync({name:name.trim(),description:description.trim()}); close(); navigate(`/groups/${group.groupId}`); }
+        else { const group=await joinGroup.mutateAsync({inviteCode:code}); close(); navigate(`/groups/${group.groupId}`); }
+      } catch { /* mutation.error를 모달에 표시합니다. */ }
     }}>{mode === "create" ? "그룹 만들기" : "참여하기"}</Button><Button onClick={close}>취소</Button></ButtonStack>
   </Modal>;
 };
@@ -133,7 +135,7 @@ export const CategoryManageModal = ({ category, open, onClose }: { category:Cate
   return <Modal open={open} title="카테고리 이름 변경" onClose={onClose}>
     <Field>이름<input value={name} maxLength={16} onChange={(e)=>setName(e.target.value)}/><small>{name.length}/16</small></Field>
     {update.error?<ErrorText>{errorMessage(update.error)}</ErrorText>:null}
-    <ButtonStack><Button variant="primary" disabled={!category||!name.trim()} onClick={async()=>{if(!category)return;await update.mutateAsync({id:category.categoryId,body:{name:name.trim(),color:category.color}});onClose();}}>완료</Button><Button onClick={onClose}>취소</Button></ButtonStack>
+    <ButtonStack><Button variant="primary" disabled={!category||!name.trim()} onClick={async()=>{if(!category)return;try{await update.mutateAsync({id:category.categoryId,body:{name:name.trim(),color:category.color}});onClose();}catch{/* mutation.error를 표시합니다. */}}}>완료</Button><Button onClick={onClose}>취소</Button></ButtonStack>
   </Modal>;
 };
 
