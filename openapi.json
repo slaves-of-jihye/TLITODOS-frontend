@@ -72,7 +72,7 @@
           "authorization"
         ],
         "summary": "Log in with Google access token",
-        "description": "Validates a Google access token, creates or updates the user, stores an API access token, and returns the TLITODOS bearer token.",
+        "description": "Validates a Google access token, creates or updates the user, stores an API access token and refresh token, and returns the TLITODOS token pair.",
         "operationId": "loginWithGoogle",
         "requestBody": {
           "required": true,
@@ -103,6 +103,79 @@
           },
           "500": {
             "$ref": "#/components/responses/ServerConfigError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Refresh access and refresh tokens",
+        "description": "Rotates a valid refresh token and returns a new access token plus a new refresh token. The submitted refresh token is revoked.",
+        "operationId": "refreshTokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token pair refreshed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenRefreshResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Log out with refresh token",
+        "description": "Revokes the submitted refresh token when it exists and is not already revoked.",
+        "operationId": "logout",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshTokenRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logged out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           }
         }
       }
@@ -436,6 +509,50 @@
         }
       }
     },
+    "/api/v1/groups/{groupId}/invite-code": {
+      "get": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Get group invite code",
+        "description": "Returns only the invite code for a group the current user belongs to.",
+        "operationId": "getGroupInviteCode",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group invite code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupInviteCodeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/groups/{groupId}/members/{userId}": {
       "delete": {
         "tags": [
@@ -689,7 +806,7 @@
                 "null"
               ]
             },
-            "description": "Filter by dueDate string. The backend stores this as a string and compares it exactly."
+            "description": "Filter by dueDate string. When provided, the backend returns todos whose dueDate equals this value plus todos whose dueDate is null."
           }
         ],
         "responses": {
@@ -1919,6 +2036,19 @@
           }
         }
       },
+      "RefreshTokenRequest": {
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Opaque refresh token returned by login or token refresh. Send this in the request body, not in the Authorization header."
+          }
+        }
+      },
       "GroupCreateRequest": {
         "type": "object",
         "required": [
@@ -1984,6 +2114,22 @@
             "items": {
               "$ref": "#/components/schemas/GroupMember"
             }
+          }
+        }
+      },
+      "GroupInviteCodeResponse": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "inviteCode"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "integer"
+          },
+          "inviteCode": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{8}$"
           }
         }
       },
@@ -2109,6 +2255,7 @@
         "type": "object",
         "required": [
           "accessToken",
+          "refreshToken",
           "expiresAt",
           "isNewUser"
         ],
@@ -2117,12 +2264,43 @@
             "type": "string",
             "description": "Use as Authorization: Bearer {accessToken}."
           },
+          "refreshToken": {
+            "type": "string",
+            "description": "Opaque token used with POST /api/v1/auth/refresh and POST /api/v1/auth/logout."
+          },
           "expiresAt": {
             "type": "string",
             "description": "UTC datetime string without timezone suffix, generated by the backend."
           },
           "isNewUser": {
             "type": "boolean"
+          }
+        }
+      },
+      "TokenRefreshResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresAt",
+          "refreshExpiresAt"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "Use as Authorization: Bearer {accessToken}."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "New opaque refresh token. The refresh token submitted in the request has been revoked."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "Access token expiration as a UTC datetime string without timezone suffix."
+          },
+          "refreshExpiresAt": {
+            "type": "string",
+            "description": "Refresh token expiration as a UTC datetime string without timezone suffix."
           }
         }
       },
@@ -2609,10 +2787,13 @@
     }
   },
   "x-ai-agent-notes": [
-    "Most endpoints except /ping and /api/v1/auth/google require Authorization: Bearer {accessToken}.",
+    "Most endpoints except /ping, /api/v1/auth/google, /api/v1/auth/refresh, and /api/v1/auth/logout require Authorization: Bearer {accessToken}.",
+    "POST /api/v1/auth/google returns accessToken and refreshToken. Use accessToken in the Authorization header, and use refreshToken only in the JSON body of refresh/logout requests.",
     "The backend uses camelCase JSON field names in request/response bodies even though many Python model attributes are snake_case.",
     "Upload URLs are relative static paths served from /uploads.",
-    "The backend currently stores dueDate, createdAt, completedAt, expiresAt, and diary createdAt as strings rather than strict date-time schema values.",
+    "GET /api/v1/todos with date={value} returns todos matching that dueDate and todos with dueDate=null.",
+    "GET /api/v1/groups/{groupId}/invite-code returns only groupId and inviteCode for lightweight invite-code display.",
+    "The backend currently stores dueDate, createdAt, completedAt, expiresAt, refreshExpiresAt, and diary createdAt as strings rather than strict date-time schema values.",
     "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image."
   ]
 }

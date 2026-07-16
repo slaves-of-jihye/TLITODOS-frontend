@@ -9,7 +9,8 @@
     "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:desktop\"",
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop build",
-    "build": "pnpm build:web && pnpm build:desktop"
+    "build": "pnpm build:web && pnpm build:desktop",
+    "typecheck": "pnpm --filter web exec tsc -b"
   },
   "keywords": [],
   "author": "",

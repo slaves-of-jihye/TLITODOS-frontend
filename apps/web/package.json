@@ -10,8 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@tanstack/react-query": "^5.90.21",
+    "@tlitodos/api-client": "workspace:*",
+    "@tlitodos/core": "workspace:*",
+    "@tlitodos/hooks": "workspace:*",
+    "@tlitodos/types": "workspace:*",
+    "@tlitodos/ui": "workspace:*",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.13.1",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
