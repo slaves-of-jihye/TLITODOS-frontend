@@ -1,0 +1,13 @@
+{
+  "name": "@tlitodos/hooks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.21",
+    "@tlitodos/api-client": "workspace:*",
+    "@tlitodos/types": "workspace:*",
+    "react": "^19.2.6"
+  }
+}

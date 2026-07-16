@@ -1,0 +1,20 @@
+import { css } from "@emotion/react";
+
+export const theme = {
+  colors: {
+    ink: "#1d1d1d", muted: "#647f8b", line: "#e8edf2", panel: "#f7f9fb", white: "#ffffff",
+    selected: "#202020", blue: "#145dff", red: "#ff4562", overlay: "rgba(29,29,29,.44)", loginOverlay: "rgba(29,29,29,.66)",
+  },
+  shadow: "0 18px 60px rgba(34, 54, 72, .13)",
+  radius: { sm: "10px", md: "18px", lg: "36px", pill: "999px" },
+} as const;
+
+export const globalStyles = css`
+  @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; }
+  html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
+  body { background: #fff; color: ${theme.colors.ink}; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+  button, input, textarea, select { font: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid rgba(20, 93, 255, .22); outline-offset: 2px; }
+`;
