@@ -1,6 +1,6 @@
 import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { CATEGORY_PRESETS, categoryToneAt, type CategoryTone } from "@tlitodos/core";
+import { CATEGORY_PRESETS, splitTodoContent, type CategoryTone } from "@tlitodos/core";
 import type { GroupMember, Todo } from "@tlitodos/types";
 import { theme } from "./theme";
 
@@ -47,10 +47,11 @@ const PlusButton = styled.button<{ background: string }>`width:28px; height:28px
 
 export const TodoRow = ({ todo, tone, own, onToggle, onEdit }: { todo: Todo; tone: CategoryTone; own: boolean; onToggle?: () => void; onEdit?: () => void }) => {
   const preset = CATEGORY_PRESETS.find((item) => item.key === tone) ?? CATEGORY_PRESETS[0];
-  const detail = todo.subtasks.map((item) => item.content).join(" · ");
+  const content = splitTodoContent(todo.title);
+  const detail = content.detail || todo.subtasks.map((item) => item.content).join(" · ");
   return <TodoItem>
     <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} done={todo.isCompleted} color={preset.color} onClick={onToggle}>{todo.isCompleted ? "✓" : ""}</CheckButton>
-    <TodoTextButton disabled={!own} onClick={onEdit}><strong>{todo.title}</strong>{detail ? <small>{detail}</small> : null}</TodoTextButton>
+    <TodoTextButton disabled={!own} onClick={onEdit}><strong>{content.title}</strong>{detail ? <small>{detail}</small> : null}</TodoTextButton>
     {!own && !todo.isCompleted ? <BetOverlay type="button" disabled title="내기 기능은 MVP 이후 제공됩니다.">내기 요청하기</BetOverlay> : null}
   </TodoItem>;
 };
@@ -75,14 +76,14 @@ export const DiaryBadge = ({ emotion, nickname, date, onClick }: { emotion?: str
 const DiaryButton = styled.button`display:flex;align-items:center;gap:8px;border:0;border-radius:${theme.radius.pill};padding:9px 14px;background:#f7f9fb;strong{font-size:13px;}small{color:${theme.colors.muted};font-size:11px;}`;
 
 export const DayStash = ({ tones, completed, selected, today, date, onClick }: { tones: CategoryTone[]; completed: CategoryTone[]; selected?: boolean; today?: boolean; date: number; onClick?: () => void }) => <DayButton onClick={onClick} selected={Boolean(selected)} today={Boolean(today)}>
-  <Stashes>{tones.length ? tones.slice(0,4).map((tone,index)=>{const p=CATEGORY_PRESETS.find(x=>x.key===tone) ?? CATEGORY_PRESETS[0]; return <Dot key={`${tone}-${index}`} style={{background:completed.includes(tone)?p.strong:p.background}}/>;}) : <EmptyDot/>}</Stashes>
-  <DateLabel selected={Boolean(selected)}>{String(date).padStart(2,"0")}</DateLabel>
+  <Stashes data-count={tones.length}>{tones.length ? tones.slice(0,4).map((tone,index)=>{const p=CATEGORY_PRESETS.find(x=>x.key===tone) ?? CATEGORY_PRESETS[0]; return <Dot key={`${tone}-${index}`} style={{background:completed.includes(tone)?p.strong:p.stash}}/>;}) : <EmptyDot/>}</Stashes>
+  <DateLabel selected={Boolean(selected)} today={Boolean(today)}>{String(date).padStart(2,"0")}</DateLabel>
 </DayButton>;
 const DayButton = styled.button<{selected:boolean;today:boolean}>`width:54px;height:68px;border:0;background:transparent;display:flex;flex-direction:column;align-items:center;gap:5px;padding:0;color:${({today})=>today?theme.colors.blue:theme.colors.ink};`;
-const Stashes = styled.span`height:36px;width:36px;display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);place-items:center;`;
-const Dot = styled.i`display:block;width:18px;height:18px;border-radius:50%;margin:-2px;`;
-const EmptyDot = styled.i`display:block;width:20px;height:20px;border:2px solid #d7dde3;border-radius:50%;grid-area:1/1/3/3;`;
-const DateLabel = styled.span<{selected:boolean}>`min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:${({selected})=>selected?'#e2e5e8':'transparent'};`;
+const Stashes = styled.span`height:36px;width:36px;position:relative;display:block;i{position:absolute;} &[data-count='1'] i{left:9px;top:9px;} &[data-count='2'] i:nth-of-type(1){left:3px;top:9px;} &[data-count='2'] i:nth-of-type(2){left:15px;top:9px;} &[data-count='3'] i:nth-of-type(1){left:9px;top:1px;} &[data-count='3'] i:nth-of-type(2){left:2px;top:15px;} &[data-count='3'] i:nth-of-type(3){left:16px;top:15px;} &[data-count='4'] i:nth-of-type(1){left:2px;top:2px;} &[data-count='4'] i:nth-of-type(2){left:16px;top:2px;} &[data-count='4'] i:nth-of-type(3){left:2px;top:16px;} &[data-count='4'] i:nth-of-type(4){left:16px;top:16px;}`;
+const Dot = styled.i`display:block;width:18px;height:18px;border-radius:50%;`;
+const EmptyDot = styled.i`display:block;width:20px;height:20px;left:8px;top:8px;border:2px solid #d7dde3;border-radius:50%;`;
+const DateLabel = styled.span<{selected:boolean;today:boolean}>`min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:${({selected,today})=>today?theme.colors.selected:selected?'#e2e5e8':'transparent'};color:${({today})=>today?'white':'inherit'};`;
 
 export const BottomNav = ({ active, onNavigate }: { active: "home"|"alarm"|"profile"; onNavigate: (next:"home"|"alarm"|"profile")=>void }) => <Nav>
   {([['home','⌂'],['alarm','♟'],['profile','●']] as const).map(([key,icon])=><NavButton key={key} active={active===key} onClick={()=>onNavigate(key)} aria-label={key}>{icon}</NavButton>)}
@@ -98,4 +99,3 @@ export const Field = styled.label`display:grid;gap:9px;font-weight:700;input,tex
 export const FormGrid = styled.div`display:grid;grid-template-columns:1fr 1fr;gap:28px 60px;@media(max-width:700px){grid-template-columns:1fr;}`;
 export const ButtonStack = styled.div`display:grid;gap:10px;margin-top:28px;`;
 export const ErrorText = styled.p`color:${theme.colors.red};font-size:13px;margin:12px 0;`;
-export const toneForCategoryIndex = (index:number) => categoryToneAt(index);

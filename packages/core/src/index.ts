@@ -1,10 +1,10 @@
 import type { Category, Importance, Todo } from "@tlitodos/types";
 
 export const CATEGORY_PRESETS = [
-  { key: "todo", name: "해야할 일", background: "#f4fce6", color: "#ddf5b0", strong: "#92e000", locked: true },
-  { key: "custom1", name: "카테고리 추가 1", background: "#e6f9f2", color: "#b0ecd8", strong: "#00c281", locked: false },
-  { key: "custom2", name: "카테고리 추가 2", background: "#e6f6e8", color: "#b0e4b9", strong: "#00a81c", locked: false },
-  { key: "hobby", name: "취미", background: "#e6fcfa", color: "#b0f5f1", strong: "#00e0d1", locked: true },
+  { key: "todo", name: "해야할 일", background: "#f4fce6", color: "#ddf5b0", stash: "#effad9", strong: "#92e000", locked: true },
+  { key: "custom1", name: "카테고리 추가 1", background: "#e6f9f2", color: "#b0ecd8", stash: "#d9f6ec", strong: "#00c281", locked: false },
+  { key: "custom2", name: "카테고리 추가 2", background: "#e6f6e8", color: "#b0e4b9", stash: "#d9f2dd", strong: "#00a81c", locked: false },
+  { key: "hobby", name: "취미", background: "#e6fcfa", color: "#b0f5f1", stash: "#d9faf8", strong: "#00e0d1", locked: true },
 ] as const;
 
 export type CategoryTone = (typeof CATEGORY_PRESETS)[number]["key"];
@@ -83,3 +83,16 @@ export const buildRoutineDates = (start: string, end: string, repeat: RoutineRep
 
 export const withOptionalTime = (date: string, time?: string) => time ? `${date}T${time}:00` : date;
 export const isInviteCode = (value: string) => /^[a-z0-9]{8}$/.test(value);
+
+const TODO_DETAIL_SEPARATOR = "\n";
+export const splitTodoContent = (value: string) => {
+  const [title = "", ...detail] = value.split(TODO_DETAIL_SEPARATOR);
+  return { title, detail: detail.join(TODO_DETAIL_SEPARATOR) };
+};
+export const composeTodoContent = (title: string, detail?: string) => detail?.trim() ? `${title.trim()}${TODO_DETAIL_SEPARATOR}${detail.trim()}` : title.trim();
+
+const DIARY_DATE_PREFIX = "__TLITODOS_DATE__:";
+export const composeDiaryContent = (date: string, content: string) => `${DIARY_DATE_PREFIX}${date}\n${content.trim()}`;
+export const splitDiaryContent = (content: string) => content.startsWith(DIARY_DATE_PREFIX)
+  ? { date: content.slice(DIARY_DATE_PREFIX.length, DIARY_DATE_PREFIX.length + 10), content: content.slice(DIARY_DATE_PREFIX.length + 11) }
+  : { date: null, content };

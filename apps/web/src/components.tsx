@@ -1,10 +1,11 @@
 import styled from "@emotion/styled";
-import { CATEGORY_PRESETS, addMonths, buildRoutineDates, categoryToneAt, dateOnly, formatLocalDate, getCalendarDays, isHobbyCategory, parseLocalDate, sameLocalDate, sortCategories, withOptionalTime, type CategoryTone, type RoutineRepeat } from "@tlitodos/core";
+import { CATEGORY_PRESETS, addMonths, buildRoutineDates, categoryToneAt, composeTodoContent, dateOnly, formatLocalDate, getCalendarDays, isHobbyCategory, isTodoCategory, parseLocalDate, sameLocalDate, sortCategories, splitTodoContent, withOptionalTime, type CategoryTone, type RoutineRepeat } from "@tlitodos/core";
 import { useApi, useCreateGroup, useGroups, useJoinGroup, useMe, useUpdateCategory } from "@tlitodos/hooks";
 import type { Category, Importance, Todo, UiVisibility } from "@tlitodos/types";
 import { Button, ButtonStack, CategoryPill, DayStash, ErrorText, Field, FormGrid, HeaderRow, IconButton, Modal, Option, Selection, TodoRow as SharedTodoRow, ViewChip, theme } from "@tlitodos/ui";
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSessionStore } from "./app/sessionStore";
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "요청을 처리하지 못했습니다.";
@@ -13,30 +14,58 @@ export const LoginModal = () => {
   const accessToken = useSessionStore((state) => state.accessToken);
   const setSession = useSessionStore((state) => state.setSession);
   const api = useApi();
+  const queryClient = useQueryClient();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const acceptGoogleToken = async (accessTokenValue: string) => {
+  const acceptGoogleToken = useCallback(async (accessTokenValue: string) => {
       setLoading(true); setError("");
       try {
         const session = await api.auth.google({ googleAccessToken: accessTokenValue });
         setSession(session);
-        if (session.isNewUser) {
-          await Promise.all(CATEGORY_PRESETS.map((preset, index) => api.categories.create({
-            name: index === 0 ? "해야할 일" : index === 3 ? "취미" : `사용자 설정 ${index}`,
-            color: preset.color,
-          })));
+        const current = await api.categories.list();
+        if (session.isNewUser || current.length < 4) {
+          const desired = CATEGORY_PRESETS.map((preset, index) => ({ name: index === 0 ? "해야할 일" : index === 3 ? "취미" : `사용자 설정 ${index}`, color: preset.color }));
+          if (current.length === 0) {
+            await Promise.all(desired.map((category) => api.categories.create(category)));
+          } else {
+            const todoCategory = current.find(isTodoCategory);
+            const hobbyCategory = current.find(isHobbyCategory);
+            let total = current.length;
+            if (todoCategory) await api.categories.update(todoCategory.categoryId, desired[0]!);
+            else if (total < 5) { await api.categories.create(desired[0]!); total += 1; }
+            const customCount = current.filter((category) => !isTodoCategory(category) && !isHobbyCategory(category)).length;
+            for (let index = customCount; index < 2 && total < 5; index += 1) { await api.categories.create(desired[index + 1]!); total += 1; }
+            if (hobbyCategory) await api.categories.update(hobbyCategory.categoryId, desired[3]!);
+            else if (total < 5) await api.categories.create(desired[3]!);
+          }
         }
-      } catch (reason) { setError(errorMessage(reason)); }
+        await queryClient.invalidateQueries();
+      } catch (reason) { useSessionStore.getState().clearSession(); setError(errorMessage(reason)); }
       finally { setLoading(false); }
-  };
+  }, [api, queryClient, setSession]);
+  useEffect(() => {
+    const receiveToken = (event: MessageEvent<{ type?: string; accessToken?: string; error?: string }>) => {
+      if (event.origin !== window.location.origin || event.data?.type !== "tlitodos-google-oauth") return;
+      if (event.data.error || !event.data.accessToken) setError("Google 로그인에 실패했습니다.");
+      else void acceptGoogleToken(event.data.accessToken);
+    };
+    window.addEventListener("message", receiveToken);
+    return () => window.removeEventListener("message", receiveToken);
+  }, [acceptGoogleToken]);
   const login = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) { setError("VITE_GOOGLE_CLIENT_ID 환경변수를 설정해 주세요."); return; }
-    if (!window.google?.accounts.oauth2) { setError("Google 로그인 모듈을 불러오는 중입니다. 잠시 후 다시 시도해 주세요."); return; }
-    window.google.accounts.oauth2.initTokenClient({ client_id: clientId, scope: "openid email profile", callback: (response) => {
-      if (response.error || !response.access_token) setError("Google 로그인에 실패했습니다.");
-      else void acceptGoogleToken(response.access_token);
-    }}).requestAccessToken();
+    if (window.google?.accounts.oauth2) {
+      window.google.accounts.oauth2.initTokenClient({ client_id: clientId, scope: "openid email profile", callback: (response) => {
+        if (response.error || !response.access_token) setError("Google 로그인에 실패했습니다.");
+        else void acceptGoogleToken(response.access_token);
+      }}).requestAccessToken();
+      return;
+    }
+    const redirectUri = `${window.location.origin}/oauth-callback.html`;
+    const query = new URLSearchParams({ client_id: clientId, redirect_uri: redirectUri, response_type: "token", scope: "openid email profile", include_granted_scopes: "true", prompt: "select_account" });
+    const popup = window.open(`https://accounts.google.com/o/oauth2/v2/auth?${query}`, "tlitodos-google-oauth", "popup,width=520,height=720");
+    if (!popup) setError("로그인 팝업을 열 수 없습니다. 팝업 차단을 해제해 주세요.");
   };
   return <Modal open={!accessToken} login title="TLITODOS에 오신 걸 환영해요">
     <LoginCopy>오늘 할 일과 하루의 기록을 한곳에서 관리해 보세요.</LoginCopy>
@@ -63,18 +92,18 @@ export const WorkspaceHeader = ({ activeGroupId, onCreate, onJoin }: { activeGro
 export const GroupActionModals = ({ mode, onClose }: { mode: "create" | "join" | null; onClose: () => void }) => {
   const createGroup = useCreateGroup(); const joinGroup = useJoinGroup(); const navigate = useNavigate();
   const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [code, setCode] = useState("");
-  useEffect(() => { if (mode) { setName(""); setDescription(""); setCode(""); } }, [mode]);
+  const close = () => { setName(""); setDescription(""); setCode(""); onClose(); };
   const error = createGroup.error ?? joinGroup.error;
-  return <Modal open={mode !== null} title={mode === "create" ? "새 그룹 만들기" : "초대코드로 참여하기"} onClose={onClose}>
+  return <Modal open={mode !== null} title={mode === "create" ? "새 그룹 만들기" : "초대코드로 참여하기"} onClose={close}>
     {mode === "create" ? <>
       <Field>그룹 이름<input value={name} maxLength={20} onChange={(e)=>setName(e.target.value)} placeholder="그룹 이름을 입력하세요"/></Field>
       <Field>그룹 소개<textarea value={description} maxLength={80} onChange={(e)=>setDescription(e.target.value)} placeholder="우리 그룹을 소개해 주세요"/><small>{description.length}/80</small></Field>
     </> : <Field>초대코드<input value={code} maxLength={8} onChange={(e)=>setCode(e.target.value.toLowerCase())} placeholder="영문 소문자와 숫자 8자리"/></Field>}
     {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
     <ButtonStack><Button variant="primary" disabled={mode === "create" ? !name.trim() : !/^[a-z0-9]{8}$/.test(code)} onClick={async()=>{
-      if (mode === "create") { const group=await createGroup.mutateAsync({name:name.trim(),description:description.trim()}); onClose(); navigate(`/groups/${group.groupId}`); }
-      else { const group=await joinGroup.mutateAsync({inviteCode:code}); onClose(); navigate(`/groups/${group.groupId}`); }
-    }}>{mode === "create" ? "그룹 만들기" : "참여하기"}</Button><Button onClick={onClose}>취소</Button></ButtonStack>
+      if (mode === "create") { const group=await createGroup.mutateAsync({name:name.trim(),description:description.trim()}); close(); navigate(`/groups/${group.groupId}`); }
+      else { const group=await joinGroup.mutateAsync({inviteCode:code}); close(); navigate(`/groups/${group.groupId}`); }
+    }}>{mode === "create" ? "그룹 만들기" : "참여하기"}</Button><Button onClick={close}>취소</Button></ButtonStack>
   </Modal>;
 };
 
@@ -100,8 +129,7 @@ const WeekRow = styled.div`display:grid;grid-template-columns:repeat(7,1fr);text
 const DaysGrid = styled.div`display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:75px;justify-items:center;`;
 
 export const CategoryManageModal = ({ category, open, onClose }: { category:Category|null; open:boolean; onClose:()=>void }) => {
-  const [name,setName]=useState(""); const update=useUpdateCategory();
-  useEffect(()=>setName(category?.name??""),[category]);
+  const [name,setName]=useState(category?.name??""); const update=useUpdateCategory();
   return <Modal open={open} title="카테고리 이름 변경" onClose={onClose}>
     <Field>이름<input value={name} maxLength={16} onChange={(e)=>setName(e.target.value)}/><small>{name.length}/16</small></Field>
     {update.error?<ErrorText>{errorMessage(update.error)}</ErrorText>:null}
@@ -134,7 +162,6 @@ export interface RoutineValue { start:string; end:string; time:string; repeat:Ro
 export const RoutineModal = ({ open, initialDate, onRegister, onClose }: {open:boolean;initialDate:string;onRegister:(value:RoutineValue)=>Promise<void>;onClose:()=>void}) => {
   const [value,setValue]=useState<RoutineValue>({start:initialDate,end:initialDate,time:"",repeat:"DAILY"});
   const [panel,setPanel]=useState<"start"|"end"|"time"|"repeat"|null>(null); const [busy,setBusy]=useState(false);
-  useEffect(()=>{if(open)setValue({start:initialDate,end:initialDate,time:"",repeat:"DAILY"});},[open,initialDate]);
   return <Modal open={open} nested title="루틴으로 등록하기">
     <ToggleRow><Button onClick={()=>setPanel(panel==="start"?null:"start")}>시작 {value.start.replaceAll("-","/")}</Button><Button onClick={()=>setPanel(panel==="end"?null:"end")}>종료 {value.end.replaceAll("-","/")}</Button><Button onClick={()=>setPanel(panel==="time"?null:"time")}>시간 {value.time||"선택 안 함"}</Button><Button onClick={()=>setPanel(panel==="repeat"?null:"repeat")}>반복 설정</Button></ToggleRow>
     {panel==="start"?<CalendarChooser value={value.start} onChange={(start)=>setValue({...value,start})}/>:null}
@@ -146,20 +173,19 @@ export const RoutineModal = ({ open, initialDate, onRegister, onClose }: {open:b
 };
 const ChoiceRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;`;
 
-export const formatDeadline = ({date,time}:DeadlineValue) => {
+const formatDeadline = ({date,time}:DeadlineValue) => {
   if(!time)return date.replaceAll("-","/");
   const [hour,minute]=time.split(":"); const hourNumber=Number(hour); const meridiem=hourNumber<12?"AM":"PM"; const display=hourNumber%12||12;
   return `${date.replaceAll("-","/")} ${meridiem} ${String(display).padStart(2,"0")}:${minute}까지`;
 };
 
 export const TodoEditorModal = ({ open, selectedDate, initialCategory, todo, categories, todos, onClose, onSaved }: {open:boolean;selectedDate:string;initialCategory:Category|null;todo:Todo|null;categories:Category[];todos:Todo[];onClose:()=>void;onSaved?:()=>void}) => {
-  const api=useApi(); const [title,setTitle]=useState(""); const [detail,setDetail]=useState(""); const [categoryId,setCategoryId]=useState(0); const [importance,setImportance]=useState<Importance>("NONE"); const [visibility,setVisibility]=useState<UiVisibility>("GROUP"); const [dependency,setDependency]=useState<number|null>(null); const [deadline,setDeadline]=useState<DeadlineValue>({date:selectedDate,time:""}); const [deadlineOpen,setDeadlineOpen]=useState(false); const [routineOpen,setRoutineOpen]=useState(false); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
-  useEffect(()=>{if(!open)return;setTitle(todo?.title??"");setDetail(todo?.subtasks.map((item)=>item.content).join(" · ")??"");setCategoryId(todo?.categoryId??initialCategory?.categoryId??categories[0]?.categoryId??0);setImportance(todo?.importance??"NONE");setVisibility(todo?.visibility==="PRIVATE"?"PRIVATE":"GROUP");setDependency(todo?.dependencies[0]??null);setDeadline({date:dateOnly(todo?.dueDate)??selectedDate,time:todo?.dueDate?.includes("T")?todo.dueDate.slice(11,16):""});setError("");},[open,todo,initialCategory,categories,selectedDate]);
+  const initialContent=splitTodoContent(todo?.title??"");
+  const api=useApi(); const [title,setTitle]=useState(initialContent.title); const [detail,setDetail]=useState(initialContent.detail||todo?.subtasks.map((item)=>item.content).join(" · ")||""); const [categoryId,setCategoryId]=useState(todo?.categoryId??initialCategory?.categoryId??categories[0]?.categoryId??0); const [importance,setImportance]=useState<Importance>(todo?.importance??"NONE"); const [visibility,setVisibility]=useState<UiVisibility>(todo?.visibility==="PRIVATE"?"PRIVATE":"GROUP"); const [dependency,setDependency]=useState<number|null>(todo?.dependencies[0]??null); const [deadline,setDeadline]=useState<DeadlineValue>({date:dateOnly(todo?.dueDate)??selectedDate,time:todo?.dueDate?.includes("T")?todo.dueDate.slice(11,16):"23:59"}); const [deadlineOpen,setDeadlineOpen]=useState(false); const [routineOpen,setRoutineOpen]=useState(false); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
   const candidates=useMemo(()=>todos.filter((candidate)=>candidate.todoId!==todo?.todoId&&sameLocalDate(candidate.dueDate,selectedDate)&&!isHobbyCategory(categories.find((category)=>category.categoryId===candidate.categoryId)??{name:"취미"})),[todos,todo,categories,selectedDate]);
   const submitOne=async(dueDate:string,isRoutine=false,detailText=detail)=>{
-    const body={title:title.trim(),categoryId,importance,hardship:1,dueDate,visibility:visibility as "PRIVATE"|"GROUP",isRoutine};
-    const saved=todo?await api.todos.update(todo.todoId,body):await api.todos.create(body);
-    if(detailText.trim()&&!todo)await api.todos.subtask(saved.todoId,{content:detailText.trim()});
+    const body={title:composeTodoContent(title,detailText),categoryId,importance,hardship:1,dueDate,visibility:visibility as "PRIVATE"|"GROUP"};
+    const saved=todo?await api.todos.update(todo.todoId,body):await api.todos.create({...body,isRoutine});
     if(dependency&&!saved.dependencies.includes(dependency))await api.todos.dependency(saved.todoId,{dependencyTodoId:dependency});
   };
   const submit=async()=>{setBusy(true);setError("");try{await submitOne(withOptionalTime(deadline.date,deadline.time));onSaved?.();onClose();}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}};
@@ -174,7 +200,7 @@ export const TodoEditorModal = ({ open, selectedDate, initialCategory, todo, cat
       <Question>마감기한 설정하기 {"*"}</Question><Button type="button" onClick={()=>setDeadlineOpen(true)}>📅 {formatDeadline(deadline)}</Button><ButtonStack><Button onClick={()=>setRoutineOpen(true)}>루틴으로 등록하기</Button><Button variant="primary" disabled={busy||!title.trim()||!categoryId} onClick={submit}>{busy?"등록 중...":todo?"할 일 수정하기":"할 일 등록하기"}</Button></ButtonStack>{error?<ErrorText>{error}</ErrorText>:null}</div></FormGrid>
     </Modal>
     <DeadlineModal open={deadlineOpen} value={deadline} onChange={setDeadline} onClose={()=>setDeadlineOpen(false)}/>
-    <RoutineModal open={routineOpen} initialDate={selectedDate} onClose={()=>setRoutineOpen(false)} onRegister={async(value)=>{setBusy(true);setError("");try{const suffix=value.time?`${detail.trim()} ${value.time}`.trim():detail;for(const date of buildRoutineDates(value.start,value.end,value.repeat)){await submitOne(withOptionalTime(date,value.time),true,suffix);}setRoutineOpen(false);onSaved?.();onClose();}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}}}/>
+    <RoutineModal key={`${routineOpen}-${selectedDate}`} open={routineOpen} initialDate={selectedDate} onClose={()=>setRoutineOpen(false)} onRegister={async(value)=>{setBusy(true);setError("");try{const suffix=value.time?`${detail.trim()} ${value.time}`.trim():detail;for(const date of buildRoutineDates(value.start,value.end,value.repeat)){await submitOne(withOptionalTime(date,value.time),true,suffix);}setRoutineOpen(false);onSaved?.();onClose();}catch(reason){setError(errorMessage(reason));}finally{setBusy(false);}}}/>
   </>;
 };
 const Question = styled.h3`font-size:15px;margin:28px 0 12px;`;
@@ -182,12 +208,6 @@ const DependencyList = styled.div`display:grid;gap:12px;label{display:flex;align
 
 export const DependencyBlockModal = ({ todos, open, onClose }: {todos:Todo[];open:boolean;onClose:()=>void}) => <Modal open={open} title="먼저 완료해야 할 일이 있어요" onClose={onClose}><p>아래 할 일을 모두 완료한 뒤 다시 체크해 주세요.</p><BlockList>{todos.map((todo)=><li key={todo.todoId}>{todo.title}</li>)}</BlockList><ButtonStack><Button variant="primary" onClick={onClose}>확인</Button></ButtonStack></Modal>;
 const BlockList = styled.ul`margin:22px 0;padding:18px 38px;border-radius:14px;background:#f7f9fb;li+li{margin-top:8px;}`;
-
-export const PageHeaderController = () => {
-  const [mode,setMode]=useState<"create"|"join"|null>(null); const location=useLocation();
-  useEffect(()=>setMode(null),[location.pathname]);
-  return { mode, setMode };
-};
 
 export const CategorySection = ({ category, index, todos, own, onAdd, onManage, onToggle, onEdit }: {category:Category;index:number;todos:Todo[];own:boolean;onAdd:(category:Category)=>void;onManage:(category:Category)=>void;onToggle:(todo:Todo)=>void;onEdit:(todo:Todo)=>void}) => {
   const tone=categoryToneAt(index);

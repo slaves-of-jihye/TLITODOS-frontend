@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ko">
+  <head><meta charset="UTF-8"><title>TLITODOS 로그인</title></head>
+  <body>
+    <p>로그인을 완료하는 중입니다...</p>
+    <script>
+      const values = new URLSearchParams(window.location.hash.slice(1));
+      window.opener?.postMessage({
+        type: "tlitodos-google-oauth",
+        accessToken: values.get("access_token"),
+        error: values.get("error"),
+      }, window.location.origin);
+      window.close();
+    </script>
+  </body>
+</html>
