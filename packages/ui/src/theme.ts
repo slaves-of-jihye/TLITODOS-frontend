@@ -10,10 +10,16 @@ export const theme = {
 } as const;
 
 export const globalStyles = css`
-  @import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+  @font-face {
+    font-family: 'Kyobo Handwriting 2019';
+    src: url('./fonts/KyoboHandwriting2019.otf') format('opentype');
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+  }
   * { box-sizing: border-box; }
   html, body, #root { min-width: 320px; min-height: 100%; margin: 0; }
-  body { background: #fff; color: ${theme.colors.ink}; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+  body { background: #fff; color: ${theme.colors.ink}; font-family: 'Kyobo Handwriting 2019', system-ui, sans-serif; }
   button, input, textarea, select { font: inherit; }
   button { cursor: pointer; }
   :focus-visible { outline: 3px solid rgba(20, 93, 255, .22); outline-offset: 2px; }
