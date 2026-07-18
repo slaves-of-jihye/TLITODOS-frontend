@@ -679,6 +679,7 @@ export const TodoEditorModal = ({
 }) => {
   const initialContent = splitTodoContent(todo?.title ?? "");
   const api = useApi();
+  const { data: groups = [] } = useGroups(open);
   const [title, setTitle] = useState(initialContent.title);
   const [detail, setDetail] = useState(
     initialContent.detail || todo?.subtasks.map(item => item.content).join(" · ") || "",
@@ -688,6 +689,7 @@ export const TodoEditorModal = ({
   );
   const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
   const [visibility, setVisibility] = useState<UiVisibility>(todo?.visibility === "PRIVATE" ? "PRIVATE" : "GROUP");
+  const [sharedGroupId, setSharedGroupId] = useState<number | null>(todo?.groupId ?? null);
   const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
   const [deadline, setDeadline] = useState<DeadlineValue>({
     date: dateOnly(todo?.dueDate) ?? selectedDate,
@@ -697,6 +699,9 @@ export const TodoEditorModal = ({
   const [routineOpen, setRoutineOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (visibility === "GROUP" && sharedGroupId === null && groups[0]) setSharedGroupId(groups[0].groupId);
+  }, [groups, sharedGroupId, visibility]);
   const candidates = useMemo(
     () =>
       todos.filter(
@@ -717,6 +722,7 @@ export const TodoEditorModal = ({
       hardship: 1,
       dueDate,
       visibility: visibility as "PRIVATE" | "GROUP",
+      groupId: visibility === "GROUP" ? sharedGroupId : null,
     };
     const saved = todo ? await api.todos.update(todo.todoId, body) : await api.todos.create({ ...body, isRoutine });
     if (dependency && !saved.dependencies.includes(dependency))
@@ -812,7 +818,7 @@ export const TodoEditorModal = ({
                 name="visibility"
                 checked={visibility === "GROUP"}
                 onChange={() => setVisibility("GROUP")}
-                label="전체 공개"
+                label="그룹 공개"
               />
               {/* 일부 공개는 MVP 이후 활성화 */}
               <Selection
@@ -822,6 +828,27 @@ export const TodoEditorModal = ({
                 label="비밀"
               />
             </ChoiceRow>
+            {visibility === "GROUP" ? (
+              <>
+                <Question>공개할 그룹 선택하기 {"*"}</Question>
+                {groups.length ? (
+                  <ChoiceRow>
+                    {groups.map(group => (
+                      <Selection
+                        key={group.groupId}
+                        name="sharedGroup"
+                        value={group.groupId}
+                        checked={sharedGroupId === group.groupId}
+                        onChange={() => setSharedGroupId(group.groupId)}
+                        label={group.name}
+                      />
+                    ))}
+                  </ChoiceRow>
+                ) : (
+                  <ErrorText>그룹 공개를 사용하려면 먼저 그룹을 만들거나 참여해 주세요.</ErrorText>
+                )}
+              </>
+            ) : null}
             {!selectedCategory || !isHobbyCategory(selectedCategory) ? (
               <>
                 <Question>중요도(우선순위) 설정하기 {"*"}</Question>
@@ -850,7 +877,11 @@ export const TodoEditorModal = ({
             </Button>
             <ButtonStack>
               <Button onClick={() => setRoutineOpen(true)}>루틴으로 등록하기</Button>
-              <Button variant="primary" disabled={busy || !title.trim() || !categoryId} onClick={submit}>
+              <Button
+                variant="primary"
+                disabled={busy || !title.trim() || !categoryId || (visibility === "GROUP" && sharedGroupId === null)}
+                onClick={submit}
+              >
                 {busy ? "등록 중..." : todo ? "할 일 수정하기" : "할 일 등록하기"}
               </Button>
             </ButtonStack>

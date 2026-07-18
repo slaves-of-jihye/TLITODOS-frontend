@@ -78,9 +78,11 @@ const TodoWorkspace = ({
   const [month, setMonth] = useState(() => new Date());
   const { data: me } = useMe();
   const targetUserId = ownerId ?? null;
-  const { data: categoriesRaw = [] } = useCategories(groupId, targetUserId);
+  const categoriesQuery = useCategories(groupId, targetUserId);
+  const { data: categoriesRaw = [] } = categoriesQuery;
   const categories = useMemo(() => sortCategories(categoriesRaw), [categoriesRaw]);
-  const { data: allTodosRaw = [], refetch } = useTodos(groupId, null, targetUserId);
+  const todosQuery = useTodos(groupId, null, targetUserId);
+  const { data: allTodosRaw = [], refetch } = todosQuery;
   const ownerTodos = useMemo(
     () => (ownerId === undefined ? allTodosRaw : allTodosRaw.filter(todo => todo.userId === ownerId)),
     [allTodosRaw, ownerId],
@@ -105,6 +107,8 @@ const TodoWorkspace = ({
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );
+  const loadError = categoriesQuery.error ?? todosQuery.error;
+  const isLoading = categoriesQuery.isLoading || todosQuery.isLoading;
   const handleToggle = async (todo: Todo) => {
     if (!own) return;
     const dependencies = unresolvedDependencies(todo, todos);
@@ -155,7 +159,13 @@ const TodoWorkspace = ({
             )}
             <h2>{getTodoTitle(selectedDate)}</h2>
           </TodoToolbar>
-          {!categories.length ? (
+          {loadError ? (
+            <EmptyState>
+              <ErrorText>{message(loadError)}</ErrorText>
+            </EmptyState>
+          ) : isLoading ? (
+            <EmptyState>할 일을 불러오는 중...</EmptyState>
+          ) : !categories.length ? (
             <EmptyState>카테고리를 준비하고 있어요.</EmptyState>
           ) : (
             <CategoryBoard>

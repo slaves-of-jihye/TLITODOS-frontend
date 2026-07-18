@@ -139,6 +139,12 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
           "422": {
             "$ref": "#/components/responses/ValidationError"
           }
@@ -609,15 +615,42 @@
           "categories"
         ],
         "summary": "List categories",
+        "description": "Returns the current user's categories by default. To view another member's categories, provide both userId and a groupId shared by the requester and that member.",
         "operationId": "listCategories",
         "security": [
           {
             "BearerAuth": []
           }
         ],
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Shared group id. Required with userId when viewing another member's categories."
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Category owner user id. Omit to view the current user's categories."
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Current user's categories.",
+            "description": "Categories owned by the requested user.",
             "content": {
               "application/json": {
                 "schema": {
@@ -631,6 +664,12 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
           }
         }
       },
@@ -776,7 +815,7 @@
           "todos"
         ],
         "summary": "List todos",
-        "description": "Returns todos owned by the current user. Optional filters are exact matches.",
+        "description": "Returns the current user's todos by default. To view another member's todos, provide both userId and a groupId shared by the requester and that member; only GROUP and PUBLIC todos are returned for another member.",
         "operationId": "listTodos",
         "security": [
           {
@@ -807,6 +846,18 @@
               ]
             },
             "description": "Filter by dueDate string. When provided, the backend returns todos whose dueDate equals this value plus todos whose dueDate is null."
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Todo owner user id. Omit to view the current user's todos. When specified for another user, groupId is required and only GROUP or PUBLIC todos are returned."
           }
         ],
         "responses": {
@@ -825,6 +876,12 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
           },
           "422": {
             "$ref": "#/components/responses/ValidationError"
@@ -1343,6 +1400,12 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
           }
         }
       },
@@ -2792,6 +2855,7 @@
     "The backend uses camelCase JSON field names in request/response bodies even though many Python model attributes are snake_case.",
     "Upload URLs are relative static paths served from /uploads.",
     "GET /api/v1/todos with date={value} returns todos matching that dueDate and todos with dueDate=null.",
+    "GET /api/v1/categories and GET /api/v1/todos accept optional userId. Viewing another user's data also requires groupId, and both users must be members of that group. For another user's todos, only GROUP and PUBLIC visibility values are returned.",
     "GET /api/v1/groups/{groupId}/invite-code returns only groupId and inviteCode for lightweight invite-code display.",
     "The backend currently stores dueDate, createdAt, completedAt, expiresAt, refreshExpiresAt, and diary createdAt as strings rather than strict date-time schema values.",
     "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image."
