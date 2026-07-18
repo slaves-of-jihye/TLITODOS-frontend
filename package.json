@@ -10,7 +10,9 @@
     "build:web": "pnpm --filter web build",
     "build:desktop": "pnpm --filter desktop build",
     "build": "pnpm build:web && pnpm build:desktop",
-    "typecheck": "pnpm --filter web exec tsc -b"
+    "typecheck": "pnpm --filter web exec tsc -b",
+    "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx}\""
   },
   "keywords": [],
   "author": "",
@@ -20,6 +22,7 @@
     "node": "^22.13.0 || >=24.0.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "prettier": "^3.9.5"
   }
 }

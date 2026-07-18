@@ -140,16 +140,28 @@ export interface MessageResponse {
   message: string;
 }
 
-export interface GoogleLoginRequest { googleAccessToken: string }
-export interface RefreshTokenRequest { refreshToken: string }
+export interface GoogleLoginRequest {
+  googleAccessToken: string;
+}
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
 export interface UserUpdateRequest {
   name?: string | null;
   bio?: string | null;
   profileImageUrl?: string | null;
 }
-export interface GroupCreateRequest { name: string; description?: string }
-export interface GroupJoinRequest { inviteCode: string }
-export interface CategoryRequest { name: string; color: string }
+export interface GroupCreateRequest {
+  name: string;
+  description?: string;
+}
+export interface GroupJoinRequest {
+  inviteCode: string;
+}
+export interface CategoryRequest {
+  name: string;
+  color: string;
+}
 
 export interface TodoCreateRequest {
   title: string;
@@ -176,8 +188,12 @@ export interface TodoPatchRequest {
   y?: number | null;
 }
 
-export interface DependencyCreateRequest { dependencyTodoId: number }
-export interface SubtaskCreateRequest { content: string }
+export interface DependencyCreateRequest {
+  dependencyTodoId: number;
+}
+export interface SubtaskCreateRequest {
+  content: string;
+}
 export interface DiaryCreateRequest {
   content: string;
   imageUrl?: string | null;

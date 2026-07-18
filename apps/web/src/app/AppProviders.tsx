@@ -21,26 +21,38 @@ const createRefreshHandler = (baseUrl: string, clearSession: () => void) => {
         const result = await createApiClient({ baseUrl, getAccessToken: () => null }).auth.refresh({ refreshToken });
         useSessionStore.getState().setSession(result);
         return result.accessToken;
-      } catch { clearSession(); return null; }
-      finally { inFlight = null; }
+      } catch {
+        clearSession();
+        return null;
+      } finally {
+        inFlight = null;
+      }
     })();
     return inFlight;
   };
 };
 
 export const AppProviders = ({ children }: { children: ReactNode }) => {
-  const clearSession = useSessionStore((state) => state.clearSession);
+  const clearSession = useSessionStore(state => state.clearSession);
   const api = useMemo(() => {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     return createApiClient({
-    baseUrl,
-    getAccessToken: () => useSessionStore.getState().accessToken,
-    refreshAccessToken: createRefreshHandler(baseUrl, clearSession),
-    onUnauthorized: () => { clearSession(); queryClient.clear(); },
+      baseUrl,
+      getAccessToken: () => useSessionStore.getState().accessToken,
+      refreshAccessToken: createRefreshHandler(baseUrl, clearSession),
+      onUnauthorized: () => {
+        clearSession();
+        queryClient.clear();
+      },
     });
   }, [clearSession]);
 
-  return <QueryClientProvider client={queryClient}>
-      <ApiProvider value={api}><Global styles={globalStyles}/>{children}</ApiProvider>
-    </QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ApiProvider value={api}>
+        <Global styles={globalStyles} />
+        {children}
+      </ApiProvider>
+    </QueryClientProvider>
+  );
 };
