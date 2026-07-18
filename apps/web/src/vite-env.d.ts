@@ -13,6 +13,11 @@ interface GoogleTokenResponse {
   access_token?: string;
   error?: string;
 }
+
+interface GoogleOAuthPopupError {
+  type?: "popup_failed_to_open" | "popup_closed" | "unknown";
+}
+
 interface Window {
   google?: {
     accounts: {
@@ -21,6 +26,7 @@ interface Window {
           client_id: string;
           scope: string;
           callback: (response: GoogleTokenResponse) => void;
+          error_callback?: (response: GoogleOAuthPopupError) => void;
         }) => { requestAccessToken: () => void };
       };
     };

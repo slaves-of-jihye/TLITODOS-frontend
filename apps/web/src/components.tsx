@@ -43,6 +43,37 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSessionStore } from "./app/sessionStore";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+const googleOAuthResultKey = "tlitodos-google-oauth-result";
+const googleOAuthReturnKey = "tlitodos-google-oauth-return";
+const googleOAuthStateKey = "tlitodos-google-oauth-state";
+
+type GoogleOAuthResult = {
+  accessToken?: string;
+  error?: string;
+};
+
+const buildGoogleOAuthUrl = (clientId: string, state: string) => {
+  const redirectUri = `${window.location.origin}/oauth-callback.html`;
+  const query = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "token",
+    scope: "openid email profile",
+    include_granted_scopes: "true",
+    prompt: "select_account",
+    state,
+  });
+
+  return `https://accounts.google.com/o/oauth2/v2/auth?${query}`;
+};
+
+const redirectToGoogle = (clientId: string) => {
+  const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  const state = window.crypto.randomUUID();
+  window.sessionStorage.setItem(googleOAuthReturnKey, returnPath);
+  window.sessionStorage.setItem(googleOAuthStateKey, state);
+  window.location.assign(buildGoogleOAuthUrl(clientId, state));
+};
 
 export const LoginModal = () => {
   const accessToken = useSessionStore(state => state.accessToken);
@@ -97,10 +128,22 @@ export const LoginModal = () => {
     [api, queryClient, setSession],
   );
   useEffect(() => {
-    const receiveToken = (event: MessageEvent<{ type?: string; accessToken?: string; error?: string }>) => {
+    const handleResult = ({ accessToken: googleAccessToken, error: googleError }: GoogleOAuthResult) => {
+      if (googleError || !googleAccessToken) setError("Google 로그인에 실패했습니다.");
+      else void acceptGoogleToken(googleAccessToken);
+    };
+    const storedResult = window.sessionStorage.getItem(googleOAuthResultKey);
+    if (storedResult) {
+      window.sessionStorage.removeItem(googleOAuthResultKey);
+      try {
+        handleResult(JSON.parse(storedResult) as GoogleOAuthResult);
+      } catch {
+        setError("Google 로그인 결과를 확인하지 못했습니다.");
+      }
+    }
+    const receiveToken = (event: MessageEvent<GoogleOAuthResult & { type?: string }>) => {
       if (event.origin !== window.location.origin || event.data?.type !== "tlitodos-google-oauth") return;
-      if (event.data.error || !event.data.accessToken) setError("Google 로그인에 실패했습니다.");
-      else void acceptGoogleToken(event.data.accessToken);
+      handleResult(event.data);
     };
     window.addEventListener("message", receiveToken);
     return () => window.removeEventListener("message", receiveToken);
@@ -120,25 +163,22 @@ export const LoginModal = () => {
             if (response.error || !response.access_token) setError("Google 로그인에 실패했습니다.");
             else void acceptGoogleToken(response.access_token);
           },
+          error_callback: response => {
+            if (response.type === "popup_failed_to_open") {
+              redirectToGoogle(clientId);
+              return;
+            }
+            if (response.type === "popup_closed") {
+              setError("Google 로그인 창이 닫혔습니다. 다시 시도해 주세요.");
+              return;
+            }
+            setError("Google 로그인 창을 열지 못했습니다.");
+          },
         })
         .requestAccessToken();
       return;
     }
-    const redirectUri = `${window.location.origin}/oauth-callback.html`;
-    const query = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "token",
-      scope: "openid email profile",
-      include_granted_scopes: "true",
-      prompt: "select_account",
-    });
-    const popup = window.open(
-      `https://accounts.google.com/o/oauth2/v2/auth?${query}`,
-      "tlitodos-google-oauth",
-      "popup,width=520,height=720",
-    );
-    if (!popup) setError("로그인 팝업을 열 수 없습니다. 팝업 차단을 해제해 주세요.");
+    redirectToGoogle(clientId);
   };
   return (
     <Modal open={!accessToken} login title="TLITODOS에 오신 걸 환영해요">

@@ -1,16 +1,34 @@
 <!doctype html>
 <html lang="ko">
-  <head><meta charset="UTF-8"><title>TLITODOS 로그인</title></head>
+  <head>
+    <meta charset="UTF-8" />
+    <title>TLITODOS 로그인</title>
+  </head>
   <body>
     <p>로그인을 완료하는 중입니다...</p>
     <script>
       const values = new URLSearchParams(window.location.hash.slice(1));
-      window.opener?.postMessage({
+      const stateKey = "tlitodos-google-oauth-state";
+      const expectedState = window.sessionStorage.getItem(stateKey);
+      const receivedState = values.get("state");
+      window.sessionStorage.removeItem(stateKey);
+      const result = {
         type: "tlitodos-google-oauth",
         accessToken: values.get("access_token"),
-        error: values.get("error"),
-      }, window.location.origin);
-      window.close();
+        error: expectedState && receivedState === expectedState ? values.get("error") : "state_mismatch",
+      };
+
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(result, window.location.origin);
+        window.close();
+      } else {
+        const returnKey = "tlitodos-google-oauth-return";
+        const returnPath = window.sessionStorage.getItem(returnKey) || "/";
+        window.sessionStorage.removeItem(returnKey);
+        window.sessionStorage.setItem("tlitodos-google-oauth-result", JSON.stringify(result));
+        const safeReturnPath = returnPath.startsWith("/") && !returnPath.startsWith("//") ? returnPath : "/";
+        window.location.replace(safeReturnPath);
+      }
     </script>
   </body>
 </html>
