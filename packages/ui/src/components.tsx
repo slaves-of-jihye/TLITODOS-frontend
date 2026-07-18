@@ -7,12 +7,13 @@ import { theme } from "./theme";
 export const AppShell = styled.div`
   width: min(1280px, 100%);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: 76px 7% 116px;
   position: relative;
   background: white;
   @media (max-width: 800px) {
-    padding: 28px 22px 100px;
+    padding: 24px 18px calc(96px + env(safe-area-inset-bottom));
   }
 `;
 
@@ -34,6 +35,10 @@ export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "g
     cursor: not-allowed;
     transform: none;
   }
+  @media (max-width: 600px) {
+    min-height: 44px;
+    padding: 11px 16px;
+  }
 `;
 
 export const IconButton = styled.button`
@@ -45,6 +50,10 @@ export const IconButton = styled.button`
   border-radius: 50%;
   background: ${theme.colors.panel};
   font-size: 22px;
+  @media (max-width: 600px) {
+    width: 44px;
+    height: 44px;
+  }
 `;
 
 export const HeaderRow = styled.header`
@@ -53,6 +62,21 @@ export const HeaderRow = styled.header`
   gap: 14px;
   flex-wrap: wrap;
   margin-bottom: 54px;
+  @media (max-width: 800px) {
+    flex-wrap: nowrap;
+    gap: 10px;
+    margin: 0 -18px 34px;
+    padding: 0 18px 10px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    > * {
+      flex: 0 0 auto;
+    }
+  }
 `;
 
 export const ViewChip = ({
@@ -76,6 +100,10 @@ const ViewChipButton = styled.button<{ active: boolean }>`
   font-weight: 700;
   background: ${({ active }) => (active ? theme.colors.selected : "#f0f3f7")};
   color: ${({ active }) => (active ? "white" : theme.colors.ink)};
+  white-space: nowrap;
+  @media (max-width: 600px) {
+    min-height: 44px;
+  }
 `;
 const Avatar = styled.img`
   width: 38px;
@@ -138,6 +166,12 @@ const Pill = styled.div<{ background: string }>`
   border-radius: ${theme.radius.pill};
   background: ${({ background }) => background};
   font-weight: 700;
+  @media (max-width: 600px) {
+    width: 100%;
+    min-height: 46px;
+    justify-content: space-between;
+    padding-left: 18px;
+  }
 `;
 const PlusButton = styled.button<{ background: string }>`
   width: 28px;
@@ -148,6 +182,10 @@ const PlusButton = styled.button<{ background: string }>`
   color: white;
   font-size: 22px;
   line-height: 1;
+  @media (max-width: 600px) {
+    width: 34px;
+    height: 34px;
+  }
 `;
 
 export const TodoRow = ({
@@ -199,6 +237,11 @@ const TodoItem = styled.div`
   &:hover > button:last-child:not(:disabled) {
     opacity: 1;
   }
+  @media (max-width: 600px) {
+    min-height: 56px;
+    gap: 12px;
+    padding: 6px 2px;
+  }
 `;
 const CheckButton = styled.button<{ done: boolean; color: string }>`
   display: grid;
@@ -215,6 +258,11 @@ const CheckButton = styled.button<{ done: boolean; color: string }>`
   &:disabled {
     cursor: default;
   }
+  @media (max-width: 600px) {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+  }
 `;
 const TodoTextButton = styled.button`
   min-width: 0;
@@ -230,6 +278,7 @@ const TodoTextButton = styled.button`
   }
   strong {
     font-size: 15px;
+    overflow-wrap: anywhere;
   }
   small {
     margin-top: 7px;
@@ -281,6 +330,14 @@ const RadioLabel = styled.label`
     background: #effad9;
     border-color: #d2eb9e;
   }
+  @media (max-width: 600px) {
+    span {
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      padding: 9px 13px;
+    }
+  }
 `;
 
 export const ProfileCard = ({ member, onClick }: { member: GroupMember; onClick?: () => void }) => (
@@ -316,6 +373,14 @@ const ProfileButton = styled.button`
   small {
     color: ${theme.colors.muted};
     margin-top: 7px;
+  }
+  @media (max-width: 600px) {
+    gap: 14px;
+    min-height: 76px;
+    padding: 10px 8px;
+    strong {
+      font-size: 18px;
+    }
   }
 `;
 const ProfileImage = styled.img`
@@ -366,6 +431,10 @@ const DiaryButton = styled.button`
     color: ${theme.colors.muted};
     font-size: 11px;
   }
+  @media (max-width: 600px) {
+    min-height: 42px;
+    max-width: 100%;
+  }
 `;
 
 export const DayStash = ({
@@ -410,6 +479,10 @@ const DayButton = styled.button<{ selected: boolean; today: boolean }>`
   gap: 5px;
   padding: 0;
   color: ${({ today }) => (today ? theme.colors.blue : theme.colors.ink)};
+  @media (max-width: 600px) {
+    width: 40px;
+    height: 64px;
+  }
 `;
 const Stashes = styled.span`
   height: 36px;
@@ -524,7 +597,11 @@ const Nav = styled.nav`
   background: white;
   @media (max-width: 600px) {
     position: fixed;
-    gap: 72px;
+    z-index: 60;
+    height: calc(72px + env(safe-area-inset-bottom));
+    padding: 0 max(18px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(18px, env(safe-area-inset-right));
+    justify-content: space-around;
+    gap: 0;
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.05);
   }
 `;
@@ -533,6 +610,9 @@ const NavButton = styled.button<{ active: boolean }>`
   background: transparent;
   color: ${({ active }) => (active ? theme.colors.ink : "#c6d0df")};
   line-height: 1;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
   svg {
     width: 30px;
     height: 30px;
@@ -566,7 +646,7 @@ export const Modal = ({
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog role="dialog" aria-modal="true" aria-label={title}>
+      <Dialog login={login} role="dialog" aria-modal="true" aria-label={title}>
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>
@@ -580,8 +660,12 @@ const Overlay = styled.div<{ login: boolean }>`
   place-items: center;
   padding: 22px;
   background: ${({ login }) => (login ? theme.colors.loginOverlay : theme.colors.overlay)};
+  @media (max-width: 600px) {
+    place-items: ${({ login }) => (login ? "center" : "end center")};
+    padding: ${({ login }) => (login ? "16px" : "0")};
+  }
 `;
-const Dialog = styled.div`
+const Dialog = styled.div<{ login: boolean }>`
   width: min(800px, 100%);
   max-height: calc(100vh - 44px);
   overflow: auto;
@@ -593,8 +677,16 @@ const Dialog = styled.div`
     margin: 0 0 30px;
   }
   @media (max-width: 600px) {
-    padding: 32px 24px;
-    border-radius: 26px;
+    width: 100%;
+    max-height: calc(100dvh - 24px);
+    padding: ${({ login }) => (login ? "28px 18px" : "30px 20px calc(24px + env(safe-area-inset-bottom))")};
+    border-radius: ${({ login }) => (login ? "26px" : "28px 28px 0 0")};
+    overscroll-behavior: contain;
+    h2 {
+      margin-bottom: 24px;
+      font-size: clamp(20px, 5.6vw, 22px);
+      line-height: 1.35;
+    }
   }
 `;
 

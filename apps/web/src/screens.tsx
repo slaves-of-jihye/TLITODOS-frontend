@@ -578,10 +578,17 @@ const WorkspaceGrid = styled.main`
     grid-template-columns: 1fr;
     gap: 54px;
   }
+  @media (max-width: 600px) {
+    gap: 36px;
+  }
 `;
 const OwnerTitle = styled.h2`
   margin: 0 0 34px;
   font-size: 22px;
+  @media (max-width: 600px) {
+    margin-bottom: 20px;
+    font-size: 20px;
+  }
 `;
 const TodoArea = styled.section`
   min-width: 0;
@@ -598,9 +605,15 @@ const TodoToolbar = styled.div`
   }
   @media (max-width: 600px) {
     display: flex;
-    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 0 0 24px;
     h2 {
-      font-size: 17px;
+      order: -1;
+      width: 100%;
+      font-size: 20px;
+      line-height: 1.35;
     }
   }
 `;
@@ -610,13 +623,16 @@ const CategoryBoard = styled.div`
   gap: 72px;
   @media (max-width: 600px) {
     grid-template-columns: 1fr;
-    gap: 34px;
+    gap: 30px;
   }
 `;
 const CategoryStack = styled.div`
   display: grid;
   align-content: start;
   gap: 42px;
+  @media (max-width: 600px) {
+    gap: 28px;
+  }
 `;
 const EmptyState = styled.div`
   min-height: 260px;
@@ -649,6 +665,18 @@ const GroupTitleRow = styled.div`
     margin: 0;
     color: ${theme.colors.muted};
   }
+  @media (max-width: 600px) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 20px;
+    margin: 0 0 34px;
+    h1 {
+      font-size: 27px;
+    }
+    > button {
+      width: 100%;
+    }
+  }
 `;
 const MemberGrid = styled.div`
   display: grid;
@@ -659,15 +687,22 @@ const MemberGrid = styled.div`
   }
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
+    gap: 12px;
   }
 `;
 const PageTitle = styled.h1`
   margin: 0;
   font-size: 30px;
+  @media (max-width: 600px) {
+    font-size: 26px;
+  }
 `;
 const ProfilePanel = styled.div`
   width: min(620px, 100%);
   margin: 48px auto;
+  @media (max-width: 600px) {
+    margin: 28px auto;
+  }
 `;
 const ProfileHero = styled.div`
   display: flex;
@@ -691,6 +726,22 @@ const ProfileHero = styled.div`
   p {
     margin: 0;
     color: ${theme.colors.muted};
+  }
+  @media (max-width: 600px) {
+    gap: 16px;
+    margin-bottom: 28px;
+    img,
+    span {
+      width: 72px;
+      height: 72px;
+      font-size: 38px;
+    }
+    h2 {
+      font-size: 22px;
+    }
+    p {
+      overflow-wrap: anywhere;
+    }
   }
 `;
 const ProfileRow = styled.div`
@@ -727,6 +778,18 @@ const ProfileRow = styled.div`
     display: flex;
     gap: 7px;
   }
+  @media (max-width: 600px) {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 0;
+    > div:last-child {
+      justify-content: flex-end;
+      button {
+        min-width: 72px;
+      }
+    }
+  }
 `;
 const LogoutButton = styled.button`
   margin-top: 28px;
@@ -744,12 +807,25 @@ const DiaryHead = styled.div`
   p {
     color: ${theme.colors.muted};
   }
+  @media (max-width: 600px) {
+    margin-bottom: 26px;
+    h1 {
+      margin-top: 20px;
+      font-size: 27px;
+    }
+  }
 `;
 const DiaryEditor = styled.div`
   width: min(760px, 100%);
   margin: 0 auto;
   display: grid;
   gap: 26px;
+  @media (max-width: 600px) {
+    gap: 22px;
+    textarea {
+      min-height: 42vh;
+    }
+  }
 `;
 const EmotionRow = styled.div`
   display: flex;
@@ -765,5 +841,13 @@ const EmotionRow = styled.div`
   button[data-selected="true"] {
     background: #effad9;
     border-color: #d4ed9d;
+  }
+  @media (max-width: 600px) {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    button {
+      min-height: 46px;
+      padding: 8px;
+    }
   }
 `;

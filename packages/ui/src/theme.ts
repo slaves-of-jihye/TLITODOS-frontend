@@ -35,10 +35,15 @@ export const globalStyles = css`
     min-height: 100%;
     margin: 0;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     background: #fff;
     color: ${theme.colors.ink};
     font-family: "Kyobo Handwriting 2019", system-ui, sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
   button,
   input,
@@ -48,6 +53,7 @@ export const globalStyles = css`
   }
   button {
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   :focus-visible {
     outline: 3px solid rgba(20, 93, 255, 0.22);
