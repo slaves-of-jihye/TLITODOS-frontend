@@ -129,13 +129,15 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
       inviteCode: (groupId: number) => request<GroupInviteCodeResponse>(`/api/v1/groups/${groupId}/invite-code`),
     },
     categories: {
-      list: () => request<Category[]>("/api/v1/categories"),
+      list: (query?: { groupId?: number | null; userId?: number | null }) =>
+        request<Category[]>("/api/v1/categories", { query }),
       create: (body: CategoryRequest) => request<Category>("/api/v1/categories", { method: "POST", body }),
       update: (id: number, body: CategoryRequest) =>
         request<CategoryUpdateResponse>(`/api/v1/categories/${id}`, { method: "PATCH", body }),
     },
     todos: {
-      list: (query?: { groupId?: number | null; date?: string | null }) => request<Todo[]>("/api/v1/todos", { query }),
+      list: (query?: { groupId?: number | null; userId?: number | null; date?: string | null }) =>
+        request<Todo[]>("/api/v1/todos", { query }),
       create: (body: TodoCreateRequest) => request<Todo>("/api/v1/todos", { method: "POST", body }),
       update: (id: number, body: TodoPatchRequest) => request<Todo>(`/api/v1/todos/${id}`, { method: "PATCH", body }),
       remove: (id: number) => request<MessageResponse>(`/api/v1/todos/${id}`, { method: "DELETE" }),

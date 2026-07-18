@@ -77,9 +77,10 @@ const TodoWorkspace = ({
   const [selectedDate, setSelectedDate] = useState(today);
   const [month, setMonth] = useState(() => new Date());
   const { data: me } = useMe();
-  const { data: categoriesRaw = [] } = useCategories();
+  const targetUserId = ownerId ?? null;
+  const { data: categoriesRaw = [] } = useCategories(groupId, targetUserId);
   const categories = useMemo(() => sortCategories(categoriesRaw), [categoriesRaw]);
-  const { data: allTodosRaw = [], refetch } = useTodos(groupId, null);
+  const { data: allTodosRaw = [], refetch } = useTodos(groupId, null, targetUserId);
   const ownerTodos = useMemo(
     () => (ownerId === undefined ? allTodosRaw : allTodosRaw.filter(todo => todo.userId === ownerId)),
     [allTodosRaw, ownerId],

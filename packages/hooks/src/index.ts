@@ -25,7 +25,9 @@ export const queryKeys = {
   groups: ["groups"] as const,
   group: (id: number) => ["groups", id] as const,
   categories: ["categories"] as const,
-  todos: (groupId: number | null, date: string | null) => ["todos", groupId, date] as const,
+  categoryList: (groupId: number | null, userId: number | null) => ["categories", groupId, userId] as const,
+  todos: (groupId: number | null, userId: number | null, date: string | null) =>
+    ["todos", groupId, userId, date] as const,
   diaries: ["diaries"] as const,
 };
 
@@ -48,16 +50,20 @@ export const useGroup = (groupId: number | null, enabled = true) => {
   });
 };
 
-export const useCategories = (enabled = true) => {
-  const api = useApi();
-  return useQuery({ queryKey: queryKeys.categories, queryFn: api.categories.list, enabled });
-};
-
-export const useTodos = (groupId: number | null, date: string | null, enabled = true) => {
+export const useCategories = (groupId: number | null = null, userId: number | null = null, enabled = true) => {
   const api = useApi();
   return useQuery({
-    queryKey: queryKeys.todos(groupId, date),
-    queryFn: () => api.todos.list({ groupId, date }),
+    queryKey: queryKeys.categoryList(groupId, userId),
+    queryFn: () => api.categories.list({ groupId, userId }),
+    enabled,
+  });
+};
+
+export const useTodos = (groupId: number | null, date: string | null, userId: number | null = null, enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.todos(groupId, userId, date),
+    queryFn: () => api.todos.list({ groupId, userId, date }),
     enabled,
   });
 };
