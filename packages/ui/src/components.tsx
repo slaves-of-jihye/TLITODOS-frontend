@@ -352,7 +352,7 @@ export const ProfileCard = ({ member, onClick }: { member: GroupMember; onClick?
     {member.profileImageUrl ? <ProfileImage src={member.profileImageUrl} alt="" /> : <ProfileAvatar>🐰</ProfileAvatar>}
     <span>
       <strong>{member.name}</strong>
-      <small>{member.bio || `${member.userId} ${member.name}`}</small>
+      {member.bio?.trim() ? <small>{member.bio}</small> : null}
     </span>
   </ProfileButton>
 );
