@@ -1,5 +1,5 @@
 import styled from "@emotion/styled";
-import { composeDiaryContent, formatLocalDate, getTodoTitle, sameLocalDate, sortCategories, sortTodos, splitDiaryContent, todosForDate, unresolvedDependencies } from "@tlitodos/core";
+import { composeDiaryContent, formatLocalDate, getTodoTitle, isDiaryForDate, sortCategories, sortTodos, splitDiaryContent, todosForDate, unresolvedDependencies } from "@tlitodos/core";
 import { useApi, useCategories, useCompleteTodo, useDiaries, useGroup, useMe, useSaveDiary, useTodos, useUpdateProfile } from "@tlitodos/hooks";
 import type { Category, Diary, Todo } from "@tlitodos/types";
 import { AppShell, BottomNav, Button, ButtonStack, DiaryBadge, ErrorText, Field, Modal, ProfileCard, theme } from "@tlitodos/ui";
@@ -30,7 +30,7 @@ const TodoWorkspace = ({ own, ownerId, groupId, ownerName }: {own:boolean;ownerI
   const {data:diaries=[]}=useDiaries(); const complete=useCompleteTodo(); const [editor,setEditor]=useState<EditorState>(null); const [manage,setManage]=useState<Category|null>(null); const [blocked,setBlocked]=useState<Todo[]>([]); const [completionOverrides,setCompletionOverrides]=useState<Record<number,boolean>>({}); const [diaryPreview,setDiaryPreview]=useState<Diary|null>(null);
   const todos=useMemo(()=>ownerTodos.map((todo)=>completionOverrides[todo.todoId]===undefined?todo:{...todo,isCompleted:completionOverrides[todo.todoId]!}),[ownerTodos,completionOverrides]);
   const selectedTodos=useMemo(()=>todosForDate(todos,selectedDate),[todos,selectedDate]);
-  const selectedDiary=diaries.find((diary)=>diary.userId===(ownerId??diary.userId)&&(splitDiaryContent(diary.content).date===selectedDate||sameLocalDate(diary.createdAt,selectedDate)));
+  const selectedDiary=diaries.find((diary)=>diary.userId===(ownerId??diary.userId)&&isDiaryForDate(diary,selectedDate));
   const handleToggle=async(todo:Todo)=>{
     if(!own)return;
     const dependencies=unresolvedDependencies(todo,todos);
@@ -92,7 +92,7 @@ const DiaryForm = ({ selectedDate, existing, userName }: {selectedDate:string;ex
 };
 
 export const DiaryPage = () => {
-  const [search]=useSearchParams(); const selectedDate=search.get("date")||formatLocalDate(new Date()); const {data:me}=useMe(); const {data:diaries=[]}=useDiaries(); const existing=diaries.find((diary)=>splitDiaryContent(diary.content).date===selectedDate||sameLocalDate(diary.createdAt,selectedDate));
+  const [search]=useSearchParams(); const selectedDate=search.get("date")||formatLocalDate(new Date()); const {data:me}=useMe(); const {data:diaries=[]}=useDiaries(); const existing=diaries.find((diary)=>isDiaryForDate(diary,selectedDate));
   return <DiaryForm key={`${selectedDate}-${existing?.diaryId??"new"}`} selectedDate={selectedDate} existing={existing} userName={me?.name}/>;
 };
 

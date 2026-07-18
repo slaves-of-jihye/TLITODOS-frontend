@@ -1,4 +1,4 @@
-import type { Category, Importance, Todo } from "@tlitodos/types";
+import type { Category, Diary, Importance, Todo } from "@tlitodos/types";
 
 export const CATEGORY_PRESETS = [
   { key: "todo", name: "해야할 일", background: "#f4fce6", color: "#ddf5b0", stash: "#effad9", strong: "#92e000", locked: true },
@@ -96,3 +96,9 @@ export const composeDiaryContent = (date: string, content: string) => `${DIARY_D
 export const splitDiaryContent = (content: string) => content.startsWith(DIARY_DATE_PREFIX)
   ? { date: content.slice(DIARY_DATE_PREFIX.length, DIARY_DATE_PREFIX.length + 10), content: content.slice(DIARY_DATE_PREFIX.length + 11) }
   : { date: null, content };
+
+export const diaryDate = (diary: Pick<Diary, "content" | "createdAt">) =>
+  splitDiaryContent(diary.content).date ?? dateOnly(diary.createdAt);
+
+export const isDiaryForDate = (diary: Pick<Diary, "content" | "createdAt">, selectedDate: string) =>
+  diaryDate(diary) === selectedDate;
