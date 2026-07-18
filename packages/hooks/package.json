@@ -9,5 +9,8 @@
     "@tlitodos/api-client": "workspace:*",
     "@tlitodos/types": "workspace:*",
     "react": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
   }
 }
