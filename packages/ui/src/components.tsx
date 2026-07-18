@@ -135,9 +135,11 @@ export const CategoryPill = ({
   onManage?: () => void;
 }) => {
   const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
+  const hasAddAction = own && Boolean(onAdd);
   return (
     <Pill
       background={preset.background}
+      hasAddAction={hasAddAction}
       onClick={own && !preset.locked ? onManage : undefined}
       role={own && !preset.locked ? "button" : undefined}
     >
@@ -157,20 +159,25 @@ export const CategoryPill = ({
     </Pill>
   );
 };
-const Pill = styled.div<{ background: string }>`
+const Pill = styled.div<{ background: string; hasAddAction: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 11px;
   min-height: 40px;
-  padding: 5px 7px 5px 22px;
+  max-width: 100%;
+  padding: ${({ hasAddAction }) => (hasAddAction ? "5px 7px 5px 22px" : "5px 22px")};
   border-radius: ${theme.radius.pill};
   background: ${({ background }) => background};
   font-weight: 700;
+  > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   @media (max-width: 600px) {
-    width: 100%;
+    width: ${({ hasAddAction }) => (hasAddAction ? "100%" : "fit-content")};
     min-height: 46px;
     justify-content: space-between;
-    padding-left: 18px;
+    padding: ${({ hasAddAction }) => (hasAddAction ? "5px 6px 5px 18px" : "5px 20px")};
   }
 `;
 const PlusButton = styled.button<{ background: string }>`
