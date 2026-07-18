@@ -194,6 +194,10 @@ export const LoginModal = () => {
 const LoginCopy = styled.p`
   margin: -14px 0 28px;
   color: ${theme.colors.muted};
+  @media (max-width: 600px) {
+    margin: -8px 0 24px;
+    line-height: 1.55;
+  }
 `;
 const GoogleButton = styled.button`
   width: 100%;
@@ -413,8 +417,11 @@ const MonthHeader = styled.div`
   justify-content: space-between;
   padding-bottom: 14px;
   border-bottom: 1px solid #d7dee5;
+  gap: 10px;
 `;
 const MonthInput = styled.input`
+  min-width: 0;
+  max-width: 100%;
   border: 0;
   background: transparent;
   font-size: 20px;
@@ -424,10 +431,15 @@ const MonthInput = styled.input`
     opacity: 0.45;
     cursor: pointer;
   }
+  @media (max-width: 600px) {
+    width: 170px;
+    font-size: 18px;
+  }
 `;
 const MonthButtons = styled.div`
   display: flex;
   gap: 5px;
+  flex: 0 0 auto;
 `;
 const WeekRow = styled.div`
   display: grid;
@@ -448,6 +460,9 @@ const DaysGrid = styled.div`
   grid-template-columns: repeat(7, 1fr);
   grid-auto-rows: 75px;
   justify-items: center;
+  @media (max-width: 600px) {
+    grid-auto-rows: 66px;
+  }
 `;
 
 export const CategoryManageModal = ({
@@ -538,6 +553,10 @@ const MiniCalendar = styled.div`
   border: 1px solid ${theme.colors.line};
   border-radius: 18px;
   padding: 16px;
+  @media (max-width: 600px) {
+    margin: 16px -6px 0;
+    padding: 12px 8px;
+  }
 `;
 const MiniDays = styled.div`
   display: grid;
@@ -558,6 +577,13 @@ const MiniDays = styled.div`
   button[data-selected="true"] {
     background: #dff6ad;
     font-weight: 800;
+  }
+  @media (max-width: 600px) {
+    gap: 2px;
+    button {
+      height: 38px;
+      padding: 0;
+    }
   }
 `;
 
@@ -595,6 +621,15 @@ const ToggleRow = styled.div`
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  @media (max-width: 600px) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    button {
+      min-width: 0;
+      padding-inline: 10px;
+      overflow-wrap: anywhere;
+    }
+  }
 `;
 const TimeInput = styled.input`
   display: block;
@@ -687,6 +722,10 @@ const ChoiceRow = styled.div`
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 18px;
+  @media (max-width: 600px) {
+    gap: 8px 6px;
+    margin-top: 14px;
+  }
 `;
 
 const formatDeadline = ({ date, time }: DeadlineValue) => {
@@ -964,6 +1003,7 @@ export const TodoEditorModal = ({
 const Question = styled.h3`
   font-size: 15px;
   margin: 28px 0 12px;
+  line-height: 1.45;
 `;
 const DependencyList = styled.div`
   display: grid;
@@ -1092,4 +1132,8 @@ const TodoList = styled.div`
   display: grid;
   gap: 14px;
   margin-top: 20px;
+  @media (max-width: 600px) {
+    gap: 8px;
+    margin-top: 14px;
+  }
 `;
