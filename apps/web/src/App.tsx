@@ -1,12 +1,13 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { useSessionStore } from "./app/sessionStore";
-import { LoginModal } from "./components";
+import { InstallPrompt, LoginModal } from "./components";
 import { AlarmPage, DiaryPage, FriendHome, GroupHome, MyHome, NotFoundPage, ProfilePage } from "./screens";
 
 function App() {
   const accessToken = useSessionStore(state => state.accessToken);
   return (
     <HashRouter>
+      {accessToken ? <InstallPrompt /> : null}
       {accessToken ? (
         <Routes>
           <Route path="/" element={<MyHome />} />

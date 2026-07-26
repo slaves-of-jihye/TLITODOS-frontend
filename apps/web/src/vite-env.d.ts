@@ -18,6 +18,22 @@ interface GoogleOAuthPopupError {
   type?: "popup_failed_to_open" | "popup_closed" | "unknown";
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: readonly string[];
+  readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+  prompt: () => Promise<void>;
+}
+
+interface WindowEventMap {
+  beforeinstallprompt: BeforeInstallPromptEvent;
+  appinstalled: Event;
+}
+
+interface Navigator {
+  /** iOS Safari가 홈 화면에서 실행 중인지 알려주는 비표준 속성입니다. */
+  readonly standalone?: boolean;
+}
+
 interface Window {
   google?: {
     accounts: {
