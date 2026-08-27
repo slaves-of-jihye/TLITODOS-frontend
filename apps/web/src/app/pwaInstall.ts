@@ -34,11 +34,15 @@ const readInstalled = () =>
   Boolean(fullscreenQuery?.matches) ||
   (isBrowser && window.navigator.standalone === true);
 
-const isIosLike = () => {
+// 카카오톡·네이버·라인·인스타그램 등 인앱 브라우저에는 '홈 화면에 추가'가 없습니다.
+const inAppBrowserPattern = /KAKAOTALK|NAVER\(inapp|DaumApps|Line\/|Instagram|FBAN|FBAV|Snapchat/i;
+
+const needsManualInstallSteps = () => {
   if (!isBrowser) return false;
   const agent = window.navigator.userAgent;
   // iPadOS는 데스크톱 Safari를 표방하므로 터치 지점 수로 구분합니다.
-  return /iPad|iPhone|iPod/.test(agent) || (agent.includes("Macintosh") && window.navigator.maxTouchPoints > 1);
+  const ios = /iPad|iPhone|iPod/.test(agent) || (agent.includes("Macintosh") && window.navigator.maxTouchPoints > 1);
+  return ios && !inAppBrowserPattern.test(agent);
 };
 
 const readDismissed = () => {
@@ -54,7 +58,7 @@ let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let snapshot: PwaInstallSnapshot = {
   canPrompt: false,
   installed: readInstalled(),
-  needsManualSteps: isIosLike(),
+  needsManualSteps: needsManualInstallSteps(),
   bannerDismissed: readDismissed(),
 };
 
@@ -63,7 +67,7 @@ const publish = () => {
   const next: PwaInstallSnapshot = {
     canPrompt: deferredPrompt !== null,
     installed: readInstalled(),
-    needsManualSteps: isIosLike(),
+    needsManualSteps: needsManualInstallSteps(),
     bannerDismissed: readDismissed(),
   };
   if (

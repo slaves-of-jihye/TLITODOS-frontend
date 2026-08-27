@@ -5,41 +5,82 @@
  * 빌드 시점에 알 수 없으므로 사전 캐시 대신 런타임 캐시만 사용합니다.
  * - 문서 요청: 네트워크 우선(오프라인일 때만 캐시된 셸로 대체)
  * - `assets/` 산출물: 내용 주소 기반이라 캐시 우선
- * - 폰트/아이콘/매니페스트: 캐시 우선 + 백그라운드 갱신
+ * - 아이콘/매니페스트: 캐시 우선 + 백그라운드 갱신
+ * - 폰트: 캐시 우선. 5MB라 재검증 요청을 걸지 않습니다.
  * API 응답과 OAuth 콜백은 절대 캐시하지 않습니다.
+ *
+ * 원칙: 캐시 계층의 어떤 실패도 응답을 막지 않습니다. 저장소가 막히거나 용량이
+ * 초과되면 서비스 워커가 없는 것과 동일하게 네트워크로만 동작해야 합니다.
+ * `public/` 아래 해시 없는 파일(폰트, 아이콘)의 내용이 바뀌면 VERSION을 올리세요.
  */
 
 const VERSION = "v1";
-const SHELL_CACHE = `tlitodos-shell-${VERSION}`;
-const ASSET_CACHE = `tlitodos-assets-${VERSION}`;
+const CACHE_PREFIX = "tlitodos-";
+const SHELL_CACHE = `${CACHE_PREFIX}shell-${VERSION}`;
+const ASSET_CACHE = `${CACHE_PREFIX}assets-${VERSION}`;
 const ASSET_CACHE_LIMIT = 80;
 
 const scope = new URL("./", self.location.href);
+const START_PATH = scope.pathname;
 const INDEX_URL = new URL("index.html", scope).href;
-const OAUTH_CALLBACK_URL = new URL("oauth-callback.html", scope).href;
+const OAUTH_CALLBACK_PATH = new URL("oauth-callback.html", scope).pathname;
+// 폰트는 용량이 커서 설치 시점에 미리 받지 않고, 페이지가 요청할 때 캐시합니다.
 const SHELL_ASSETS = [
-  INDEX_URL,
   new URL("manifest.webmanifest", scope).href,
-  new URL("fonts/KyoboHandwriting2019.otf", scope).href,
   new URL("icons/icon-192.png", scope).href,
   new URL("icons/apple-touch-icon.png", scope).href,
 ];
 
+const openCache = async name => {
+  try {
+    return await caches.open(name);
+  } catch {
+    return null;
+  }
+};
+
+const matchCache = async (cache, key) => {
+  if (!cache) return undefined;
+  try {
+    return await cache.match(key);
+  } catch {
+    return undefined;
+  }
+};
+
+/** `waitUntil`은 이벤트 수명이 끝났으면 던지므로, 응답 경로를 막지 않게 감쌉니다. */
+const extendLifetime = (event, promise) => {
+  try {
+    event.waitUntil(promise.catch(() => undefined));
+  } catch {
+    /* 수명 연장에 실패해도 백그라운드 작업은 그대로 진행됩니다. */
+  }
+};
+
+/** 캐시 저장은 응답 경로를 막지 않도록 백그라운드로 처리합니다. */
+const putLater = (event, cache, key, response) => {
+  if (!cache) return;
+  extendLifetime(event, cache.put(key, response));
+};
+
 self.addEventListener("install", event => {
   event.waitUntil(
     (async () => {
-      const cache = await caches.open(SHELL_CACHE);
-      // 폰트 하나가 실패해도 설치 전체가 실패하지 않도록 개별로 담습니다.
-      await Promise.all(
-        SHELL_ASSETS.map(async url => {
-          try {
-            const response = await fetch(url, { cache: "reload" });
-            if (response.ok) await cache.put(url, response);
-          } catch {
-            /* 오프라인 설치는 조용히 넘어갑니다. */
-          }
-        }),
-      );
+      const cache = await openCache(SHELL_CACHE);
+      if (cache)
+        await Promise.all(
+          // index.html은 항상 새로 받고, 나머지는 HTTP 캐시를 재사용합니다.
+          [{ url: INDEX_URL, reload: true }, ...SHELL_ASSETS.map(url => ({ url, reload: false }))].map(
+            async ({ url, reload }) => {
+              try {
+                const response = await fetch(url, reload ? { cache: "reload" } : undefined);
+                if (response.ok) await cache.put(url, response);
+              } catch {
+                /* 오프라인이거나 저장에 실패해도 설치는 계속합니다. */
+              }
+            },
+          ),
+        );
       await self.skipWaiting();
     })(),
   );
@@ -48,45 +89,60 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     (async () => {
-      const keys = await caches.keys();
-      await Promise.all(keys.filter(key => key !== SHELL_CACHE && key !== ASSET_CACHE).map(key => caches.delete(key)));
+      try {
+        const keys = await caches.keys();
+        await Promise.all(
+          keys
+            .filter(key => key.startsWith(CACHE_PREFIX) && key !== SHELL_CACHE && key !== ASSET_CACHE)
+            .map(key => caches.delete(key)),
+        );
+      } catch {
+        /* 정리에 실패해도 활성화는 계속합니다. */
+      }
       await self.clients.claim();
     })(),
   );
 });
 
 const trimCache = async (cacheName, limit) => {
-  const cache = await caches.open(cacheName);
-  const keys = await cache.keys();
-  await Promise.all(keys.slice(0, Math.max(0, keys.length - limit)).map(key => cache.delete(key)));
+  const cache = await openCache(cacheName);
+  if (!cache) return;
+  try {
+    const keys = await cache.keys();
+    await Promise.all(keys.slice(0, Math.max(0, keys.length - limit)).map(key => cache.delete(key)));
+  } catch {
+    /* 정리 실패는 무시합니다. */
+  }
 };
 
-const cacheFirst = async (request, cacheName, revalidate) => {
-  const cache = await caches.open(cacheName);
-  const cached = await cache.match(request);
+const cacheFirst = async (event, cacheName, revalidate) => {
+  const { request } = event;
+  const cache = await openCache(cacheName);
+  const cached = await matchCache(cache, request);
   if (cached) {
     if (revalidate)
-      void fetch(request)
-        .then(response => (response.ok ? cache.put(request, response) : undefined))
-        .catch(() => undefined);
+      extendLifetime(
+        event,
+        fetch(request).then(response => (response.ok && cache ? cache.put(request, response) : undefined)),
+      );
     return cached;
   }
   const response = await fetch(request);
-  if (response.ok) {
-    await cache.put(request, response.clone());
-    if (cacheName === ASSET_CACHE) void trimCache(ASSET_CACHE, ASSET_CACHE_LIMIT);
+  if (response.ok && cache) {
+    putLater(event, cache, request, response.clone());
+    if (cacheName === ASSET_CACHE) extendLifetime(event, trimCache(ASSET_CACHE, ASSET_CACHE_LIMIT));
   }
   return response;
 };
 
-const networkFirstDocument = async request => {
-  const cache = await caches.open(SHELL_CACHE);
+const networkFirstDocument = async (event, cacheable) => {
+  const cache = await openCache(SHELL_CACHE);
   try {
-    const response = await fetch(request);
-    if (response.ok) await cache.put(INDEX_URL, response.clone());
+    const response = await fetch(event.request);
+    if (response.ok && cacheable) putLater(event, cache, INDEX_URL, response.clone());
     return response;
   } catch (reason) {
-    const cached = await cache.match(INDEX_URL);
+    const cached = await matchCache(cache, INDEX_URL);
     if (cached) return cached;
     throw reason;
   }
@@ -99,20 +155,25 @@ self.addEventListener("fetch", event => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
   // OAuth 콜백과 API 응답은 항상 네트워크에서 가져옵니다.
-  if (url.href === OAUTH_CALLBACK_URL || url.pathname.startsWith("/api/")) return;
+  if (url.pathname === OAUTH_CALLBACK_PATH || url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
-    event.respondWith(networkFirstDocument(request));
+    // 셸로 저장하는 건 실제 시작 URL 응답뿐입니다. 다른 경로의 응답으로 셸이 오염되지 않게 합니다.
+    event.respondWith(networkFirstDocument(event, url.pathname === START_PATH));
     return;
   }
-  if (!url.href.startsWith(scope.href)) return;
+  if (!url.pathname.startsWith(START_PATH)) return;
 
-  const path = url.href.slice(scope.href.length);
+  const path = url.pathname.slice(START_PATH.length);
   if (path.startsWith("assets/")) {
-    event.respondWith(cacheFirst(request, ASSET_CACHE, false));
+    event.respondWith(cacheFirst(event, ASSET_CACHE, false));
     return;
   }
-  if (path.startsWith("fonts/") || path.startsWith("icons/") || path === "manifest.webmanifest") {
-    event.respondWith(cacheFirst(request, SHELL_CACHE, true));
+  if (path.startsWith("fonts/")) {
+    event.respondWith(cacheFirst(event, SHELL_CACHE, false));
+    return;
+  }
+  if (path.startsWith("icons/") || path === "manifest.webmanifest") {
+    event.respondWith(cacheFirst(event, SHELL_CACHE, true));
   }
 });
