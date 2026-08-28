@@ -43,6 +43,7 @@ import {
   CategorySection,
   DependencyBlockModal,
   GroupActionModals,
+  InstallAppAction,
   TodoEditorModal,
   WorkspaceHeader,
 } from "./components";
@@ -439,6 +440,7 @@ export const ProfilePage = () => {
         <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
         <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
         {error ? <ErrorText>{error}</ErrorText> : null}
+        <InstallAppAction />
         <LogoutButton
           onClick={async () => {
             try {
