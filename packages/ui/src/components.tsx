@@ -291,6 +291,7 @@ const TodoTextButton = styled.button`
     margin-top: 7px;
     color: ${theme.colors.muted};
     font-size: 12px;
+    overflow-wrap: anywhere;
   }
   &:disabled {
     cursor: default;
