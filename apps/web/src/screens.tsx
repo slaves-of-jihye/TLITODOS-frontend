@@ -8,7 +8,6 @@ import {
   sortTodos,
   splitDiaryContent,
   todosForDate,
-  unresolvedDependencies,
 } from "@tlitodos/core";
 import {
   useApi,
@@ -89,13 +88,14 @@ const TodoWorkspace = ({
     [allTodosRaw, ownerId],
   );
   const { data: diaries = [] } = useDiaries();
-  const { overrides: completionOverrides, setCompletion } = useTodoCompletion({
+  const [blocked, setBlocked] = useState<Todo[]>([]);
+  const { overrides: completionOverrides, toggle } = useTodoCompletion({
     serverTodos: ownerTodos,
+    onBlocked: setBlocked,
     onRevert: refetch,
   });
   const [editor, setEditor] = useState<EditorState>(null);
   const [manage, setManage] = useState<Category | null>(null);
-  const [blocked, setBlocked] = useState<Todo[]>([]);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
   const todos = useMemo(
     () =>
@@ -114,14 +114,7 @@ const TodoWorkspace = ({
   const isLoading = categoriesQuery.isLoading || todosQuery.isLoading;
   const handleToggle = (todo: Todo) => {
     if (!own) return;
-    if (!todo.isCompleted) {
-      const dependencies = unresolvedDependencies(todo, todos);
-      if (dependencies.length) {
-        setBlocked(dependencies);
-        return;
-      }
-    }
-    setCompletion(todo.todoId, !todo.isCompleted);
+    toggle(todo.todoId);
   };
   const nonHobby = categories.slice(0, -1);
   const hobby = categories.length ? categories[categories.length - 1] : undefined;
