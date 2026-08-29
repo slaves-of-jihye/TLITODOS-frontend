@@ -945,21 +945,21 @@ export const TodoEditorModal = ({
               할 일 {"*"}
               <input
                 value={title}
-                maxLength={15}
+                maxLength={40}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="할 일을 추가하세요..."
               />
-              <small>{title.length}/15</small>
+              <small>{title.length}/40</small>
             </Field>
             <Field>
               할 일에 대한 세부사항
               <input
                 value={detail}
-                maxLength={20}
+                maxLength={160}
                 onChange={e => setDetail(e.target.value)}
                 placeholder="세부사항을 작성하세요..."
               />
-              <small>{detail.length}/20</small>
+              <small>{detail.length}/160</small>
             </Field>
             <Question>Q. 이 일을 하기 전 선행해야 할 일이 있나요?</Question>
             <DependencyList>
