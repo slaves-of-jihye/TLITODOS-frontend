@@ -13,7 +13,6 @@ import {
 import {
   useApi,
   useCategories,
-  useCompleteTodo,
   useDiaries,
   useGroup,
   useMe,
@@ -37,6 +36,7 @@ import {
 import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useSessionStore } from "./app/sessionStore";
+import { useTodoCompletion } from "./app/useTodoCompletion";
 import {
   CalendarPanel,
   CategoryManageModal,
@@ -89,11 +89,13 @@ const TodoWorkspace = ({
     [allTodosRaw, ownerId],
   );
   const { data: diaries = [] } = useDiaries();
-  const complete = useCompleteTodo();
+  const { overrides: completionOverrides, setCompletion } = useTodoCompletion({
+    serverTodos: ownerTodos,
+    onRevert: refetch,
+  });
   const [editor, setEditor] = useState<EditorState>(null);
   const [manage, setManage] = useState<Category | null>(null);
   const [blocked, setBlocked] = useState<Todo[]>([]);
-  const [completionOverrides, setCompletionOverrides] = useState<Record<number, boolean>>({});
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
   const todos = useMemo(
     () =>
@@ -110,23 +112,16 @@ const TodoWorkspace = ({
   );
   const loadError = categoriesQuery.error ?? todosQuery.error;
   const isLoading = categoriesQuery.isLoading || todosQuery.isLoading;
-  const handleToggle = async (todo: Todo) => {
+  const handleToggle = (todo: Todo) => {
     if (!own) return;
-    const dependencies = unresolvedDependencies(todo, todos);
-    if (!todo.isCompleted && dependencies.length) {
-      setBlocked(dependencies);
-      return;
+    if (!todo.isCompleted) {
+      const dependencies = unresolvedDependencies(todo, todos);
+      if (dependencies.length) {
+        setBlocked(dependencies);
+        return;
+      }
     }
-    if (todo.isCompleted) {
-      setCompletionOverrides(current => ({ ...current, [todo.todoId]: false }));
-      return;
-    }
-    try {
-      await complete.mutateAsync(todo.todoId);
-      setCompletionOverrides(current => ({ ...current, [todo.todoId]: true }));
-    } catch {
-      await refetch();
-    }
+    setCompletion(todo.todoId, !todo.isCompleted);
   };
   const nonHobby = categories.slice(0, -1);
   const hobby = categories.length ? categories[categories.length - 1] : undefined;

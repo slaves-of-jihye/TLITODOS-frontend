@@ -137,6 +137,14 @@ export const useCompleteTodo = () => {
     onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
   });
 };
+export const useUncompleteTodo = () => {
+  const api = useApi();
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.todos.uncomplete(id),
+    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+  });
+};
 export const useAddDependency = () => {
   const api = useApi();
   const cache = useQueryClient();
