@@ -142,6 +142,7 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
       update: (id: number, body: TodoPatchRequest) => request<Todo>(`/api/v1/todos/${id}`, { method: "PATCH", body }),
       remove: (id: number) => request<MessageResponse>(`/api/v1/todos/${id}`, { method: "DELETE" }),
       complete: (id: number) => request<TodoCompleteResponse>(`/api/v1/todos/${id}/complete`, { method: "PATCH" }),
+      uncomplete: (id: number) => request<TodoCompleteResponse>(`/api/v1/todos/${id}/uncomplete`, { method: "PATCH" }),
       dependency: (id: number, body: DependencyCreateRequest) =>
         request<TodoDependencyResponse>(`/api/v1/todos/${id}/dependencies`, { method: "POST", body }),
       subtask: (id: number, body: SubtaskCreateRequest) =>
