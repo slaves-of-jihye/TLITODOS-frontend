@@ -17,13 +17,23 @@ export const AppShell = styled.div`
   }
 `;
 
-export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "ghost" }>`
+export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "ghost" | "danger" }>`
   border: 0;
   border-radius: ${theme.radius.pill};
   padding: 12px 20px;
   font-weight: 700;
-  background: ${({ variant = "soft" }) => (variant === "primary" ? "#dff6ad" : variant === "dark" ? theme.colors.selected : variant === "ghost" ? "transparent" : theme.colors.panel)};
-  color: ${({ variant = "soft" }) => (variant === "dark" ? "white" : theme.colors.ink)};
+  background: ${({ variant = "soft" }) =>
+    variant === "primary"
+      ? "#dff6ad"
+      : variant === "dark"
+        ? theme.colors.selected
+        : variant === "ghost"
+          ? "transparent"
+          : variant === "danger"
+            ? "#fff0f3"
+            : theme.colors.panel};
+  color: ${({ variant = "soft" }) =>
+    variant === "dark" ? "white" : variant === "danger" ? theme.colors.red : theme.colors.ink};
   transition:
     transform 0.16s ease,
     background 0.16s ease;

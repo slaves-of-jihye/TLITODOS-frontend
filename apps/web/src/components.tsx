@@ -18,7 +18,15 @@ import {
   type CategoryTone,
   type RoutineRepeat,
 } from "@tlitodos/core";
-import { useApi, useCreateGroup, useGroups, useJoinGroup, useMe, useUpdateCategory } from "@tlitodos/hooks";
+import {
+  useApi,
+  useCreateGroup,
+  useDeleteTodo,
+  useGroups,
+  useJoinGroup,
+  useMe,
+  useUpdateCategory,
+} from "@tlitodos/hooks";
 import type { Category, Importance, Todo, UiVisibility } from "@tlitodos/types";
 import {
   Button,
@@ -873,6 +881,7 @@ export const TodoEditorModal = ({
 }) => {
   const initialContent = splitTodoContent(todo?.title ?? "");
   const api = useApi();
+  const deleteTodo = useDeleteTodo();
   const { data: groups = [] } = useGroups(open);
   const [title, setTitle] = useState(initialContent.title);
   const [detail, setDetail] = useState(
@@ -891,7 +900,8 @@ export const TodoEditorModal = ({
   });
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     if (visibility === "GROUP" && sharedGroupId === null && groups[0]) setSharedGroupId(groups[0].groupId);
@@ -923,7 +933,7 @@ export const TodoEditorModal = ({
       await api.todos.dependency(saved.todoId, { dependencyTodoId: dependency });
   };
   const submit = async () => {
-    setBusy(true);
+    setSaving(true);
     setError("");
     try {
       await submitOne(withOptionalTime(deadline.date, deadline.time));
@@ -932,7 +942,21 @@ export const TodoEditorModal = ({
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
-      setBusy(false);
+      setSaving(false);
+    }
+  };
+  const remove = async () => {
+    if (!todo || !window.confirm("이 할 일을 삭제할까요?")) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await deleteTodo.mutateAsync(todo.todoId);
+      onSaved?.();
+      onClose();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setDeleting(false);
     }
   };
   const selectedCategory = categories.find(category => category.categoryId === categoryId);
@@ -1071,12 +1095,23 @@ export const TodoEditorModal = ({
             </Button>
             <ButtonStack>
               <Button onClick={() => setRoutineOpen(true)}>루틴으로 등록하기</Button>
+              {todo ? (
+                <Button variant="danger" disabled={saving || deleting} onClick={remove}>
+                  {deleting ? "삭제 중..." : "할 일 삭제하기"}
+                </Button>
+              ) : null}
               <Button
                 variant="primary"
-                disabled={busy || !title.trim() || !categoryId || (visibility === "GROUP" && sharedGroupId === null)}
+                disabled={
+                  saving ||
+                  deleting ||
+                  !title.trim() ||
+                  !categoryId ||
+                  (visibility === "GROUP" && sharedGroupId === null)
+                }
                 onClick={submit}
               >
-                {busy ? "등록 중..." : todo ? "할 일 수정하기" : "할 일 등록하기"}
+                {saving ? (todo ? "수정 중..." : "등록 중...") : todo ? "할 일 수정하기" : "할 일 등록하기"}
               </Button>
             </ButtonStack>
             {error ? <ErrorText>{error}</ErrorText> : null}
@@ -1095,7 +1130,7 @@ export const TodoEditorModal = ({
         initialDate={selectedDate}
         onClose={() => setRoutineOpen(false)}
         onRegister={async value => {
-          setBusy(true);
+          setSaving(true);
           setError("");
           try {
             const suffix = value.time ? `${detail.trim()} ${value.time}`.trim() : detail;
@@ -1108,7 +1143,7 @@ export const TodoEditorModal = ({
           } catch (reason) {
             setError(errorMessage(reason));
           } finally {
-            setBusy(false);
+            setSaving(false);
           }
         }}
       />
