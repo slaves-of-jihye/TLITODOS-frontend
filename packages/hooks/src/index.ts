@@ -129,6 +129,14 @@ export const useUpdateTodo = () => {
     onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
   });
 };
+export const useDeleteTodo = () => {
+  const api = useApi();
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.todos.remove(id),
+    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+  });
+};
 export const useCompleteTodo = () => {
   const api = useApi();
   const cache = useQueryClient();
