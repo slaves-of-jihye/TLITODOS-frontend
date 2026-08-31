@@ -25,8 +25,11 @@ const SHELL_CACHE = `${CACHE_PREFIX}shell-${VERSION}`;
 const ASSET_CACHE = `${CACHE_PREFIX}assets-${VERSION}`;
 const FONT_CACHE = `${CACHE_PREFIX}fonts-${VERSION}`;
 const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE, FONT_CACHE];
-// 오래된 항목부터 밀어냅니다. 현재 쓰는 폰트와 직전에 써 본 폰트 정도만 남깁니다.
-const CACHE_LIMITS = { [ASSET_CACHE]: 80, [FONT_CACHE]: 3 };
+// packages/core의 FONT_PRESETS 개수. 이 파일은 번들되지 않아 가져올 수 없습니다.
+const FONT_COUNT = 6;
+// 오래된 항목부터 밀어냅니다. 폰트 선택 목록이 여섯 벌을 모두 그리므로 상한도
+// 여섯입니다. 이보다 낮으면 목록을 열 때마다 캐시가 밀려 매번 다시 받습니다.
+const CACHE_LIMITS = { [ASSET_CACHE]: 80, [FONT_CACHE]: FONT_COUNT };
 
 const scope = new URL("./", self.location.href);
 const START_PATH = scope.pathname;

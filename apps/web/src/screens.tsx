@@ -2,6 +2,7 @@ import styled from "@emotion/styled";
 import {
   composeDiaryContent,
   FONT_PRESETS,
+  fontFamilyStack,
   formatLocalDate,
   getTodoTitle,
   isDiaryForDate,
@@ -36,7 +37,7 @@ import {
   ProfileCard,
   theme,
 } from "@tlitodos/ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
@@ -402,6 +403,146 @@ const EditableProfileRow = ({
 };
 
 /**
+ * 폰트 목록.
+ *
+ * 네이티브 `select`를 쓰지 않는 이유는 macOS와 iOS가 드롭다운을 OS로 그려
+ * `option`의 `font-family`를 무시하기 때문입니다. 폰트를 고르는 자리에서 폰트를
+ * 보여주려면 목록을 직접 그려야 합니다.
+ *
+ * 목록을 여는 순간 여섯 벌을 모두 내려받습니다(배포 환경 brotli 기준 약 3.5MB).
+ * 선택이 아니라 열람에 드는 비용이라, 편집에 들어갈 때가 아니라 목록을 펼칠 때
+ * 발생하도록 두었습니다.
+ */
+const LIST_MAX_HEIGHT = 264;
+const LIST_GAP = 6;
+const LIST_EDGE_MARGIN = 12;
+
+const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: FontKey) => void }) => {
+  const [open, setOpen] = useState(false);
+  // 키보드 이동 중인 항목. 선택과 달리 미리보기를 바꾸지 않습니다.
+  const [active, setActive] = useState<FontKey>(value);
+  // 남는 쪽으로 펼치고, 그래도 모자라면 그 높이에 맞춥니다.
+  const [placement, setPlacement] = useState({ drop: "down" as "down" | "up", maxHeight: LIST_MAX_HEIGHT });
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const close = (focusTrigger = true) => {
+    setOpen(false);
+    if (focusTrigger) triggerRef.current?.focus();
+  };
+  const choose = (next: FontKey) => {
+    onChange(next);
+    setActive(next);
+    close();
+  };
+  const show = () => {
+    setActive(value);
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      // 목록과 트리거 사이 간격, 화면 가장자리 여백을 뺀 실제로 쓸 수 있는 높이입니다.
+      const room = (edge: number) => edge - LIST_GAP - LIST_EDGE_MARGIN;
+      const below = room(window.innerHeight - rect.bottom);
+      const above = room(rect.top);
+      const drop = below < LIST_MAX_HEIGHT && above > below ? "up" : "down";
+      setPlacement({ drop, maxHeight: Math.min(LIST_MAX_HEIGHT, Math.max(120, drop === "up" ? above : below)) });
+    }
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.focus();
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [open]);
+  // 바깥을 누르면 닫습니다. 포커스는 누른 곳에 두는 편이 자연스러워 되돌리지 않습니다.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  const move = (step: number) => {
+    const index = FONT_PRESETS.findIndex(preset => preset.key === active);
+    const next = FONT_PRESETS[Math.min(FONT_PRESETS.length - 1, Math.max(0, index + step))];
+    if (next) setActive(next.key);
+  };
+  // 키보드로 이동한 항목이 목록 밖으로 나가지 않게 합니다.
+  useEffect(() => {
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [active]);
+  const onKeyDown = (event: ReactKeyboardEvent) => {
+    const keys: Record<string, () => void> = {
+      ArrowDown: () => move(1),
+      ArrowUp: () => move(-1),
+      Home: () => setActive(FONT_PRESETS[0].key),
+      End: () => setActive(FONT_PRESETS[FONT_PRESETS.length - 1].key),
+      Enter: () => choose(active),
+      " ": () => choose(active),
+      Escape: () => close(),
+      Tab: () => close(false),
+    };
+    const handler = keys[event.key];
+    if (!handler) return;
+    if (event.key !== "Tab") event.preventDefault();
+    handler();
+  };
+
+  return (
+    <FontSelectRoot ref={rootRef}>
+      <FontSelectTrigger
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{ fontFamily: fontFamilyStack(value) }}
+        onClick={() => (open ? close() : show())}
+        onKeyDown={event => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            show();
+          }
+        }}
+      >
+        <span>{resolveFont(value).label}</span>
+        <FontSelectCaret aria-hidden>▾</FontSelectCaret>
+      </FontSelectTrigger>
+      {open ? (
+        <FontOptionList
+          ref={listRef}
+          role="listbox"
+          aria-label="폰트"
+          tabIndex={-1}
+          data-drop={placement.drop}
+          style={{ maxHeight: placement.maxHeight }}
+          onKeyDown={onKeyDown}
+        >
+          {FONT_PRESETS.map(preset => (
+            <FontOption
+              key={preset.key}
+              type="button"
+              role="option"
+              aria-selected={preset.key === value}
+              data-active={preset.key === active}
+              tabIndex={-1}
+              style={{ fontFamily: fontFamilyStack(preset.key) }}
+              onPointerEnter={() => setActive(preset.key)}
+              onClick={() => choose(preset.key)}
+            >
+              <span>{preset.label}</span>
+              {preset.key === value ? <FontOptionCheck aria-hidden>✓</FontOptionCheck> : null}
+            </FontOption>
+          ))}
+        </FontOptionList>
+      ) : null}
+    </FontSelectRoot>
+  );
+};
+
+/**
  * 폰트 선택 행.
  *
  * 고른 폰트는 화면 전체에 즉시 반영되지만 저장은 완료 버튼으로만 합니다.
@@ -440,22 +581,13 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
       <div>
         <small>폰트</small>
         {editing ? (
-          // 옵션마다 해당 폰트를 입히면 목록을 열 때 여섯 개를 모두 내려받게 되므로,
-          // 미리보기는 화면 전체에 적용하는 쪽으로만 보여 줍니다.
-          <select
+          <FontSelect
             value={draft}
-            onChange={e => {
-              const next = e.target.value as FontKey;
+            onChange={next => {
               setDraft(next);
               applyFont(next, { persist: false });
             }}
-          >
-            {FONT_PRESETS.map(preset => (
-              <option key={preset.key} value={preset.key}>
-                {preset.label}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
           <strong>{resolveFont(value).label}</strong>
         )}
@@ -845,8 +977,7 @@ const ProfileRow = styled.div`
     font-size: 18px;
   }
   input,
-  textarea,
-  select {
+  textarea {
     width: 100%;
     border: 0;
     border-radius: 10px;
@@ -873,6 +1004,68 @@ const ProfileRow = styled.div`
       }
     }
   }
+`;
+const FontSelectRoot = styled.div`
+  position: relative;
+`;
+const FontSelectTrigger = styled.button`
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: ${theme.colors.panel};
+  padding: 12px;
+  text-align: left;
+  font-size: 17px;
+  color: ${theme.colors.ink};
+`;
+const FontSelectCaret = styled.span`
+  color: ${theme.colors.muted};
+  font-size: 13px;
+`;
+const FontOptionList = styled.div`
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + ${LIST_GAP}px);
+  left: 0;
+  right: 0;
+  &[data-drop="up"] {
+    top: auto;
+    bottom: calc(100% + ${LIST_GAP}px);
+  }
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  padding: 6px;
+  background: ${theme.colors.white};
+  border: 1px solid ${theme.colors.line};
+  border-radius: ${theme.radius.sm};
+  box-shadow: ${theme.shadow};
+`;
+const FontOption = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 12px;
+  text-align: left;
+  font-size: 18px;
+  line-height: 1.35;
+  color: ${theme.colors.ink};
+  &[data-active="true"] {
+    background: ${theme.colors.panel};
+  }
+`;
+const FontOptionCheck = styled.span`
+  color: ${theme.colors.blue};
+  font-size: 14px;
 `;
 const LogoutButton = styled.button`
   margin-top: 28px;
