@@ -1,6 +1,15 @@
 import { css } from "@emotion/react";
 import { DEFAULT_FONT_KEY, FONT_PRESETS, fontFamilyStack } from "@tlitodos/core";
 
+/**
+ * 아이콘으로 쓰는 문장부호(`›`, `✓` 등)에 쓰는 글꼴.
+ *
+ * 사용자가 고른 폰트가 해당 부호를 담고 있으면 브라우저는 폴백하지 않고 그
+ * 글리프를 씁니다. 그 글리프가 비어 있으면 자리만 차지하고 아무것도 그려지지
+ * 않습니다 — 고양체의 `›`(U+203A)가 그렇습니다. 본문 폰트와 분리해 둡니다.
+ */
+export const uiGlyphFont = "system-ui, sans-serif";
+
 export const theme = {
   colors: {
     ink: "#1d1d1d",
