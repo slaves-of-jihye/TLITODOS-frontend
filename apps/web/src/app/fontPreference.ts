@@ -19,10 +19,16 @@ export const readStoredFont = (): FontKey => {
   }
 };
 
-/** 목록에 없는 키를 받으면 기본 폰트로 떨어집니다. 적용한 키를 돌려줍니다. */
-export const applyFont = (key: string | null | undefined): FontKey => {
+/**
+ * 목록에 없는 키를 받으면 기본 폰트로 떨어집니다. 적용한 키를 돌려줍니다.
+ *
+ * `persist: false`는 미리보기용입니다. 확정하지 않은 선택이 로컬에 남으면 다음
+ * 접속 때 취소한 폰트로 되살아나므로, 화면에만 반영하고 저장은 하지 않습니다.
+ */
+export const applyFont = (key: string | null | undefined, { persist = true } = {}): FontKey => {
   const { key: applied } = resolveFont(key);
   document.documentElement.style.setProperty(cssVariable, fontFamilyStack(applied));
+  if (!persist) return applied;
   try {
     window.localStorage.setItem(storageKey, applied);
   } catch {
