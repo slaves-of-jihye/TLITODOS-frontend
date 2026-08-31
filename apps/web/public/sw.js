@@ -6,19 +6,27 @@
  * - 문서 요청: 네트워크 우선(오프라인일 때만 캐시된 셸로 대체)
  * - `assets/` 산출물: 내용 주소 기반이라 캐시 우선
  * - 아이콘/매니페스트: 캐시 우선 + 백그라운드 갱신
- * - 폰트: 캐시 우선. 5MB라 재검증 요청을 걸지 않습니다.
+ * - 폰트: 별도 캐시에 캐시 우선. 재검증 요청은 걸지 않습니다.
  * API 응답과 OAuth 콜백은 절대 캐시하지 않습니다.
+ *
+ * 폰트를 셸과 분리한 이유: 사용자가 고를 수 있는 폰트가 여섯 개이고 압축이 풀린
+ * 상태로 저장되어 개당 최대 4.8MB입니다. 셸 캐시에 함께 두면 개수 제한을 걸 수
+ * 없습니다. index.html은 오프라인 대체용이라 절대 밀려나면 안 되기 때문입니다.
  *
  * 원칙: 캐시 계층의 어떤 실패도 응답을 막지 않습니다. 저장소가 막히거나 용량이
  * 초과되면 서비스 워커가 없는 것과 동일하게 네트워크로만 동작해야 합니다.
  * `public/` 아래 해시 없는 파일(폰트, 아이콘)의 내용이 바뀌면 VERSION을 올리세요.
  */
 
-const VERSION = "v1";
+// v2: 폰트를 셸 캐시에서 분리했습니다. v1 셸에 남은 폰트는 활성화 때 함께 지워집니다.
+const VERSION = "v2";
 const CACHE_PREFIX = "tlitodos-";
 const SHELL_CACHE = `${CACHE_PREFIX}shell-${VERSION}`;
 const ASSET_CACHE = `${CACHE_PREFIX}assets-${VERSION}`;
-const ASSET_CACHE_LIMIT = 80;
+const FONT_CACHE = `${CACHE_PREFIX}fonts-${VERSION}`;
+const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE, FONT_CACHE];
+// 오래된 항목부터 밀어냅니다. 현재 쓰는 폰트와 직전에 써 본 폰트 정도만 남깁니다.
+const CACHE_LIMITS = { [ASSET_CACHE]: 80, [FONT_CACHE]: 3 };
 
 const scope = new URL("./", self.location.href);
 const START_PATH = scope.pathname;
@@ -93,7 +101,7 @@ self.addEventListener("activate", event => {
         const keys = await caches.keys();
         await Promise.all(
           keys
-            .filter(key => key.startsWith(CACHE_PREFIX) && key !== SHELL_CACHE && key !== ASSET_CACHE)
+            .filter(key => key.startsWith(CACHE_PREFIX) && !CURRENT_CACHES.includes(key))
             .map(key => caches.delete(key)),
         );
       } catch {
@@ -129,8 +137,10 @@ const cacheFirst = async (event, cacheName, revalidate) => {
   }
   const response = await fetch(request);
   if (response.ok && cache) {
-    putLater(event, cache, request, response.clone());
-    if (cacheName === ASSET_CACHE) extendLifetime(event, trimCache(ASSET_CACHE, ASSET_CACHE_LIMIT));
+    const limit = CACHE_LIMITS[cacheName];
+    const stored = cache.put(request, response.clone()).catch(() => undefined);
+    // 정리는 저장이 끝난 뒤에 돌아야 방금 넣은 항목까지 세어집니다.
+    extendLifetime(event, limit ? stored.then(() => trimCache(cacheName, limit)) : stored);
   }
   return response;
 };
@@ -170,7 +180,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (path.startsWith("fonts/")) {
-    event.respondWith(cacheFirst(event, SHELL_CACHE, false));
+    event.respondWith(cacheFirst(event, FONT_CACHE, false));
     return;
   }
   if (path.startsWith("icons/") || path === "manifest.webmanifest") {
