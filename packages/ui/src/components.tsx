@@ -2,7 +2,12 @@ import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { CATEGORY_PRESETS, splitTodoContent, type CategoryTone } from "@tlitodos/core";
 import type { GroupMember, Todo } from "@tlitodos/types";
-import { theme } from "./theme";
+import { theme, uiGlyphFont } from "./theme";
+
+/** 아이콘으로 쓰는 문장부호를 감쌉니다. 이유는 `uiGlyphFont` 주석에 있습니다. */
+export const Glyph = styled.span`
+  font-family: ${uiGlyphFont};
+`;
 
 export const AppShell = styled.div`
   width: min(1280px, 100%);
@@ -59,6 +64,7 @@ export const IconButton = styled.button`
   border: 0;
   border-radius: 50%;
   background: ${theme.colors.panel};
+  font-family: ${uiGlyphFont};
   font-size: 22px;
   @media (max-width: 600px) {
     width: 44px;
@@ -271,6 +277,7 @@ const CheckButton = styled.button<{ done: boolean; color: string }>`
   border: 2px solid ${({ color }) => color};
   background: ${({ done, color }) => (done ? color : "transparent")};
   color: white;
+  font-family: ${uiGlyphFont};
   font-weight: 800;
   &:disabled {
     cursor: default;

@@ -33,6 +33,7 @@ import {
   DiaryBadge,
   ErrorText,
   Field,
+  Glyph,
   Modal,
   ProfileCard,
   theme,
@@ -394,7 +395,7 @@ const EditableProfileRow = ({
               setEditing(true);
             }}
           >
-            ›
+            <Glyph>›</Glyph>
           </Button>
         )}
       </div>
@@ -508,7 +509,9 @@ const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: Font
         }}
       >
         <span>{resolveFont(value).label}</span>
-        <FontSelectCaret aria-hidden>▾</FontSelectCaret>
+        <FontSelectCaret aria-hidden>
+          <Glyph>▾</Glyph>
+        </FontSelectCaret>
       </FontSelectTrigger>
       {open ? (
         <FontOptionList
@@ -533,7 +536,11 @@ const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: Font
               onClick={() => choose(preset.key)}
             >
               <span>{preset.label}</span>
-              {preset.key === value ? <FontOptionCheck aria-hidden>✓</FontOptionCheck> : null}
+              {preset.key === value ? (
+                <FontOptionCheck aria-hidden>
+                  <Glyph>✓</Glyph>
+                </FontOptionCheck>
+              ) : null}
             </FontOption>
           ))}
         </FontOptionList>
@@ -607,7 +614,7 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
               setEditing(true);
             }}
           >
-            ›
+            <Glyph>›</Glyph>
           </Button>
         )}
       </div>
@@ -691,7 +698,9 @@ const DiaryForm = ({
     <AppShell>
       <DiaryHead>
         <div>
-          <Button onClick={() => navigate("/")}>‹ 돌아가기</Button>
+          <Button onClick={() => navigate("/")}>
+            <Glyph>‹</Glyph> 돌아가기
+          </Button>
           <h1>{existing ? "일기 수정하기" : "오늘의 일기 쓰기"}</h1>
           <p>
             {userName} · {selectedDate.replaceAll("-", ".")}
