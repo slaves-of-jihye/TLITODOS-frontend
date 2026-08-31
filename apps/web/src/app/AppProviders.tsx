@@ -4,6 +4,7 @@ import { createApiClient } from "@tlitodos/api-client";
 import { ApiProvider } from "@tlitodos/hooks";
 import { globalStyles } from "@tlitodos/ui";
 import { useMemo, type ReactNode } from "react";
+import { apiBaseUrl } from "./assetUrl";
 import { useSessionStore } from "./sessionStore";
 
 const queryClient = new QueryClient({
@@ -35,7 +36,7 @@ const createRefreshHandler = (baseUrl: string, clearSession: () => void) => {
 export const AppProviders = ({ children }: { children: ReactNode }) => {
   const clearSession = useSessionStore(state => state.clearSession);
   const api = useMemo(() => {
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    const baseUrl = apiBaseUrl;
     return createApiClient({
       baseUrl,
       getAccessToken: () => useSessionStore.getState().accessToken,

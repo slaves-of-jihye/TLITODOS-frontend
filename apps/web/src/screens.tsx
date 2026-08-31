@@ -40,6 +40,7 @@ import {
 } from "@tlitodos/ui";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { resolveAssetUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
 import { useTodoCompletion } from "./app/useTodoCompletion";
@@ -282,7 +283,7 @@ export const GroupHome = () => {
           {members.map(member => (
             <ProfileCard
               key={member.userId}
-              member={member}
+              member={{ ...member, profileImageUrl: resolveAssetUrl(member.profileImageUrl) }}
               onClick={() => navigate(`/groups/${id}/members/${member.userId}`)}
             />
           ))}
@@ -400,6 +401,46 @@ const EditableProfileRow = ({
         )}
       </div>
     </ProfileRow>
+  );
+};
+
+/** 서버가 5MB를 넘기면 거절하므로, 올리기 전에 같은 기준으로 막습니다. */
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * 프로필 사진 교체.
+ *
+ * 파일 선택창은 숨긴 `input`으로 열고, 고른 파일을 바로 올립니다. 사진은 되돌릴
+ * 초안이 없어 이름·자기소개와 달리 완료 버튼 없이 곧장 저장합니다.
+ */
+const ProfileImageAction = ({ onPick }: { onPick: (file: File) => Promise<void> }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <Button disabled={busy} onClick={() => inputRef.current?.click()}>
+        {busy ? "올리는 중..." : "프로필 사진 수정하기"}
+      </Button>
+      <HiddenFileInput
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        onChange={async event => {
+          const file = event.target.files?.[0];
+          // 같은 파일을 다시 골라도 change가 오도록 값을 비웁니다.
+          event.target.value = "";
+          if (!file) return;
+          setBusy(true);
+          try {
+            await onPick(file);
+          } catch {
+            /* 오류 문구는 프로필 화면에서 표시합니다. */
+          } finally {
+            setBusy(false);
+          }
+        }}
+      />
+    </>
   );
 };
 
@@ -643,18 +684,34 @@ export const ProfilePage = () => {
     }
   };
   const save = (body: { name?: string; bio?: string }) => guard(() => update.mutateAsync(body));
+  const profileImage = resolveAssetUrl(me?.profileImageUrl);
+  const uploadProfileImage = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("이미지 파일만 올릴 수 있습니다.");
+      return Promise.resolve();
+    }
+    if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+      setError("이미지는 5MB까지 올릴 수 있습니다.");
+      return Promise.resolve();
+    }
+    const body = new FormData();
+    body.append("image", file);
+    return guard(() => update.mutateAsync(body));
+  };
   return (
     <AppShell>
       <PageTitle>프로필</PageTitle>
       <ProfilePanel>
         <ProfileHero>
-          {me?.profileImageUrl ? <img src={me.profileImageUrl} alt="프로필" /> : <span>🌱</span>}
+          {profileImage ? <img src={profileImage} alt="프로필" /> : <span>🌱</span>}
           <div>
             <h2>{me?.name || "사용자"}</h2>
             <p>{me?.bio || "오늘도 한 걸음씩"}</p>
           </div>
+          <ProfileHeroAction>
+            <ProfileImageAction onPick={uploadProfileImage} />
+          </ProfileHeroAction>
         </ProfileHero>
-        {/* 프로필 사진 수정하기 버튼은 API·MVP 범위 확정 후 활성화 */}
         <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
         <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
         <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
@@ -927,9 +984,24 @@ const ProfilePanel = styled.div`
     margin: 28px auto;
   }
 `;
+const HiddenFileInput = styled.input`
+  display: none;
+`;
+const ProfileHeroAction = styled.div`
+  margin-left: auto;
+  @media (max-width: 600px) {
+    /* 좁은 화면에서는 아래로 내려 이름·자기소개를 밀지 않게 합니다. */
+    margin-left: 0;
+    flex-basis: 100%;
+    button {
+      width: 100%;
+    }
+  }
+`;
 const ProfileHero = styled.div`
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 24px;
   margin-bottom: 42px;
   img,
