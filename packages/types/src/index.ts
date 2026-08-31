@@ -152,8 +152,14 @@ export interface UserUpdateRequest {
   name?: string | null;
   bio?: string | null;
   profileImageUrl?: string | null;
+}
+export interface UserFontUpdateRequest {
   /** `@tlitodos/core`의 `FontKey`. 순환 의존을 피하려고 여기서는 문자열로 둡니다. */
-  font?: string | null;
+  font: string;
+}
+export interface UserFontUpdateResponse {
+  userId: number;
+  font: string;
 }
 export interface GroupCreateRequest {
   name: string;

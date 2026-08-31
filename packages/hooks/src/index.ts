@@ -9,6 +9,7 @@ import type {
   GroupJoinRequest,
   TodoCreateRequest,
   TodoPatchRequest,
+  UserFontUpdateRequest,
   UserUpdateRequest,
 } from "@tlitodos/types";
 
@@ -94,6 +95,14 @@ export const useUpdateProfile = () => {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: (body: UserUpdateRequest | FormData) => api.users.updateMe(body),
+    onSuccess: () => cache.invalidateQueries({ queryKey: queryKeys.me }),
+  });
+};
+export const useUpdateFont = () => {
+  const api = useApi();
+  const cache = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UserFontUpdateRequest) => api.users.updateFont(body),
     onSuccess: () => cache.invalidateQueries({ queryKey: queryKeys.me }),
   });
 };

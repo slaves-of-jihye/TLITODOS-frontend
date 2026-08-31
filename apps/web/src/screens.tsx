@@ -20,6 +20,7 @@ import {
   useMe,
   useSaveDiary,
   useTodos,
+  useUpdateFont,
   useUpdateProfile,
 } from "@tlitodos/hooks";
 import type { Category, Diary, Todo } from "@tlitodos/types";
@@ -485,6 +486,7 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
 export const ProfilePage = () => {
   const { data: me } = useMe();
   const update = useUpdateProfile();
+  const updateFont = useUpdateFont();
   const api = useApi();
   const refreshToken = useSessionStore(s => s.refreshToken);
   const clear = useSessionStore(s => s.clearSession);
@@ -492,15 +494,16 @@ export const ProfilePage = () => {
   const [error, setError] = useState("");
   // 서버가 아직 폰트를 내려주지 않는 동안에는 이 기기에 남은 선택을 기준으로 삼습니다.
   const font = resolveFont(me?.font ?? readStoredFont()).key;
-  const save = async (body: { name?: string; bio?: string; font?: FontKey }) => {
+  const guard = async (run: () => Promise<unknown>) => {
     setError("");
     try {
-      await update.mutateAsync(body);
+      await run();
     } catch (reason) {
       setError(message(reason));
       throw reason;
     }
   };
+  const save = (body: { name?: string; bio?: string }) => guard(() => update.mutateAsync(body));
   return (
     <AppShell>
       <PageTitle>프로필</PageTitle>
@@ -515,7 +518,7 @@ export const ProfilePage = () => {
         {/* 프로필 사진 수정하기 버튼은 API·MVP 범위 확정 후 활성화 */}
         <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
         <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
-        <FontProfileRow value={font} onSave={next => save({ font: next })} />
+        <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
         {error ? <ErrorText>{error}</ErrorText> : null}
         <InstallAppAction />
         <LogoutButton
