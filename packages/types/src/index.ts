@@ -11,6 +11,8 @@ export interface User {
   bio: string;
   isDiscordLinked: boolean;
   discordAlertEnabled: boolean;
+  /** 선택한 폰트 키. 서버가 아직 내려주지 않으면 로컬에 남은 선택을 씁니다. */
+  font?: string | null;
 }
 
 export interface LoginResponse {
@@ -150,6 +152,14 @@ export interface UserUpdateRequest {
   name?: string | null;
   bio?: string | null;
   profileImageUrl?: string | null;
+}
+export interface UserFontUpdateRequest {
+  /** `@tlitodos/core`의 `FontKey`. 순환 의존을 피하려고 여기서는 문자열로 둡니다. */
+  font: string;
+}
+export interface UserFontUpdateResponse {
+  userId: number;
+  font: string;
 }
 export interface GroupCreateRequest {
   name: string;

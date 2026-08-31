@@ -41,6 +41,81 @@ export const CATEGORY_PRESETS = [
 
 export type CategoryTone = (typeof CATEGORY_PRESETS)[number]["key"];
 
+/**
+ * 사용자가 고를 수 있는 폰트 목록.
+ *
+ * `key`는 백엔드 `users.font`에 저장되는 값이므로 서버 화이트리스트와 정확히
+ * 같아야 합니다.
+ *
+ * 포맷이 폰트마다 다른 이유가 있습니다. 아래 세 폰트는 라이선스가 파일 수정을
+ * 금지하고 있어 원본 포맷 그대로 서빙합니다. WOFF2 변환과 서브셋 모두 "수정"에
+ * 해당하니 최적화 목적으로도 건드리면 안 됩니다.
+ * - Kyobo Handwriting 2019: "수정 및 변경(디지털 포맷 변경)" 명시적 금지
+ * - Goyang: 변형 후 재배포 금지
+ * - Griun Fromsol: 폰트파일 개작·수정 금지
+ * 나머지 셋은 OFL이라 변환이 가능하지만, 전송 단계의 brotli 압축이 WOFF2와
+ * 거의 같은 크기를 내므로 굳이 포맷을 섞지 않고 원본으로 통일했습니다.
+ */
+export const FONT_PRESETS = [
+  {
+    key: "KYOBO_HANDWRITING_2019",
+    label: "교보 손글씨 2019",
+    family: "Kyobo Handwriting 2019",
+    file: "KyoboHandwriting2019.otf",
+    format: "opentype",
+  },
+  {
+    key: "PRETENDARD",
+    label: "프리텐다드",
+    family: "Pretendard",
+    file: "Pretendard.otf",
+    format: "opentype",
+  },
+  {
+    key: "CAFE24_SSURROUND_AIR",
+    label: "카페24 써라운드 에어",
+    family: "Cafe24 Ssurround Air",
+    file: "Cafe24SsurroundAir.otf",
+    format: "opentype",
+  },
+  {
+    key: "GOYANG",
+    label: "고양체",
+    family: "Goyang",
+    file: "Goyang.otf",
+    format: "opentype",
+  },
+  {
+    key: "PAPERLOGY",
+    label: "페이퍼로지",
+    family: "Paperlogy",
+    file: "Paperlogy.ttf",
+    format: "truetype",
+  },
+  {
+    key: "GRIUN_FROMSOL",
+    label: "그리운 프롬솔",
+    family: "Griun Fromsol",
+    file: "GriunFromsol.ttf",
+    format: "truetype",
+  },
+] as const;
+
+export type FontKey = (typeof FONT_PRESETS)[number]["key"];
+export type FontPreset = (typeof FONT_PRESETS)[number];
+
+export const DEFAULT_FONT_KEY: FontKey = "PRETENDARD";
+const DEFAULT_FONT = FONT_PRESETS.find(preset => preset.key === DEFAULT_FONT_KEY) ?? FONT_PRESETS[0];
+const FONT_FALLBACK_STACK = "system-ui, sans-serif";
+
+/** 목록에 없는 값(서버가 모르는 키를 주거나 폰트가 제거된 경우)은 기본 폰트로 떨어집니다. */
+export const resolveFont = (key: string | null | undefined): FontPreset =>
+  FONT_PRESETS.find(preset => preset.key === key) ?? DEFAULT_FONT;
+
+/** CSS `font-family` 값으로 그대로 쓸 수 있는 문자열입니다. */
+export const fontFamilyStack = (key: string | null | undefined) =>
+  `"${resolveFont(key).family}", ${FONT_FALLBACK_STACK}`;
+
 export const formatLocalDate = (date: Date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");

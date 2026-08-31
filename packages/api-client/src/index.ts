@@ -26,6 +26,8 @@ import type {
   TodoPatchRequest,
   TokenRefreshResponse,
   User,
+  UserFontUpdateRequest,
+  UserFontUpdateResponse,
   UserProfileUpdateResponse,
   UserUpdateRequest,
 } from "@tlitodos/types";
@@ -120,6 +122,8 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
       me: () => request<User>("/api/v1/users/me"),
       updateMe: (body: UserUpdateRequest | FormData) =>
         request<UserProfileUpdateResponse>("/api/v1/users/me", { method: "PATCH", body }),
+      updateFont: (body: UserFontUpdateRequest) =>
+        request<UserFontUpdateResponse>("/api/v1/users/me/font", { method: "PATCH", body }),
     },
     groups: {
       list: () => request<GroupListItem[]>("/api/v1/groups"),

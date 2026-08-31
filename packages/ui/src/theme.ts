@@ -1,4 +1,5 @@
 import { css } from "@emotion/react";
+import { DEFAULT_FONT_KEY, FONT_PRESETS, fontFamilyStack } from "@tlitodos/core";
 
 export const theme = {
   colors: {
@@ -17,14 +18,23 @@ export const theme = {
   radius: { sm: "10px", md: "18px", lg: "36px", pill: "999px" },
 } as const;
 
-export const globalStyles = css`
+/**
+ * 고를 수 있는 폰트를 모두 선언합니다. `@font-face` 선언만으로는 파일을 받지
+ * 않고 실제로 사용될 때만 내려받으므로, 전부 선언해도 비용이 없습니다.
+ */
+const fontFaces = FONT_PRESETS.map(
+  preset => `
   @font-face {
-    font-family: "Kyobo Handwriting 2019";
-    src: url("./fonts/KyoboHandwriting2019.otf") format("opentype");
+    font-family: "${preset.family}";
+    src: url("./fonts/${preset.file}") format("${preset.format}");
     font-style: normal;
     font-weight: 400;
     font-display: swap;
-  }
+  }`,
+).join("");
+
+export const globalStyles = css`
+  ${fontFaces}
   * {
     box-sizing: border-box;
   }
@@ -41,7 +51,8 @@ export const globalStyles = css`
   body {
     background: #fff;
     color: ${theme.colors.ink};
-    font-family: "Kyobo Handwriting 2019", system-ui, sans-serif;
+    /* 선택한 폰트는 앱이 --tlitodos-font 변수를 갈아끼워 반영합니다. */
+    font-family: var(--tlitodos-font, ${fontFamilyStack(DEFAULT_FONT_KEY)});
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }

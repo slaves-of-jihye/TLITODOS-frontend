@@ -1,13 +1,16 @@
 import styled from "@emotion/styled";
 import {
   composeDiaryContent,
+  FONT_PRESETS,
   formatLocalDate,
   getTodoTitle,
   isDiaryForDate,
+  resolveFont,
   sortCategories,
   sortTodos,
   splitDiaryContent,
   todosForDate,
+  type FontKey,
 } from "@tlitodos/core";
 import {
   useApi,
@@ -17,6 +20,7 @@ import {
   useMe,
   useSaveDiary,
   useTodos,
+  useUpdateFont,
   useUpdateProfile,
 } from "@tlitodos/hooks";
 import type { Category, Diary, Todo } from "@tlitodos/types";
@@ -32,8 +36,9 @@ import {
   ProfileCard,
   theme,
 } from "@tlitodos/ui";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
 import { useTodoCompletion } from "./app/useTodoCompletion";
 import {
@@ -396,23 +401,109 @@ const EditableProfileRow = ({
   );
 };
 
+/**
+ * 폰트 선택 행.
+ *
+ * 고른 폰트는 화면 전체에 즉시 반영되지만 저장은 완료 버튼으로만 합니다.
+ * 취소하거나 편집 도중 페이지를 벗어나면 직전 선택으로 되돌립니다.
+ */
+const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: FontKey) => Promise<void> }) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<FontKey>(value);
+  const [busy, setBusy] = useState(false);
+  const revert = () => {
+    setDraft(value);
+    applyFont(value);
+    setEditing(false);
+  };
+  // 언마운트 시점의 확정값이 필요해 참조로 들고 있습니다.
+  const committed = useRef(value);
+  useEffect(() => {
+    committed.current = value;
+  }, [value]);
+  // 저장하지 않은 미리보기를 들고 다른 화면으로 넘어가지 않게 합니다.
+  useEffect(() => () => void applyFont(committed.current), []);
+  const finish = async () => {
+    setBusy(true);
+    try {
+      await onSave(draft);
+      applyFont(draft);
+      setEditing(false);
+    } catch {
+      /* 미리보기와 편집 상태를 유지해 다시 시도하거나 취소할 수 있게 둡니다. */
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <ProfileRow>
+      <div>
+        <small>폰트</small>
+        {editing ? (
+          // 옵션마다 해당 폰트를 입히면 목록을 열 때 여섯 개를 모두 내려받게 되므로,
+          // 미리보기는 화면 전체에 적용하는 쪽으로만 보여 줍니다.
+          <select
+            value={draft}
+            onChange={e => {
+              const next = e.target.value as FontKey;
+              setDraft(next);
+              applyFont(next, { persist: false });
+            }}
+          >
+            {FONT_PRESETS.map(preset => (
+              <option key={preset.key} value={preset.key}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <strong>{resolveFont(value).label}</strong>
+        )}
+      </div>
+      <div>
+        {editing ? (
+          <>
+            <Button onClick={revert}>취소</Button>
+            <Button variant="primary" disabled={busy} onClick={finish}>
+              완료
+            </Button>
+          </>
+        ) : (
+          <Button
+            onClick={() => {
+              setDraft(value);
+              setEditing(true);
+            }}
+          >
+            ›
+          </Button>
+        )}
+      </div>
+    </ProfileRow>
+  );
+};
+
 export const ProfilePage = () => {
   const { data: me } = useMe();
   const update = useUpdateProfile();
+  const updateFont = useUpdateFont();
   const api = useApi();
   const refreshToken = useSessionStore(s => s.refreshToken);
   const clear = useSessionStore(s => s.clearSession);
   const navigate = useNavigate();
   const [error, setError] = useState("");
-  const save = async (body: { name?: string; bio?: string }) => {
+  // 서버가 아직 폰트를 내려주지 않는 동안에는 이 기기에 남은 선택을 기준으로 삼습니다.
+  const font = resolveFont(me?.font ?? readStoredFont()).key;
+  const guard = async (run: () => Promise<unknown>) => {
     setError("");
     try {
-      await update.mutateAsync(body);
+      await run();
     } catch (reason) {
       setError(message(reason));
       throw reason;
     }
   };
+  const save = (body: { name?: string; bio?: string }) => guard(() => update.mutateAsync(body));
   return (
     <AppShell>
       <PageTitle>프로필</PageTitle>
@@ -427,6 +518,7 @@ export const ProfilePage = () => {
         {/* 프로필 사진 수정하기 버튼은 API·MVP 범위 확정 후 활성화 */}
         <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
         <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
+        <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
         {error ? <ErrorText>{error}</ErrorText> : null}
         <InstallAppAction />
         <LogoutButton
@@ -753,7 +845,8 @@ const ProfileRow = styled.div`
     font-size: 18px;
   }
   input,
-  textarea {
+  textarea,
+  select {
     width: 100%;
     border: 0;
     border-radius: 10px;
