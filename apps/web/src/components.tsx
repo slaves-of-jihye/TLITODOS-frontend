@@ -49,6 +49,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
+import { resolveAssetUrl } from "./app/assetUrl";
 import { useSessionStore } from "./app/sessionStore";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
@@ -358,7 +359,11 @@ export const WorkspaceHeader = ({
   const { data: groups = [] } = useGroups();
   return (
     <HeaderRow>
-      <ViewChip active={activeGroupId === undefined} avatar={me?.profileImageUrl} onClick={() => navigate("/")}>
+      <ViewChip
+        active={activeGroupId === undefined}
+        avatar={resolveAssetUrl(me?.profileImageUrl)}
+        onClick={() => navigate("/")}
+      >
         {me?.name || "나의 TODO"}
       </ViewChip>
       {groups.map(group => (
