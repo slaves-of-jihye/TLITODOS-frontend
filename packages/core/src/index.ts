@@ -104,12 +104,13 @@ export const FONT_PRESETS = [
 export type FontKey = (typeof FONT_PRESETS)[number]["key"];
 export type FontPreset = (typeof FONT_PRESETS)[number];
 
-export const DEFAULT_FONT_KEY: FontKey = "KYOBO_HANDWRITING_2019";
+export const DEFAULT_FONT_KEY: FontKey = "PRETENDARD";
+const DEFAULT_FONT = FONT_PRESETS.find(preset => preset.key === DEFAULT_FONT_KEY) ?? FONT_PRESETS[0];
 const FONT_FALLBACK_STACK = "system-ui, sans-serif";
 
 /** 목록에 없는 값(서버가 모르는 키를 주거나 폰트가 제거된 경우)은 기본 폰트로 떨어집니다. */
 export const resolveFont = (key: string | null | undefined): FontPreset =>
-  FONT_PRESETS.find(preset => preset.key === key) ?? FONT_PRESETS[0];
+  FONT_PRESETS.find(preset => preset.key === key) ?? DEFAULT_FONT;
 
 /** CSS `font-family` 값으로 그대로 쓸 수 있는 문자열입니다. */
 export const fontFamilyStack = (key: string | null | undefined) =>
