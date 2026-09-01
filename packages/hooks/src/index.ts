@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useCallback, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiClient } from "@tlitodos/api-client";
 import type {
@@ -122,20 +122,34 @@ export const useUpdateCategory = () => {
     onSuccess: () => cache.invalidateQueries({ queryKey: queryKeys.categories }),
   });
 };
-export const useCreateTodo = () => {
-  const api = useApi();
+/**
+ * 할 일 목록 전체를 무효화합니다.
+ *
+ * 여러 건을 잇달아 저장하는 화면(루틴 등록)은 저장마다 무효화하면 목록을 그
+ * 횟수만큼 다시 받습니다. 그런 곳은 `invalidate: false`로 끄고 마지막에 이걸
+ * 한 번 부릅니다.
+ */
+export const useInvalidateTodos = () => {
   const cache = useQueryClient();
+  return useCallback(() => cache.invalidateQueries({ queryKey: ["todos"] }), [cache]);
+};
+
+type MutationOptions = { invalidate?: boolean };
+
+export const useCreateTodo = ({ invalidate = true }: MutationOptions = {}) => {
+  const api = useApi();
+  const invalidateTodos = useInvalidateTodos();
   return useMutation({
     mutationFn: (body: TodoCreateRequest) => api.todos.create(body),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: invalidate ? () => invalidateTodos() : undefined,
   });
 };
-export const useUpdateTodo = () => {
+export const useUpdateTodo = ({ invalidate = true }: MutationOptions = {}) => {
   const api = useApi();
-  const cache = useQueryClient();
+  const invalidateTodos = useInvalidateTodos();
   return useMutation({
     mutationFn: ({ id, body }: { id: number; body: TodoPatchRequest }) => api.todos.update(id, body),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: invalidate ? () => invalidateTodos() : undefined,
   });
 };
 export const useDeleteTodo = () => {
@@ -162,13 +176,13 @@ export const useUncompleteTodo = () => {
     onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
   });
 };
-export const useAddDependency = () => {
+export const useAddDependency = ({ invalidate = true }: MutationOptions = {}) => {
   const api = useApi();
-  const cache = useQueryClient();
+  const invalidateTodos = useInvalidateTodos();
   return useMutation({
     mutationFn: ({ id, dependencyTodoId }: { id: number; dependencyTodoId: number }) =>
       api.todos.dependency(id, { dependencyTodoId }),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: invalidate ? () => invalidateTodos() : undefined,
   });
 };
 export const useSaveDiary = () => {

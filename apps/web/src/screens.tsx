@@ -1,4 +1,5 @@
 import styled from "@emotion/styled";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   composeDiaryContent,
   FONT_PRESETS,
@@ -208,7 +209,6 @@ const TodoWorkspace = ({
         categories={categories}
         todos={selectedTodos}
         onClose={() => setEditor(null)}
-        onSaved={() => refetch()}
       />
       <CategoryManageModal
         key={manage?.categoryId ?? 0}
@@ -670,6 +670,7 @@ export const ProfilePage = () => {
   const api = useApi();
   const refreshToken = useSessionStore(s => s.refreshToken);
   const clear = useSessionStore(s => s.clearSession);
+  const cache = useQueryClient();
   const navigate = useNavigate();
   const [error, setError] = useState("");
   // 서버가 아직 폰트를 내려주지 않는 동안에는 이 기기에 남은 선택을 기준으로 삼습니다.
@@ -725,6 +726,8 @@ export const ProfilePage = () => {
               /* 로컬 세션은 항상 종료합니다. */
             } finally {
               clear();
+              // 다음 사용자가 이전 계정의 캐시를 잠깐이라도 보지 않게 비웁니다.
+              cache.clear();
               navigate("/");
             }
           }}
