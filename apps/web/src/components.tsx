@@ -950,7 +950,8 @@ export const TodoEditorModal = ({
     setError("");
     try {
       await submitOne(withOptionalTime(deadline.date, deadline.time));
-      await invalidateTodos();
+      // 목록 갱신을 기다리지 않습니다. 기다리면 그 왕복만큼 모달이 늦게 닫힙니다.
+      void invalidateTodos();
       onClose();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -1149,7 +1150,7 @@ export const TodoEditorModal = ({
             for (const date of buildRoutineDates(value.start, value.end, value.repeat)) {
               await submitOne(withOptionalTime(date, value.time), true, suffix);
             }
-            await invalidateTodos();
+            void invalidateTodos();
             setRoutineOpen(false);
             onClose();
           } catch (reason) {
