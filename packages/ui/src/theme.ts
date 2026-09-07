@@ -10,21 +10,57 @@ import { DEFAULT_FONT_KEY, FONT_PRESETS, fontFamilyStack } from "@tlitodos/core"
  */
 export const uiGlyphFont = "system-ui, sans-serif";
 
+/**
+ * Figma의 디자인 변수를 그대로 옮긴 토큰입니다.
+ *
+ * 이름은 Figma 쪽(`gray/200`, `text/muted`, `state/error` 등)을 따릅니다. 값이
+ * 어디서 왔는지 추적할 수 있어야 디자인이 바뀔 때 대조하기 쉽습니다.
+ */
+export const palette = {
+  white: "#ffffff",
+  black: "#1d1d1d",
+  gray100: "#f8f9fb",
+  gray200: "#eef1f6",
+  gray300: "#dde2ec",
+  gray400: "#c4ccda",
+  textPrimary: "#1d1d1d",
+  textSecondary: "#334655",
+  textMuted: "#647f8b",
+  stateError: "#fc3c60",
+  stateSaturday: "#0051ff",
+} as const;
+
+/** Figma 텍스트 스타일. 줄간격은 전 스타일 공통 1.6입니다. */
+export const typeScale = {
+  h1: "28px",
+  h2: "24px",
+  h3: "20px",
+  s: "16px",
+  xs: "12px",
+} as const;
+export const lineHeight = 1.6;
+
 export const theme = {
   colors: {
-    ink: "#1d1d1d",
-    muted: "#647f8b",
-    line: "#e8edf2",
-    panel: "#f7f9fb",
-    white: "#ffffff",
-    selected: "#202020",
-    blue: "#145dff",
-    red: "#ff4562",
+    ink: palette.textPrimary,
+    secondary: palette.textSecondary,
+    muted: palette.textMuted,
+    line: palette.gray300,
+    panel: palette.gray100,
+    fill: palette.gray200,
+    disabled: palette.gray400,
+    white: palette.white,
+    selected: palette.black,
+    blue: palette.stateSaturday,
+    red: palette.stateError,
     overlay: "rgba(29,29,29,.44)",
     loginOverlay: "rgba(29,29,29,.66)",
   },
+  text: typeScale,
   shadow: "0 18px 60px rgba(34, 54, 72, .13)",
-  radius: { sm: "10px", md: "18px", lg: "36px", pill: "999px" },
+  radius: { sm: "8px", md: "18px", lg: "36px", pill: "100px" },
+  /** 화면 바깥 여백과 두 단 사이 간격. Figma main 화면 기준입니다. */
+  layout: { gutter: "90px", top: "80px", columnGap: "90px", calendar: "450px", board: "560px", nav: "100px" },
 } as const;
 
 /**
@@ -58,12 +94,31 @@ export const globalStyles = css`
     -webkit-text-size-adjust: 100%;
   }
   body {
-    background: #fff;
+    background: ${palette.white};
     color: ${theme.colors.ink};
     /* 선택한 폰트는 앱이 --tlitodos-font 변수를 갈아끼워 반영합니다. */
     font-family: var(--tlitodos-font, ${fontFamilyStack(DEFAULT_FONT_KEY)});
+    font-size: ${typeScale.s};
+    line-height: ${lineHeight};
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
+  }
+  /* 손글씨 폰트에는 굵기가 없어 bold가 합성 굵게로 뭉개집니다. 크기로 위계를 냅니다. */
+  h1,
+  h2,
+  h3,
+  strong,
+  b {
+    font-weight: 400;
+  }
+  h1 {
+    font-size: ${typeScale.h1};
+  }
+  h2 {
+    font-size: ${typeScale.h2};
+  }
+  h3 {
+    font-size: ${typeScale.h3};
   }
   button,
   input,
@@ -76,7 +131,7 @@ export const globalStyles = css`
     -webkit-tap-highlight-color: transparent;
   }
   :focus-visible {
-    outline: 3px solid rgba(20, 93, 255, 0.22);
+    outline: 3px solid rgba(0, 81, 255, 0.22);
     outline-offset: 2px;
   }
 `;

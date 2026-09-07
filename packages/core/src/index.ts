@@ -136,7 +136,8 @@ export const addMonths = (date: Date, amount: number) => new Date(date.getFullYe
 export const getCalendarDays = (viewDate: Date) => {
   const first = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
   const last = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0);
-  const leading = (first.getDay() + 6) % 7;
+  // 디자인의 달력은 일요일에서 시작합니다.
+  const leading = first.getDay();
   return [
     ...Array.from({ length: leading }, () => null),
     ...Array.from(

@@ -5,7 +5,6 @@ import {
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
-  getTodoTitle,
   isDiaryForDate,
   resolveFont,
   sortCategories,
@@ -125,13 +124,31 @@ const TodoWorkspace = ({
     if (!own) return;
     toggle(todo.todoId);
   };
-  const nonHobby = categories.slice(0, -1);
-  const hobby = categories.length ? categories[categories.length - 1] : undefined;
+  // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
+  const ownerImage = own ? resolveAssetUrl(me?.profileImageUrl) : null;
   return (
     <>
       <WorkspaceGrid>
         <div>
-          <OwnerTitle>{own ? `🌱 ${me?.name || "나"}` : `🐰 ${ownerName || "친구"}`}</OwnerTitle>
+          <OwnerRow>
+            <OwnerProfile>
+              {ownerImage ? <img src={ownerImage} alt="" /> : <span aria-hidden>{own ? "🌱" : "🐰"}</span>}
+              <div>
+                <strong>{own ? me?.name || "나" : ownerName || "친구"}</strong>
+                {own && me?.bio ? <small>{me.bio}</small> : null}
+              </div>
+            </OwnerProfile>
+            {own || selectedDiary ? (
+              <DiaryBadge
+                emotion={selectedDiary?.emotion}
+                nickname={selectedDiary ? "일기" : "일기쓰기"}
+                date={selectedDate.replaceAll("-", ".")}
+                onClick={() =>
+                  own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
+                }
+              />
+            ) : null}
+          </OwnerRow>
           <CalendarPanel
             month={month}
             selectedDate={selectedDate}
@@ -142,21 +159,6 @@ const TodoWorkspace = ({
           />
         </div>
         <TodoArea>
-          <TodoToolbar>
-            {own || selectedDiary ? (
-              <DiaryBadge
-                emotion={selectedDiary?.emotion}
-                nickname={selectedDiary ? "일기" : "일기쓰기"}
-                date={selectedDate.replaceAll("-", ".")}
-                onClick={() =>
-                  own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
-                }
-              />
-            ) : (
-              <span />
-            )}
-            <h2>{getTodoTitle(selectedDate)}</h2>
-          </TodoToolbar>
           {loadError ? (
             <EmptyState>
               <ErrorText>{message(loadError)}</ErrorText>
@@ -167,35 +169,19 @@ const TodoWorkspace = ({
             <EmptyState>카테고리를 준비하고 있어요.</EmptyState>
           ) : (
             <CategoryBoard>
-              <CategoryStack>
-                {nonHobby.map((category, index) => (
-                  <CategorySection
-                    key={category.categoryId}
-                    category={category}
-                    index={index}
-                    todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
-                    own={own}
-                    onAdd={next => setEditor({ category: next, todo: null })}
-                    onManage={setManage}
-                    onToggle={handleToggle}
-                    onEdit={todo => setEditor({ category: null, todo })}
-                  />
-                ))}
-              </CategoryStack>
-              {hobby ? (
-                <CategoryStack>
-                  <CategorySection
-                    category={hobby}
-                    index={categories.length - 1}
-                    todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === hobby.categoryId))}
-                    own={own}
-                    onAdd={next => setEditor({ category: next, todo: null })}
-                    onManage={setManage}
-                    onToggle={handleToggle}
-                    onEdit={todo => setEditor({ category: null, todo })}
-                  />
-                </CategoryStack>
-              ) : null}
+              {categories.map((category, index) => (
+                <CategorySection
+                  key={category.categoryId}
+                  category={category}
+                  index={index}
+                  todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
+                  own={own}
+                  onAdd={next => setEditor({ category: next, todo: null })}
+                  onManage={setManage}
+                  onToggle={handleToggle}
+                  onEdit={todo => setEditor({ category: null, todo })}
+                />
+              ))}
             </CategoryBoard>
           )}
         </TodoArea>
@@ -854,8 +840,9 @@ export const NotFoundPage = () => {
 
 const WorkspaceGrid = styled.main`
   display: grid;
-  grid-template-columns: minmax(330px, 450px) minmax(420px, 1fr);
-  gap: 8%;
+  /* 두 단 모두 줄어들 수 있게 둡니다. 좁은 폭에서 1100px를 넘겨 넘치지 않도록. */
+  grid-template-columns: minmax(0, ${theme.layout.calendar}) minmax(0, ${theme.layout.board});
+  gap: ${theme.layout.columnGap};
   align-items: start;
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -865,54 +852,60 @@ const WorkspaceGrid = styled.main`
     gap: 36px;
   }
 `;
-const OwnerTitle = styled.h2`
-  margin: 0 0 34px;
-  font-size: 22px;
+const OwnerRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+`;
+const OwnerProfile = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: ${theme.radius.sm};
+  img,
+  > span {
+    flex: none;
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    object-fit: cover;
+    background: ${theme.colors.panel};
+    font-size: 30px;
+  }
+  strong {
+    display: block;
+    font-size: ${theme.text.h2};
+    overflow-wrap: anywhere;
+  }
+  small {
+    display: block;
+    color: ${theme.colors.muted};
+    font-size: ${theme.text.s};
+    overflow-wrap: anywhere;
+  }
   @media (max-width: 600px) {
-    margin-bottom: 20px;
-    font-size: 20px;
+    gap: 14px;
+    padding: 0;
+    img,
+    > span {
+      width: 48px;
+      height: 48px;
+      font-size: 24px;
+    }
   }
 `;
 const TodoArea = styled.section`
   min-width: 0;
 `;
-const TodoToolbar = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  margin: 12px 0 32px;
-  h2 {
-    grid-column: 2;
-    margin: 0;
-    font-size: 21px;
-  }
-  @media (max-width: 600px) {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin: 0 0 24px;
-    h2 {
-      order: -1;
-      width: 100%;
-      font-size: 20px;
-      line-height: 1.35;
-    }
-  }
-`;
 const CategoryBoard = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 72px;
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-`;
-const CategoryStack = styled.div`
-  display: grid;
-  align-content: start;
-  gap: 42px;
+  gap: 32px;
   @media (max-width: 600px) {
     gap: 28px;
   }

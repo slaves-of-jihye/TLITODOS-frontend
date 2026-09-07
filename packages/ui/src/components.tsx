@@ -2,7 +2,8 @@ import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { CATEGORY_PRESETS, splitTodoContent, type CategoryTone } from "@tlitodos/core";
 import type { GroupMember, Todo } from "@tlitodos/types";
-import { theme, uiGlyphFont } from "./theme";
+import { icons } from "./icons";
+import { palette, theme, uiGlyphFont } from "./theme";
 
 /** 아이콘으로 쓰는 문장부호를 감쌉니다. 이유는 `uiGlyphFont` 주석에 있습니다. */
 export const Glyph = styled.span`
@@ -137,6 +138,78 @@ const AvatarFallback = styled.span`
   background: white;
 `;
 
+/**
+ * 할 일 개수를 사분면 점으로 보여주는 표식.
+ *
+ * Figma의 `day/status5`입니다. 30px 안에 20px 원 네 개를 10px씩 어긋나게 겹쳐
+ * 두고, 채워지지 않은 칸은 회색으로 남깁니다. 네 개를 넘으면 개수를 숫자로
+ * 얹고, 그 날/그 할 일이 모두 끝났으면 가운데에 체크를 올립니다.
+ */
+export const StatusCluster = ({
+  fills,
+  checked,
+  count,
+  size = 30,
+}: {
+  fills: (string | null)[];
+  checked?: boolean;
+  count?: number;
+  size?: number;
+}) => (
+  <Cluster style={{ width: size, height: size }}>
+    {[0, 1, 2, 3].map(index => (
+      <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
+    ))}
+    {checked ? <ClusterCheck src={icons.check} alt="" aria-hidden /> : null}
+    {!checked && count ? <ClusterCount>{count}</ClusterCount> : null}
+  </Cluster>
+);
+const Cluster = styled.span`
+  position: relative;
+  display: block;
+  flex: none;
+`;
+const Quadrant = styled.i`
+  position: absolute;
+  width: 66.67%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0.8;
+  &[data-slot="0"] {
+    left: 0;
+    top: 0;
+  }
+  &[data-slot="1"] {
+    right: 0;
+    top: 0;
+  }
+  &[data-slot="2"] {
+    left: 0;
+    bottom: 0;
+  }
+  &[data-slot="3"] {
+    right: 0;
+    bottom: 0;
+  }
+`;
+const ClusterCheck = styled.img`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40%;
+  height: 40%;
+  transform: translate(-50%, -50%);
+`;
+const ClusterCount = styled.span`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: ${palette.white};
+  font-size: ${theme.text.s};
+  line-height: 1;
+`;
+
 export const CategoryPill = ({
   name,
   tone,
@@ -154,7 +227,7 @@ export const CategoryPill = ({
   const hasAddAction = own && Boolean(onAdd);
   return (
     <Pill
-      background={preset.background}
+      accent={preset.strong}
       hasAddAction={hasAddAction}
       onClick={own && !preset.locked ? onManage : undefined}
       role={own && !preset.locked ? "button" : undefined}
@@ -163,51 +236,52 @@ export const CategoryPill = ({
       {own && onAdd ? (
         <PlusButton
           aria-label={`${name} 할 일 추가`}
-          background={preset.color}
           onClick={event => {
             event.stopPropagation();
             onAdd();
           }}
         >
-          +
+          <img src={icons.plus} alt="" aria-hidden />
         </PlusButton>
       ) : null}
     </Pill>
   );
 };
-const Pill = styled.div<{ background: string; hasAddAction: boolean }>`
+const Pill = styled.div<{ accent: string; hasAddAction: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 11px;
-  min-height: 40px;
+  gap: 16px;
   max-width: 100%;
-  padding: ${({ hasAddAction }) => (hasAddAction ? "5px 7px 5px 22px" : "5px 22px")};
+  padding: ${({ hasAddAction }) => (hasAddAction ? "6px 8px 6px 28px" : "6px 28px")};
   border-radius: ${theme.radius.pill};
-  background: ${({ background }) => background};
-  font-weight: 700;
+  background: ${palette.gray200};
+  color: ${({ accent }) => accent};
+  font-size: 18px;
   > span {
     min-width: 0;
     overflow-wrap: anywhere;
   }
   @media (max-width: 600px) {
     width: ${({ hasAddAction }) => (hasAddAction ? "100%" : "fit-content")};
-    min-height: 46px;
     justify-content: space-between;
-    padding: ${({ hasAddAction }) => (hasAddAction ? "5px 6px 5px 18px" : "5px 20px")};
   }
 `;
-const PlusButton = styled.button<{ background: string }>`
-  width: 28px;
-  height: 28px;
+const PlusButton = styled.button`
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: ${({ background }) => background};
-  color: white;
-  font-size: 22px;
-  line-height: 1;
+  background: transparent;
+  img {
+    width: 24px;
+    height: 24px;
+  }
   @media (max-width: 600px) {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 `;
 
@@ -227,16 +301,12 @@ export const TodoRow = ({
   const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
   const content = splitTodoContent(todo.title);
   const detail = content.detail || todo.subtasks.map(item => item.content).join(" · ");
+  // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
+  const fills = todo.isCompleted ? Array<string>(4).fill(preset.strong) : [null, null, null, null];
   return (
     <TodoItem>
-      <CheckButton
-        aria-label={todo.isCompleted ? "완료됨" : "완료하기"}
-        disabled={!own}
-        done={todo.isCompleted}
-        color={preset.color}
-        onClick={onToggle}
-      >
-        {todo.isCompleted ? "✓" : ""}
+      <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
+        <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
       <TodoTextButton disabled={!own} onClick={onEdit}>
         <strong>{content.title}</strong>
@@ -254,60 +324,44 @@ const TodoItem = styled.div`
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  min-height: 48px;
-  padding: 4px 0;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: ${theme.radius.sm};
   &:hover > button:last-child:not(:disabled) {
     opacity: 1;
   }
   @media (max-width: 600px) {
-    min-height: 56px;
-    gap: 12px;
-    padding: 6px 2px;
+    padding: 8px 6px;
   }
 `;
-const CheckButton = styled.button<{ done: boolean; color: string }>`
+const CheckButton = styled.button`
   display: grid;
   place-items: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  margin-top: 2px;
-  border-radius: 50%;
-  border: 2px solid ${({ color }) => color};
-  background: ${({ done, color }) => (done ? color : "transparent")};
-  color: white;
-  font-family: ${uiGlyphFont};
-  font-weight: 800;
+  flex: none;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
   &:disabled {
     cursor: default;
-  }
-  @media (max-width: 600px) {
-    flex-basis: 28px;
-    width: 28px;
-    height: 28px;
   }
 `;
 const TodoTextButton = styled.button`
   min-width: 0;
   flex: 1;
+  display: grid;
+  justify-items: start;
   border: 0;
   background: transparent;
   text-align: left;
   padding: 0;
   color: ${theme.colors.ink};
-  strong,
-  small {
-    display: block;
-  }
   strong {
-    font-size: 15px;
+    font-size: ${theme.text.h3};
     overflow-wrap: anywhere;
   }
   small {
-    margin-top: 7px;
     color: ${theme.colors.muted};
-    font-size: 12px;
+    font-size: ${theme.text.s};
     overflow-wrap: anywhere;
   }
   &:disabled {
@@ -318,10 +372,9 @@ const BetOverlay = styled.button`
   position: absolute;
   inset: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: ${theme.radius.sm};
   background: rgba(255, 255, 255, 0.86);
   color: ${theme.colors.ink};
-  font-weight: 800;
   opacity: 0;
   transition: opacity 0.18s;
   &:disabled {
@@ -436,28 +489,31 @@ export const DiaryBadge = ({
   onClick?: () => void;
 }) => (
   <DiaryButton onClick={onClick}>
-    {emotion ? <span>{emotion}</span> : null}
+    <span aria-hidden>{emotion || "😀"}</span>
     <strong>{nickname}</strong>
     <small>{date}</small>
   </DiaryButton>
 );
 const DiaryButton = styled.button`
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 0;
+  border: 1px solid ${palette.gray200};
   border-radius: ${theme.radius.pill};
-  padding: 9px 14px;
-  background: #f7f9fb;
+  padding: 4px 12px;
+  background: ${palette.gray100};
+  color: ${theme.colors.ink};
+  font-size: ${theme.text.s};
+  white-space: nowrap;
   strong {
-    font-size: 13px;
+    font-size: ${theme.text.s};
   }
   small {
     color: ${theme.colors.muted};
-    font-size: 11px;
+    font-size: ${theme.text.xs};
   }
   @media (max-width: 600px) {
-    min-height: 42px;
+    min-height: 40px;
     max-width: 100%;
   }
 `;
@@ -476,111 +532,41 @@ export const DayStash = ({
   today?: boolean;
   date: number;
   onClick?: () => void;
-}) => (
-  <DayButton onClick={onClick} selected={Boolean(selected)} today={Boolean(today)}>
-    <Stashes data-count={tones.length}>
-      {tones.length ? (
-        tones.slice(0, 4).map((tone, index) => {
-          const p = CATEGORY_PRESETS.find(x => x.key === tone) ?? CATEGORY_PRESETS[0];
-          return <Dot key={`${tone}-${index}`} style={{ background: completed.includes(tone) ? p.strong : p.stash }} />;
-        })
-      ) : (
-        <EmptyDot />
-      )}
-    </Stashes>
-    <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
-      {String(date).padStart(2, "0")}
-    </DateLabel>
-  </DayButton>
-);
-const DayButton = styled.button<{ selected: boolean; today: boolean }>`
-  width: 54px;
-  height: 68px;
+}) => {
+  const fills = tones.slice(0, 4).map(tone => {
+    const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
+    return completed.includes(tone) ? preset.strong : preset.stash;
+  });
+  const allDone = tones.length > 0 && tones.every(tone => completed.includes(tone));
+  return (
+    <DayButton onClick={onClick}>
+      <StatusCluster fills={fills} checked={allDone} count={tones.length > 4 ? tones.length : undefined} />
+      <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
+        {String(date).padStart(2, "0")}
+      </DateLabel>
+    </DayButton>
+  );
+};
+const DayButton = styled.button`
+  width: 100%;
   border: 0;
   background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   padding: 0;
-  color: ${({ today }) => (today ? theme.colors.blue : theme.colors.ink)};
-  @media (max-width: 600px) {
-    width: 40px;
-    height: 64px;
-  }
-`;
-const Stashes = styled.span`
-  height: 36px;
-  width: 36px;
-  position: relative;
-  display: block;
-  i {
-    position: absolute;
-  }
-  &[data-count="1"] i {
-    left: 9px;
-    top: 9px;
-  }
-  &[data-count="2"] i:nth-of-type(1) {
-    left: 3px;
-    top: 9px;
-  }
-  &[data-count="2"] i:nth-of-type(2) {
-    left: 15px;
-    top: 9px;
-  }
-  &[data-count="3"] i:nth-of-type(1) {
-    left: 9px;
-    top: 1px;
-  }
-  &[data-count="3"] i:nth-of-type(2) {
-    left: 2px;
-    top: 15px;
-  }
-  &[data-count="3"] i:nth-of-type(3) {
-    left: 16px;
-    top: 15px;
-  }
-  &[data-count="4"] i:nth-of-type(1) {
-    left: 2px;
-    top: 2px;
-  }
-  &[data-count="4"] i:nth-of-type(2) {
-    left: 16px;
-    top: 2px;
-  }
-  &[data-count="4"] i:nth-of-type(3) {
-    left: 2px;
-    top: 16px;
-  }
-  &[data-count="4"] i:nth-of-type(4) {
-    left: 16px;
-    top: 16px;
-  }
-`;
-const Dot = styled.i`
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-`;
-const EmptyDot = styled.i`
-  display: block;
-  width: 20px;
-  height: 20px;
-  left: 8px;
-  top: 8px;
-  border: 2px solid #d7dde3;
-  border-radius: 50%;
+  color: inherit;
 `;
 const DateLabel = styled.span<{ selected: boolean; today: boolean }>`
-  min-width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: ${({ selected, today }) => (today ? theme.colors.selected : selected ? "#e2e5e8" : "transparent")};
-  color: ${({ today }) => (today ? "white" : "inherit")};
+  background: ${({ selected, today }) => (selected ? palette.black : today ? palette.gray200 : "transparent")};
+  color: ${({ selected }) => (selected ? palette.white : "inherit")};
+  font-size: ${theme.text.s};
 `;
 
 export const BottomNav = ({
@@ -591,22 +577,17 @@ export const BottomNav = ({
   onNavigate: (next: "home" | "alarm" | "profile") => void;
 }) => (
   <Nav>
-    <NavButton active={active === "home"} onClick={() => onNavigate("home")} aria-label="home">
-      <svg viewBox="0 0 24 24">
-        <path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" />
-      </svg>
-    </NavButton>
-    <NavButton active={active === "alarm"} onClick={() => onNavigate("alarm")} aria-label="alarm">
-      <svg viewBox="0 0 24 24">
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
-      </svg>
-    </NavButton>
-    <NavButton active={active === "profile"} onClick={() => onNavigate("profile")} aria-label="profile">
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21a8 8 0 0 1 16 0" />
-      </svg>
-    </NavButton>
+    {(
+      [
+        ["home", icons.home, "홈"],
+        ["alarm", icons.bell, "알림"],
+        ["profile", icons.profile, "프로필"],
+      ] as const
+    ).map(([key, src, label]) => (
+      <NavButton key={key} active={active === key} onClick={() => onNavigate(key)} aria-label={label}>
+        <img src={src} alt="" aria-hidden />
+      </NavButton>
+    ))}
   </Nav>
 );
 const Nav = styled.nav`
@@ -614,12 +595,12 @@ const Nav = styled.nav`
   left: 0;
   right: 0;
   bottom: 0;
-  height: 100px;
+  height: ${theme.layout.nav};
   display: flex;
   justify-content: center;
-  gap: 110px;
+  gap: 140px;
   align-items: center;
-  background: white;
+  background: ${palette.white};
   @media (max-width: 600px) {
     position: fixed;
     z-index: 60;
@@ -631,21 +612,19 @@ const Nav = styled.nav`
   }
 `;
 const NavButton = styled.button<{ active: boolean }>`
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   border: 0;
-  background: transparent;
-  color: ${({ active }) => (active ? theme.colors.ink : "#c6d0df")};
-  line-height: 1;
-  width: 52px;
-  height: 52px;
   border-radius: 50%;
-  svg {
-    width: 30px;
-    height: 30px;
-    fill: ${({ active }) => (active ? "currentColor" : "none")};
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  background: transparent;
+  /* 아이콘 색이 파일에 박혀 있어, 선택 여부는 불투명도로 나타냅니다. */
+  opacity: ${({ active }) => (active ? 1 : 0.3)};
+  transition: opacity 0.16s ease;
+  img {
+    width: 32px;
+    height: 32px;
   }
 `;
 

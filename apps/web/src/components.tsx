@@ -47,6 +47,7 @@ import {
   Selection,
   TodoRow as SharedTodoRow,
   ViewChip,
+  icons,
   theme,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -498,15 +499,17 @@ export const CalendarPanel = ({
           }}
         />
         <MonthButtons>
-          <IconButton onClick={() => onMonthChange(addMonths(month, -1))}>‹</IconButton>
-          <IconButton onClick={() => onMonthChange(addMonths(month, 1))}>›</IconButton>
+          <MonthArrow direction="prev" aria-label="이전 달" onClick={() => onMonthChange(addMonths(month, -1))}>
+            <img src={icons.arrowUp} alt="" aria-hidden />
+          </MonthArrow>
+          <MonthArrow direction="next" aria-label="다음 달" onClick={() => onMonthChange(addMonths(month, 1))}>
+            <img src={icons.arrowUp} alt="" aria-hidden />
+          </MonthArrow>
         </MonthButtons>
       </MonthHeader>
       <WeekRow>
-        {["월", "화", "수", "목", "금", "토", "일"].map((day, index) => (
-          <span key={day} data-weekend={index > 4}>
-            {day}
-          </span>
+        {["일", "월", "화", "수", "목", "금", "토"].map(day => (
+          <span key={day}>{day}</span>
         ))}
       </WeekRow>
       <DaysGrid>
@@ -541,23 +544,36 @@ export const CalendarPanel = ({
   );
 };
 const CalendarWrap = styled.section`
-  width: min(450px, 100%);
+  width: min(${theme.layout.calendar}, 100%);
 `;
 const MonthHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #d7dee5;
+  padding: 8px;
+  border-bottom: 1px solid ${theme.colors.line};
   gap: 10px;
+`;
+const MonthArrow = styled.button<{ direction: "prev" | "next" }>`
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  img {
+    width: 24px;
+    height: 24px;
+    transform: rotate(${({ direction }) => (direction === "prev" ? "-90deg" : "90deg")});
+  }
 `;
 const MonthInput = styled.input`
   min-width: 0;
   max-width: 100%;
   border: 0;
   background: transparent;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: ${theme.text.h3};
   color: ${theme.colors.ink};
   &::-webkit-calendar-picker-indicator {
     opacity: 0.45;
@@ -576,24 +592,37 @@ const MonthButtons = styled.div`
 const WeekRow = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  gap: 40px;
   text-align: center;
-  margin: 15px 0 7px;
-  font-size: 13px;
-  font-weight: 700;
-  span:nth-of-type(6) {
+  margin: 12px 0 20px;
+  font-size: ${theme.text.h3};
+  /* 일요일은 빨강, 토요일은 파랑입니다. */
+  span:first-of-type {
+    color: ${theme.colors.red};
+  }
+  span:last-of-type {
     color: ${theme.colors.blue};
   }
-  span:nth-of-type(7) {
-    color: ${theme.colors.red};
+  @media (max-width: 600px) {
+    gap: 8px;
+    font-size: ${theme.text.s};
   }
 `;
 const DaysGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: 75px;
+  column-gap: 40px;
+  row-gap: 16px;
   justify-items: center;
+  /* 일요일 열은 빨강, 토요일 열은 파랑입니다. */
+  > *:nth-child(7n + 1) {
+    color: ${theme.colors.red};
+  }
+  > *:nth-child(7n) {
+    color: ${theme.colors.blue};
+  }
   @media (max-width: 600px) {
-    grid-auto-rows: 66px;
+    column-gap: 8px;
   }
 `;
 
