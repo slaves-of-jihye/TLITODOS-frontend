@@ -19,13 +19,17 @@ import {
   type RoutineRepeat,
 } from "@tlitodos/core";
 import {
+  useAddDependency,
   useApi,
   useCreateGroup,
+  useCreateTodo,
   useDeleteTodo,
   useGroups,
+  useInvalidateTodos,
   useJoinGroup,
   useMe,
   useUpdateCategory,
+  useUpdateTodo,
 } from "@tlitodos/hooks";
 import type { Category, Importance, Todo, UiVisibility } from "@tlitodos/types";
 import {
@@ -873,7 +877,6 @@ export const TodoEditorModal = ({
   categories,
   todos,
   onClose,
-  onSaved,
 }: {
   open: boolean;
   selectedDate: string;
@@ -882,10 +885,13 @@ export const TodoEditorModal = ({
   categories: Category[];
   todos: Todo[];
   onClose: () => void;
-  onSaved?: () => void;
 }) => {
   const initialContent = splitTodoContent(todo?.title ?? "");
-  const api = useApi();
+  // 루틴은 한 번에 여러 건을 저장하므로, 무효화는 저장이 모두 끝난 뒤 한 번만 합니다.
+  const createTodo = useCreateTodo({ invalidate: false });
+  const updateTodo = useUpdateTodo({ invalidate: false });
+  const addDependency = useAddDependency({ invalidate: false });
+  const invalidateTodos = useInvalidateTodos();
   const deleteTodo = useDeleteTodo();
   const { data: groups = [] } = useGroups(open);
   const [title, setTitle] = useState(initialContent.title);
@@ -933,16 +939,19 @@ export const TodoEditorModal = ({
       visibility: visibility as "PRIVATE" | "GROUP",
       groupId: visibility === "GROUP" ? sharedGroupId : null,
     };
-    const saved = todo ? await api.todos.update(todo.todoId, body) : await api.todos.create({ ...body, isRoutine });
+    const saved = todo
+      ? await updateTodo.mutateAsync({ id: todo.todoId, body })
+      : await createTodo.mutateAsync({ ...body, isRoutine });
     if (dependency && !saved.dependencies.includes(dependency))
-      await api.todos.dependency(saved.todoId, { dependencyTodoId: dependency });
+      await addDependency.mutateAsync({ id: saved.todoId, dependencyTodoId: dependency });
   };
   const submit = async () => {
     setSaving(true);
     setError("");
     try {
       await submitOne(withOptionalTime(deadline.date, deadline.time));
-      onSaved?.();
+      // 목록 갱신을 기다리지 않습니다. 기다리면 그 왕복만큼 모달이 늦게 닫힙니다.
+      void invalidateTodos();
       onClose();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -956,7 +965,6 @@ export const TodoEditorModal = ({
     setError("");
     try {
       await deleteTodo.mutateAsync(todo.todoId);
-      onSaved?.();
       onClose();
     } catch (reason) {
       setError(errorMessage(reason));
@@ -1142,8 +1150,8 @@ export const TodoEditorModal = ({
             for (const date of buildRoutineDates(value.start, value.end, value.repeat)) {
               await submitOne(withOptionalTime(date, value.time), true, suffix);
             }
+            void invalidateTodos();
             setRoutineOpen(false);
-            onSaved?.();
             onClose();
           } catch (reason) {
             setError(errorMessage(reason));
