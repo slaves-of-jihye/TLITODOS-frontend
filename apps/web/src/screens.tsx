@@ -14,11 +14,13 @@ import {
   sortTodos,
   splitDiaryContent,
   todosForDate,
+  withOptionalTime,
   type FontKey,
 } from "@tlitodos/core";
 import {
   useApi,
   useCategories,
+  useCreateTodo,
   useDiaries,
   useGroup,
   useMe,
@@ -108,6 +110,8 @@ const TodoWorkspace = ({
     onRevert: refetch,
   });
   const [editor, setEditor] = useState<EditorState>(null);
+  const [addingCategoryId, setAddingCategoryId] = useState<number | null>(null);
+  const createTodo = useCreateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
   const todos = useMemo(
@@ -181,7 +185,21 @@ const TodoWorkspace = ({
                   index={index}
                   todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
                   own={own}
-                  onAdd={next => setEditor({ category: next, todo: null })}
+                  adding={addingCategoryId === category.categoryId}
+                  onAdd={next => setAddingCategoryId(next.categoryId)}
+                  onCancelAdd={() => setAddingCategoryId(null)}
+                  onCreate={async (next, title) => {
+                    setAddingCategoryId(null);
+                    await createTodo.mutateAsync({
+                      title,
+                      categoryId: next.categoryId,
+                      importance: "NONE",
+                      hardship: 1,
+                      dueDate: withOptionalTime(selectedDate, "23:59"),
+                      visibility: "PRIVATE",
+                      groupId: null,
+                    });
+                  }}
                   onManage={setManage}
                   onToggle={handleToggle}
                   onEdit={todo => setEditor({ category: null, todo })}
@@ -874,7 +892,6 @@ const DiaryForm = ({
             onChange={event => setContent(event.target.value)}
             placeholder={`${userName || "오늘"}님의 오늘은 어떤 하루였나요? 오늘 하루를 기록해보세요`}
           />
-          <small>{content.length}/1000</small>
         </DiaryMain>
         <DiaryRail>
           <div>
@@ -1421,11 +1438,6 @@ const DiaryMain = styled.div`
     &::placeholder {
       color: ${theme.colors.muted};
     }
-  }
-  > small {
-    justify-self: end;
-    color: ${theme.colors.muted};
-    font-size: ${theme.text.xs};
   }
   @media (max-width: 600px) {
     padding: 0;

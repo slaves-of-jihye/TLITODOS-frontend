@@ -41,13 +41,14 @@ import {
   FormGrid,
   HeaderRow,
   IconButton,
+  icons,
   Modal,
   Option,
   Selection,
+  StatusCluster,
+  theme,
   TodoRow as SharedTodoRow,
   ViewChip,
-  icons,
-  theme,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -1257,7 +1258,10 @@ export const CategorySection = ({
   index,
   todos,
   own,
+  adding,
   onAdd,
+  onCancelAdd,
+  onCreate,
   onManage,
   onToggle,
   onEdit,
@@ -1266,7 +1270,11 @@ export const CategorySection = ({
   index: number;
   todos: Todo[];
   own: boolean;
+  /** 이 카테고리에 인라인 입력 줄이 열려 있는지. */
+  adding?: boolean;
   onAdd: (category: Category) => void;
+  onCancelAdd: () => void;
+  onCreate: (category: Category, title: string) => Promise<void>;
   onManage: (category: Category) => void;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
@@ -1283,11 +1291,14 @@ export const CategorySection = ({
       />
       <TodoList>
         <TodoRows todos={todos} accent={accent} own={own} onToggle={onToggle} onEdit={onEdit} />
+        {adding ? (
+          <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
+        ) : null}
       </TodoList>
     </CategoryColumn>
   );
 };
-// Kept separate so each row receives stable action closures.
+
 const TodoRows = ({
   todos,
   accent,
@@ -1314,6 +1325,85 @@ const TodoRows = ({
     ))}
   </>
 );
+
+/** 할 일 제목 글자 수. 디자인의 카운터가 0/40입니다. */
+const TODO_TITLE_LIMIT = 40;
+
+/**
+ * 목록 안에서 바로 쓰는 입력 줄.
+ *
+ * 제목만 받아 만들고, 나머지 설정은 만든 뒤 상세에서 손봅니다. Enter로 만들고
+ * Esc로 접습니다. 내용 없이 포커스를 잃으면 그냥 닫힙니다.
+ */
+const TodoDraftRow = ({
+  accent,
+  onCancel,
+  onCommit,
+}: {
+  accent: string;
+  onCancel: () => void;
+  onCommit: (title: string) => Promise<void>;
+}) => {
+  const [title, setTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const commit = async () => {
+    if (!title.trim() || busy) return;
+    setBusy(true);
+    try {
+      await onCommit(title.trim());
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <DraftRow style={{ borderBottomColor: accent }}>
+      <StatusCluster fills={[null, null, null, null]} />
+      <input
+        autoFocus
+        value={title}
+        maxLength={TODO_TITLE_LIMIT}
+        disabled={busy}
+        placeholder="할 일 입력"
+        onChange={event => setTitle(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === "Enter") void commit();
+          if (event.key === "Escape") onCancel();
+        }}
+        onBlur={() => {
+          if (!title.trim()) onCancel();
+        }}
+      />
+      <small>
+        {title.length}/{TODO_TITLE_LIMIT}
+      </small>
+    </DraftRow>
+  );
+};
+const DraftRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  /* 디자인에서는 입력 중인 줄만 카테고리 색 밑줄을 답니다. */
+  border-bottom: 2px solid;
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: ${theme.text.h3};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+  small {
+    flex: none;
+    font-size: ${theme.text.h3};
+    color: ${theme.colors.muted};
+  }
+`;
 const CategoryColumn = styled.section`
   min-width: 0;
 `;
