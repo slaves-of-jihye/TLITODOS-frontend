@@ -4,8 +4,9 @@
 
 - Figma: `https://www.figma.com/design/6mBMtcwDlauTX5Gipia3Ua/TLITODOS-Design?m=dev`
 - Figma page: `7:2` (`Design`)
-- Main screen nodes: my today `25:418`, my date `56:262`, diary `157:1451`, profile `157:1873`, group `137:552`, friend `157:664`
-- Modal nodes: insert `68:512`, update `140:815`, deadline `96:393` / `141:1044`, routine `140:898`, friend diary `157:1803`
+- The file is split into two sections: `my` `167:891` and `group` `167:892`
+- `my` screens: main/today `832:899`, detail `68:512`, diary `157:1451`, profile `157:1873`, alarm `139:492`
+- `my` modals: insert/update `1023:2502`, deadline day `96:393`, deadline time `141:1044`, routine `140:898`, category `1815:1536`, bet `167:878` / `1815:1569` (non-MVP)
 - API contract: `~/Desktop/TLITODOS-Backend/docs/openapi.json` (keep the repository copy `openapi.json` synchronized)
 - Development API: `http://localhost:8000`
 - Stack: React, TypeScript, Emotion, TanStack Query, Zustand, React Router, pnpm workspace
@@ -13,11 +14,12 @@
 ## Product invariants
 
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
-- Category colors read from Figma:
-  - 해야할 일: background `#f4fce6`, control `#ddf5b0`
-  - custom 1: background `#e6f9f2`, control `#b0ecd8`
-  - custom 2: background `#e6f6e8`, control `#b0e4b9`
-  - 취미: background `#e6fcfa`, control `#b0f5f1`
+- Category accents read from Figma (`strong` in `CATEGORY_PRESETS`), used for the category label, the completion mark and the calendar dots:
+  - 해야할 일: `#ff5e9a`
+  - custom 1: `#ff00a2`
+  - custom 2: `#ff8cb6`
+  - 취미: `#ff3959`
+- The category label sits on a neutral `#eef1f6` pill; there is no per-category background any more.
 - `해야할 일` and `취미` are locked. Custom categories can be renamed but cannot be deleted in the UI.
 - Create exactly four categories for a newly created user in the order above.
 - Own todo pages allow adding, editing, and completing todos for any selected date.

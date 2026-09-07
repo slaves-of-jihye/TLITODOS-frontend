@@ -1,40 +1,51 @@
 import type { Category, Diary, Importance, Todo } from "@tlitodos/types";
 
+/**
+ * 카테고리 색. Figma `component` 프레임의 category 배리언트에서 읽었습니다.
+ *
+ * `strong`이 이름표 글자색이자 완료 표시 색이고, `stash`는 아직 안 끝난 날의
+ * 달력 점입니다. `color`는 카테고리를 만들 때 서버에 저장하는 값이고,
+ * `background`는 현재 화면에서 쓰지 않습니다(이름표 배경이 회색으로 바뀌었습니다).
+ *
+ * 달력 점에 쓰인 색(#ff617a, #ffa3c5, #ff7eae, #ff33b5)은 이름표 색과 다릅니다.
+ * 디자인 파일에도 "달력에 표시되는 색상은 어떤 기준인지" 묻는 메모가 남아 있어,
+ * 확정될 때까지 카테고리 배리언트의 색을 한 벌로 씁니다.
+ */
 export const CATEGORY_PRESETS = [
   {
     key: "todo",
     name: "해야할 일",
-    background: "#f4fce6",
-    color: "#ddf5b0",
-    stash: "#effad9",
-    strong: "#92e000",
+    background: "#ffecf3",
+    color: "#ffcfe1",
+    stash: "#ffb7d2",
+    strong: "#ff5e9a",
     locked: true,
   },
   {
     key: "custom1",
     name: "카테고리 추가 1",
-    background: "#e6f9f2",
-    color: "#b0ecd8",
-    stash: "#d9f6ec",
-    strong: "#00c281",
+    background: "#ffe0f4",
+    color: "#ffb3e3",
+    stash: "#ff8cd5",
+    strong: "#ff00a2",
     locked: false,
   },
   {
     key: "custom2",
     name: "카테고리 추가 2",
-    background: "#e6f6e8",
-    color: "#b0e4b9",
-    stash: "#d9f2dd",
-    strong: "#00a81c",
+    background: "#fff1f6",
+    color: "#ffdde9",
+    stash: "#ffcbde",
+    strong: "#ff8cb6",
     locked: false,
   },
   {
     key: "hobby",
     name: "취미",
-    background: "#e6fcfa",
-    color: "#b0f5f1",
-    stash: "#d9faf8",
-    strong: "#00e0d1",
+    background: "#ffe7eb",
+    color: "#ffc4cd",
+    stash: "#ffa6b4",
+    strong: "#ff3959",
     locked: true,
   },
 ] as const;
