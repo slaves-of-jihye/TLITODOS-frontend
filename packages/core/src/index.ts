@@ -228,21 +228,42 @@ export const unresolvedDependencies = (todo: Todo, allTodos: Todo[]) =>
     .map(id => allTodos.find(candidate => candidate.todoId === id))
     .filter((candidate): candidate is Todo => Boolean(candidate && !candidate.isCompleted));
 
-export type RoutineRepeat = "DAILY" | "WEEKLY" | "WEEKDAYS";
+/**
+ * 루틴 반복 주기. Figma의 `modal / insert / routine`이 고르게 하는 다섯 가지입니다.
+ *
+ * 서버에 루틴 개념이 없어(할 일 생성 엔드포인트만 있습니다) 날짜를 여기서 펼친 뒤
+ * 한 건씩 만듭니다.
+ */
+export type RoutineRepeat = "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
+export const ROUTINE_REPEATS: { key: RoutineRepeat; label: string }[] = [
+  { key: "DAILY", label: "매일" },
+  { key: "WEEKLY", label: "매주" },
+  { key: "BIWEEKLY", label: "격주" },
+  { key: "MONTHLY", label: "매월" },
+  { key: "YEARLY", label: "매년" },
+];
 export const buildRoutineDates = (start: string, end: string, repeat: RoutineRepeat) => {
-  const dates: string[] = [];
-  const cursor = parseLocalDate(start);
+  const first = parseLocalDate(start);
   const last = parseLocalDate(end);
-  while (cursor <= last) {
-    const day = cursor.getDay();
-    if (
-      repeat === "DAILY" ||
-      (repeat === "WEEKLY" && day === parseLocalDate(start).getDay()) ||
-      (repeat === "WEEKDAYS" && day > 0 && day < 6)
-    ) {
+  const dates: string[] = [];
+  const dayStep = repeat === "DAILY" ? 1 : repeat === "WEEKLY" ? 7 : repeat === "BIWEEKLY" ? 14 : 0;
+  if (dayStep) {
+    const cursor = parseLocalDate(start);
+    while (cursor <= last) {
       dates.push(formatLocalDate(cursor));
+      cursor.setDate(cursor.getDate() + dayStep);
     }
-    cursor.setDate(cursor.getDate() + 1);
+    return dates;
+  }
+  // 매월/매년은 같은 날짜를 세어 나갑니다. 31일처럼 그 달에 없는 날짜는 다음 달로
+  // 넘어가 버리므로(2월 31일 -> 3월 3일) 날짜가 어긋난 회차는 건너뜁니다.
+  for (let index = 0; ; index += 1) {
+    const cursor =
+      repeat === "MONTHLY"
+        ? new Date(first.getFullYear(), first.getMonth() + index, first.getDate())
+        : new Date(first.getFullYear() + index, first.getMonth(), first.getDate());
+    if (cursor > last) break;
+    if (cursor.getDate() === first.getDate()) dates.push(formatLocalDate(cursor));
   }
   return dates;
 };

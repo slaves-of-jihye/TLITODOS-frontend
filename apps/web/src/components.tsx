@@ -15,6 +15,7 @@ import {
   sortCategories,
   splitTodoContent,
   withOptionalTime,
+  ROUTINE_REPEATS,
   type RoutineRepeat,
 } from "@tlitodos/core";
 import {
@@ -30,7 +31,7 @@ import {
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, Importance, Todo, TodoPatchRequest, UiVisibility } from "@tlitodos/types";
+import type { Category, Importance, Todo, TodoPatchRequest } from "@tlitodos/types";
 import {
   Button,
   ButtonStack,
@@ -38,20 +39,16 @@ import {
   DayStash,
   ErrorText,
   Field,
-  FormGrid,
   HeaderRow,
-  IconButton,
   icons,
   Modal,
-  Option,
   palette,
-  Selection,
   StatusCluster,
   theme,
   TodoRow as SharedTodoRow,
   ViewChip,
 } from "@tlitodos/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
@@ -668,14 +665,23 @@ export const CategoryManageModal = ({
 };
 
 type DeadlineValue = { date: string; time: string };
-const CalendarChooser = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
+const formatSheetDate = (value: string) => value.replaceAll("-", ".");
+const formatSheetTime = (value: string) => {
+  if (!value) return "설정하지 않음";
+  const [hour = "0", minute = "00"] = value.split(":");
+  const hourNumber = Number(hour);
+  return `${hourNumber < 12 ? "AM" : "PM"} ${String(hourNumber % 12 || 12).padStart(2, "0")}:${minute}`;
+};
+
+/** 시트 안에 들어가는 달력. 날짜 하나만 고릅니다. */
+const SheetCalendar = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
   const [month, setMonth] = useState(() => parseLocalDate(value));
-  const days = getCalendarDays(month);
   return (
-    <MiniCalendar>
+    <SheetCalendarWrap>
       <MonthHeader>
         <MonthInput
           type="month"
+          aria-label="월 빠른 이동"
           value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
           onChange={e => {
             const [y, m] = e.target.value.split("-").map(Number);
@@ -683,68 +689,233 @@ const CalendarChooser = ({ value, onChange }: { value: string; onChange: (next: 
           }}
         />
         <MonthButtons>
-          <IconButton onClick={() => setMonth(addMonths(month, -1))}>‹</IconButton>
-          <IconButton onClick={() => setMonth(addMonths(month, 1))}>›</IconButton>
+          <MonthArrow direction="prev" aria-label="이전 달" onClick={() => setMonth(addMonths(month, -1))}>
+            <img src={icons.arrowUp} alt="" aria-hidden />
+          </MonthArrow>
+          <MonthArrow direction="next" aria-label="다음 달" onClick={() => setMonth(addMonths(month, 1))}>
+            <img src={icons.arrowUp} alt="" aria-hidden />
+          </MonthArrow>
         </MonthButtons>
       </MonthHeader>
-      <MiniDays>
-        {["월", "화", "수", "목", "금", "토", "일"].map(day => (
-          <b key={day}>{day}</b>
+      <SheetWeekRow>
+        {["일", "월", "화", "수", "목", "금", "토"].map((day, index) => (
+          <span key={day} style={{ color: weekdayTone(index) }}>
+            {day}
+          </span>
         ))}
-        {days.map((date, index) =>
-          date ? (
-            <button
+      </SheetWeekRow>
+      <SheetDaysGrid>
+        {getCalendarDays(month).map((date, index) => {
+          if (!date) return <span key={`empty-${index}`} />;
+          const day = formatLocalDate(date);
+          return (
+            <SheetDay
+              key={day}
               type="button"
-              data-selected={formatLocalDate(date) === value}
-              onClick={() => onChange(formatLocalDate(date))}
-              key={formatLocalDate(date)}
+              selected={day === value}
+              tone={weekdayTone(date.getDay())}
+              onClick={() => onChange(day)}
             >
-              {date.getDate()}
-            </button>
-          ) : (
-            <span key={`e-${index}`} />
-          ),
-        )}
-      </MiniDays>
-    </MiniCalendar>
+              {String(date.getDate()).padStart(2, "0")}
+            </SheetDay>
+          );
+        })}
+      </SheetDaysGrid>
+    </SheetCalendarWrap>
   );
 };
-const MiniCalendar = styled.div`
-  margin-top: 16px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: 18px;
-  padding: 16px;
+/** 일요일은 빨강, 토요일은 파랑입니다. */
+const weekdayTone = (day: number) => (day === 0 ? theme.colors.red : day === 6 ? theme.colors.blue : theme.colors.ink);
+const SheetCalendarWrap = styled.div`
+  width: 100%;
+`;
+const SheetWeekRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-items: center;
+  margin: 12px 0 16px;
+  font-size: ${theme.text.s};
+`;
+const SheetDaysGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  justify-items: center;
+  row-gap: 16px;
+`;
+const SheetDay = styled.button<{ selected: boolean; tone: string }>`
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: ${theme.radius.pill};
+  font-size: ${theme.text.s};
+  background: ${({ selected }) => (selected ? palette.black : "transparent")};
+  color: ${({ selected, tone }) => (selected ? palette.white : tone)};
+`;
+
+/** 시(hour)/분(minute)을 pill로 고르는 판. Figma의 `deadline - time`입니다. */
+const TimeChooser = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
+  const [hour = "", minute = "00"] = value ? value.split(":") : [];
+  const hourNumber = value ? Number(hour) : null;
+  const meridiem = hourNumber === null ? null : hourNumber < 12 ? "AM" : "PM";
+  const displayHour = hourNumber === null ? null : hourNumber % 12 || 12;
+  const compose = (nextMeridiem: "AM" | "PM", nextHour: number, nextMinute: string) => {
+    const base = nextHour % 12;
+    onChange(`${String(nextMeridiem === "AM" ? base : base + 12).padStart(2, "0")}:${nextMinute}`);
+  };
+  return (
+    <TimePanel>
+      <TimeBlock>
+        <TimeLabel>오전/오후 선택하기</TimeLabel>
+        <TimePills>
+          <TimePill type="button" selected={value === ""} onClick={() => onChange("")}>
+            설정하지 않음
+          </TimePill>
+          {(["AM", "PM"] as const).map(key => (
+            <TimePill
+              key={key}
+              type="button"
+              selected={meridiem === key}
+              onClick={() => compose(key, displayHour ?? 12, minute)}
+            >
+              {key === "AM" ? "오전(AM)" : "오후(PM)"}
+            </TimePill>
+          ))}
+        </TimePills>
+      </TimeBlock>
+      <TimeColumns>
+        <TimeBlock>
+          <TimeLabel>시(hour) 선택하기</TimeLabel>
+          <TimeGrid>
+            {Array.from({ length: 12 }, (_, index) => index + 1).map(item => (
+              <TimeCell
+                key={item}
+                type="button"
+                selected={displayHour === item}
+                onClick={() => compose(meridiem ?? "AM", item, minute)}
+              >
+                {item}
+              </TimeCell>
+            ))}
+          </TimeGrid>
+        </TimeBlock>
+        <TimeBlock>
+          <TimeLabel>분(minute) 선택하기</TimeLabel>
+          <TimeGrid>
+            {Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0")).map(item => (
+              <TimeCell
+                key={item}
+                type="button"
+                selected={value !== "" && minute === item}
+                onClick={() => compose(meridiem ?? "AM", displayHour ?? 12, item)}
+              >
+                {item}
+              </TimeCell>
+            ))}
+          </TimeGrid>
+        </TimeBlock>
+      </TimeColumns>
+    </TimePanel>
+  );
+};
+const TimePanel = styled.div`
+  display: grid;
+  gap: 20px;
+  padding: 20px;
   @media (max-width: 600px) {
-    margin: 16px -6px 0;
-    padding: 12px 8px;
+    padding: 12px 0;
   }
 `;
-const MiniDays = styled.div`
+const TimeBlock = styled.div`
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  margin-top: 10px;
-  text-align: center;
+  gap: 8px;
+  justify-items: start;
+`;
+const TimeLabel = styled.p`
+  margin: 0;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+`;
+const TimeColumns = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 40px;
+`;
+const TimePills = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+`;
+const TimeGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(6, 36px);
+  gap: 8px;
+`;
+const TimePill = styled.button<{ selected: boolean }>`
+  display: grid;
+  place-items: center;
+  border: 1px solid ${({ selected }) => (selected ? "transparent" : palette.gray200)};
+  border-radius: ${theme.radius.pill};
+  padding: 4px 30px;
+  font-size: ${theme.text.s};
+  background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
+  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
+`;
+const TimeCell = styled(TimePill)`
+  width: 36px;
+  height: 36px;
+  padding: 0;
+`;
+
+/* 시트가 공통으로 쓰는 조각입니다. 회색 줄을 누르면 그 아래에 고르는 판이 열립니다. */
+const SheetForm = styled.div`
+  display: grid;
+  gap: 20px;
+`;
+const SheetHeading = styled.p`
+  margin: 0;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
   b {
-    font-size: 11px;
-    color: ${theme.colors.muted};
+    margin-left: 8px;
+    font-weight: inherit;
+    color: ${theme.colors.red};
   }
-  button {
-    height: 34px;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
+`;
+const SheetRows = styled.div`
+  display: grid;
+  gap: 8px;
+`;
+const SheetRow = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 8px 20px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  text-align: left;
+  &[aria-expanded="true"] {
+    background: ${palette.gray200};
   }
-  button[data-selected="true"] {
-    background: #dff6ad;
-    font-weight: 800;
-  }
-  @media (max-width: 600px) {
-    gap: 2px;
-    button {
-      height: 38px;
-      padding: 0;
-    }
+`;
+const SheetSubmit = styled.button`
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  background: ${palette.black};
+  padding: 6px 20px;
+  font-size: ${theme.text.s};
+  color: ${palette.white};
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 `;
 
@@ -1108,6 +1279,12 @@ const DetailPills = styled.div`
   gap: 8px;
 `;
 
+/**
+ * 마감기한 시트.
+ *
+ * 회색 줄 두 개(마감 날짜, 시간 설정)를 누르면 그 아래에 달력과 시간 판이 열립니다.
+ * 디자인에 취소 버튼이 없어, 뒤 배경을 눌러 닫습니다.
+ */
 export const DeadlineModal = ({
   open,
   value,
@@ -1119,47 +1296,42 @@ export const DeadlineModal = ({
   onChange: (next: DeadlineValue) => void;
   onClose: () => void;
 }) => {
-  const [panel, setPanel] = useState<"date" | "time" | null>(null);
+  const [panel, setPanel] = useState<"date" | "time" | null>("date");
   return (
-    <Modal open={open} nested title="마감기한 설정하기">
-      <ToggleRow>
-        <Button onClick={() => setPanel(panel === "date" ? null : "date")}>📅 {value.date.replaceAll("-", "/")}</Button>
-        <Button onClick={() => setPanel(panel === "time" ? null : "time")}>⏰ {value.time || "시간 설정"}</Button>
-      </ToggleRow>
-      {panel === "date" ? <CalendarChooser value={value.date} onChange={date => onChange({ ...value, date })} /> : null}
-      {panel === "time" ? (
-        <TimeInput type="time" value={value.time} onChange={e => onChange({ ...value, time: e.target.value })} />
-      ) : null}
-      <ButtonStack>
-        <Button variant="primary" onClick={onClose}>
-          설정 완료
-        </Button>
-      </ButtonStack>
+    <Modal open={open} sheet onClose={onClose} aria-label="마감기한 설정하기">
+      <SheetForm>
+        <SheetHeading>
+          마감기한 설정하기<b>*</b>
+        </SheetHeading>
+        <SheetRows>
+          <SheetRow
+            type="button"
+            aria-expanded={panel === "date"}
+            onClick={() => setPanel(panel === "date" ? null : "date")}
+          >
+            <span>마감 날짜</span>
+            <span>{formatSheetDate(value.date)}</span>
+          </SheetRow>
+          {panel === "date" ? (
+            <SheetCalendar value={value.date} onChange={date => onChange({ ...value, date })} />
+          ) : null}
+          <SheetRow
+            type="button"
+            aria-expanded={panel === "time"}
+            onClick={() => setPanel(panel === "time" ? null : "time")}
+          >
+            <span>시간 설정</span>
+            <span>{formatSheetTime(value.time)}</span>
+          </SheetRow>
+          {panel === "time" ? <TimeChooser value={value.time} onChange={time => onChange({ ...value, time })} /> : null}
+        </SheetRows>
+        <SheetSubmit type="button" onClick={onClose}>
+          마감기한 설정하기
+        </SheetSubmit>
+      </SheetForm>
     </Modal>
   );
 };
-const ToggleRow = styled.div`
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  @media (max-width: 600px) {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    button {
-      min-width: 0;
-      padding-inline: 10px;
-      overflow-wrap: anywhere;
-    }
-  }
-`;
-const TimeInput = styled.input`
-  display: block;
-  width: 100%;
-  margin-top: 18px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: 12px;
-  padding: 14px;
-`;
 
 export interface RoutineValue {
   start: string;
@@ -1167,6 +1339,12 @@ export interface RoutineValue {
   time: string;
   repeat: RoutineRepeat;
 }
+/**
+ * 루틴 시트.
+ *
+ * 서버에 루틴이 없어 반복 날짜를 펼쳐 할 일을 한 건씩 만듭니다. 등록은 `onRegister`가
+ * 맡습니다.
+ */
 export const RoutineModal = ({
   open,
   initialDate,
@@ -1179,48 +1357,58 @@ export const RoutineModal = ({
   onClose: () => void;
 }) => {
   const [value, setValue] = useState<RoutineValue>({ start: initialDate, end: initialDate, time: "", repeat: "DAILY" });
-  const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | null>(null);
+  const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | null>("repeat");
   const [busy, setBusy] = useState(false);
+  const toggle = (next: "start" | "end" | "time" | "repeat") => () => setPanel(panel === next ? null : next);
   return (
-    <Modal open={open} nested title="루틴으로 등록하기">
-      <ToggleRow>
-        <Button onClick={() => setPanel(panel === "start" ? null : "start")}>
-          시작 {value.start.replaceAll("-", "/")}
-        </Button>
-        <Button onClick={() => setPanel(panel === "end" ? null : "end")}>종료 {value.end.replaceAll("-", "/")}</Button>
-        <Button onClick={() => setPanel(panel === "time" ? null : "time")}>시간 {value.time || "선택 안 함"}</Button>
-        <Button onClick={() => setPanel(panel === "repeat" ? null : "repeat")}>반복 설정</Button>
-      </ToggleRow>
-      {panel === "start" ? (
-        <CalendarChooser value={value.start} onChange={start => setValue({ ...value, start })} />
-      ) : null}
-      {panel === "end" ? <CalendarChooser value={value.end} onChange={end => setValue({ ...value, end })} /> : null}
-      {panel === "time" ? (
-        <TimeInput type="time" value={value.time} onChange={e => setValue({ ...value, time: e.target.value })} />
-      ) : null}
-      {panel === "repeat" ? (
-        <ChoiceRow>
-          {(
-            [
-              ["DAILY", "매일"],
-              ["WEEKDAYS", "평일"],
-              ["WEEKLY", "매주"],
-            ] as const
-          ).map(([key, label]) => (
-            <Option
-              key={key}
-              name="repeat"
-              value={key}
-              checked={value.repeat === key}
-              onChange={() => setValue({ ...value, repeat: key })}
-              label={label}
-            />
-          ))}
-        </ChoiceRow>
-      ) : null}
-      <ButtonStack>
-        <Button
-          variant="primary"
+    <Modal open={open} sheet onClose={onClose} aria-label="루틴으로 등록하기">
+      <SheetForm>
+        <SheetHeading>
+          루틴으로 등록하기<b>*</b>
+        </SheetHeading>
+        <SheetRows>
+          <SheetRow type="button" aria-expanded={panel === "start"} onClick={toggle("start")}>
+            <span>시작 날짜</span>
+            <span>{formatSheetDate(value.start)}</span>
+          </SheetRow>
+          {panel === "start" ? (
+            <SheetCalendar value={value.start} onChange={start => setValue({ ...value, start })} />
+          ) : null}
+          <SheetRow type="button" aria-expanded={panel === "end"} onClick={toggle("end")}>
+            <span>종료 날짜</span>
+            <span>{formatSheetDate(value.end)}</span>
+          </SheetRow>
+          {panel === "end" ? <SheetCalendar value={value.end} onChange={end => setValue({ ...value, end })} /> : null}
+          <SheetRow type="button" aria-expanded={panel === "time"} onClick={toggle("time")}>
+            <span>시간 설정</span>
+            <span>{formatSheetTime(value.time)}</span>
+          </SheetRow>
+          {panel === "time" ? <TimeChooser value={value.time} onChange={time => setValue({ ...value, time })} /> : null}
+          <SheetRow type="button" aria-expanded={panel === "repeat"} onClick={toggle("repeat")}>
+            <span>루틴 반복</span>
+            <span>{ROUTINE_REPEATS.find(item => item.key === value.repeat)?.label}</span>
+          </SheetRow>
+          {panel === "repeat" ? (
+            <RepeatList role="radiogroup" aria-label="루틴 반복">
+              {ROUTINE_REPEATS.map(item => (
+                <RepeatOption
+                  key={item.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={value.repeat === item.key}
+                  selected={value.repeat === item.key}
+                  onClick={() => setValue({ ...value, repeat: item.key })}
+                >
+                  <i aria-hidden />
+                  {item.label}
+                </RepeatOption>
+              ))}
+            </RepeatList>
+          ) : null}
+        </SheetRows>
+        {value.end < value.start ? <ErrorText>종료 날짜가 시작 날짜보다 앞설 수 없습니다.</ErrorText> : null}
+        <SheetSubmit
+          type="button"
           disabled={busy || value.end < value.start}
           onClick={async () => {
             setBusy(true);
@@ -1232,352 +1420,32 @@ export const RoutineModal = ({
           }}
         >
           {busy ? "등록 중..." : "루틴으로 등록하기"}
-        </Button>
-        <Button onClick={onClose}>취소</Button>
-      </ButtonStack>
+        </SheetSubmit>
+      </SheetForm>
     </Modal>
   );
 };
-const ChoiceRow = styled.div`
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 18px;
-  @media (max-width: 600px) {
-    gap: 8px 6px;
-    margin-top: 14px;
-  }
-`;
-
-const formatDeadline = ({ date, time }: DeadlineValue) => {
-  if (!time) return date.replaceAll("-", "/");
-  const [hour, minute] = time.split(":");
-  const hourNumber = Number(hour);
-  const meridiem = hourNumber < 12 ? "AM" : "PM";
-  const display = hourNumber % 12 || 12;
-  return `${date.replaceAll("-", "/")} ${meridiem} ${String(display).padStart(2, "0")}:${minute}까지`;
-};
-
-export const TodoEditorModal = ({
-  open,
-  selectedDate,
-  initialCategory,
-  todo,
-  categories,
-  todos,
-  onClose,
-}: {
-  open: boolean;
-  selectedDate: string;
-  initialCategory: Category | null;
-  todo: Todo | null;
-  categories: Category[];
-  todos: Todo[];
-  onClose: () => void;
-}) => {
-  const initialContent = splitTodoContent(todo?.title ?? "");
-  // 루틴은 한 번에 여러 건을 저장하므로, 무효화는 저장이 모두 끝난 뒤 한 번만 합니다.
-  const createTodo = useCreateTodo({ invalidate: false });
-  const updateTodo = useUpdateTodo({ invalidate: false });
-  const addDependency = useAddDependency({ invalidate: false });
-  const invalidateTodos = useInvalidateTodos();
-  const deleteTodo = useDeleteTodo();
-  const { data: groups = [] } = useGroups(open);
-  const [title, setTitle] = useState(initialContent.title);
-  const [detail, setDetail] = useState(
-    initialContent.detail || todo?.subtasks.map(item => item.content).join(" · ") || "",
-  );
-  const [categoryId, setCategoryId] = useState(
-    todo?.categoryId ?? initialCategory?.categoryId ?? categories[0]?.categoryId ?? 0,
-  );
-  const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
-  const [visibility, setVisibility] = useState<UiVisibility>(todo?.visibility === "PRIVATE" ? "PRIVATE" : "GROUP");
-  const [sharedGroupId, setSharedGroupId] = useState<number | null>(todo?.groupId ?? null);
-  const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
-  const [deadline, setDeadline] = useState<DeadlineValue>({
-    date: dateOnly(todo?.dueDate) ?? selectedDate,
-    time: todo?.dueDate?.includes("T") ? todo.dueDate.slice(11, 16) : "23:59",
-  });
-  const [deadlineOpen, setDeadlineOpen] = useState(false);
-  const [routineOpen, setRoutineOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    if (visibility === "GROUP" && sharedGroupId === null && groups[0]) setSharedGroupId(groups[0].groupId);
-  }, [groups, sharedGroupId, visibility]);
-  const candidates = useMemo(
-    () =>
-      todos.filter(
-        candidate =>
-          candidate.todoId !== todo?.todoId &&
-          sameLocalDate(candidate.dueDate, selectedDate) &&
-          !isHobbyCategory(
-            categories.find(category => category.categoryId === candidate.categoryId) ?? { name: "취미" },
-          ),
-      ),
-    [todos, todo, categories, selectedDate],
-  );
-  const submitOne = async (dueDate: string, isRoutine = false, detailText = detail) => {
-    const body = {
-      title: composeTodoContent(title, detailText),
-      categoryId,
-      importance,
-      hardship: 1,
-      dueDate,
-      visibility: visibility as "PRIVATE" | "GROUP",
-      groupId: visibility === "GROUP" ? sharedGroupId : null,
-    };
-    const saved = todo
-      ? await updateTodo.mutateAsync({ id: todo.todoId, body })
-      : await createTodo.mutateAsync({ ...body, isRoutine });
-    if (dependency && !saved.dependencies.includes(dependency))
-      await addDependency.mutateAsync({ id: saved.todoId, dependencyTodoId: dependency });
-  };
-  const submit = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      await submitOne(withOptionalTime(deadline.date, deadline.time));
-      // 목록 갱신을 기다리지 않습니다. 기다리면 그 왕복만큼 모달이 늦게 닫힙니다.
-      void invalidateTodos();
-      onClose();
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      setSaving(false);
-    }
-  };
-  const remove = async () => {
-    if (!todo || !window.confirm("이 할 일을 삭제할까요?")) return;
-    setDeleting(true);
-    setError("");
-    try {
-      await deleteTodo.mutateAsync(todo.todoId);
-      onClose();
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      setDeleting(false);
-    }
-  };
-  const selectedCategory = categories.find(category => category.categoryId === categoryId);
-  return (
-    <>
-      <Modal open={open} title={todo ? "할 일 수정하기" : "할 일 추가하기"} onClose={onClose}>
-        <FormGrid>
-          <div>
-            <Field>
-              할 일 {"*"}
-              <input
-                value={title}
-                maxLength={40}
-                onChange={e => setTitle(e.target.value)}
-                placeholder="할 일을 추가하세요..."
-              />
-              <small>{title.length}/40</small>
-            </Field>
-            <Field>
-              할 일에 대한 세부사항
-              <input
-                value={detail}
-                maxLength={160}
-                onChange={e => setDetail(e.target.value)}
-                placeholder="세부사항을 작성하세요..."
-              />
-              <small>{detail.length}/160</small>
-            </Field>
-            <Question>Q. 이 일을 하기 전 선행해야 할 일이 있나요?</Question>
-            <DependencyList>
-              {candidates.length ? (
-                candidates.map(candidate => {
-                  const ordered = sortCategories(categories);
-                  const index = ordered.findIndex(category => category.categoryId === candidate.categoryId);
-                  const accent = categoryAccent(ordered[index]?.color, Math.max(index, 0));
-                  return (
-                    <label key={candidate.todoId}>
-                      <input
-                        type="radio"
-                        name="dependency"
-                        checked={dependency === candidate.todoId}
-                        onChange={() => setDependency(candidate.todoId)}
-                      />
-                      <i
-                        style={{
-                          borderColor: accent,
-                          background: dependency === candidate.todoId ? accent : "transparent",
-                        }}
-                      />
-                      {candidate.title}
-                    </label>
-                  );
-                })
-              ) : (
-                <small>선택할 수 있는 선행 할 일이 없습니다.</small>
-              )}
-            </DependencyList>
-          </div>
-          <div>
-            <Question>카테고리 설정하기</Question>
-            <ChoiceRow>
-              {sortCategories(categories).map(category => (
-                <Selection
-                  key={category.categoryId}
-                  name="category"
-                  value={category.categoryId}
-                  checked={categoryId === category.categoryId}
-                  onChange={() => setCategoryId(category.categoryId)}
-                  label={category.name}
-                />
-              ))}
-            </ChoiceRow>
-            <Question>그룹 안 공개 범위 설정하기 {"*"}</Question>
-            <ChoiceRow>
-              <Selection
-                name="visibility"
-                checked={visibility === "GROUP"}
-                onChange={() => setVisibility("GROUP")}
-                label="그룹 공개"
-              />
-              {/* 일부 공개는 MVP 이후 활성화 */}
-              <Selection
-                name="visibility"
-                checked={visibility === "PRIVATE"}
-                onChange={() => setVisibility("PRIVATE")}
-                label="비밀"
-              />
-            </ChoiceRow>
-            {visibility === "GROUP" ? (
-              <>
-                <Question>공개할 그룹 선택하기 {"*"}</Question>
-                {groups.length ? (
-                  <ChoiceRow>
-                    {groups.map(group => (
-                      <Selection
-                        key={group.groupId}
-                        name="sharedGroup"
-                        value={group.groupId}
-                        checked={sharedGroupId === group.groupId}
-                        onChange={() => setSharedGroupId(group.groupId)}
-                        label={group.name}
-                      />
-                    ))}
-                  </ChoiceRow>
-                ) : (
-                  <ErrorText>그룹 공개를 사용하려면 먼저 그룹을 만들거나 참여해 주세요.</ErrorText>
-                )}
-              </>
-            ) : null}
-            {!selectedCategory || !isHobbyCategory(selectedCategory) ? (
-              <>
-                <Question>중요도(우선순위) 설정하기 {"*"}</Question>
-                <ChoiceRow>
-                  {(
-                    [
-                      ["NONE", "선택하지 않음"],
-                      ["HIGH", "높음"],
-                      ["LOW", "낮음"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <Selection
-                      key={value}
-                      name="importance"
-                      checked={importance === value}
-                      onChange={() => setImportance(value)}
-                      label={label}
-                    />
-                  ))}
-                </ChoiceRow>
-              </>
-            ) : null}
-            <Question>마감기한 설정하기 {"*"}</Question>
-            <Button type="button" onClick={() => setDeadlineOpen(true)}>
-              📅 {formatDeadline(deadline)}
-            </Button>
-            <ButtonStack>
-              <Button onClick={() => setRoutineOpen(true)}>루틴으로 등록하기</Button>
-              {todo ? (
-                <Button variant="danger" disabled={saving || deleting} onClick={remove}>
-                  {deleting ? "삭제 중..." : "할 일 삭제하기"}
-                </Button>
-              ) : null}
-              <Button
-                variant="primary"
-                disabled={
-                  saving ||
-                  deleting ||
-                  !title.trim() ||
-                  !categoryId ||
-                  (visibility === "GROUP" && sharedGroupId === null)
-                }
-                onClick={submit}
-              >
-                {saving ? (todo ? "수정 중..." : "등록 중...") : todo ? "할 일 수정하기" : "할 일 등록하기"}
-              </Button>
-            </ButtonStack>
-            {error ? <ErrorText>{error}</ErrorText> : null}
-          </div>
-        </FormGrid>
-      </Modal>
-      <DeadlineModal
-        open={deadlineOpen}
-        value={deadline}
-        onChange={setDeadline}
-        onClose={() => setDeadlineOpen(false)}
-      />
-      <RoutineModal
-        key={`${routineOpen}-${selectedDate}`}
-        open={routineOpen}
-        initialDate={selectedDate}
-        onClose={() => setRoutineOpen(false)}
-        onRegister={async value => {
-          setSaving(true);
-          setError("");
-          try {
-            const suffix = value.time ? `${detail.trim()} ${value.time}`.trim() : detail;
-            for (const date of buildRoutineDates(value.start, value.end, value.repeat)) {
-              await submitOne(withOptionalTime(date, value.time), true, suffix);
-            }
-            void invalidateTodos();
-            setRoutineOpen(false);
-            onClose();
-          } catch (reason) {
-            setError(errorMessage(reason));
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-    </>
-  );
-};
-const Question = styled.h3`
-  font-size: 15px;
-  margin: 28px 0 12px;
-  line-height: 1.45;
-`;
-const DependencyList = styled.div`
+const RepeatList = styled.div`
   display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 8px 20px;
+`;
+const RepeatOption = styled.button<{ selected: boolean }>`
+  display: flex;
+  align-items: center;
   gap: 12px;
-  label {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-  }
-  input {
-    position: absolute;
-    opacity: 0;
-  }
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
   i {
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    border: 2px solid;
-    display: block;
-  }
-  small {
-    color: ${theme.colors.muted};
+    border: 1px solid ${palette.gray300};
+    background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
   }
 `;
 
