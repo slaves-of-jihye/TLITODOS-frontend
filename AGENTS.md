@@ -41,6 +41,5 @@
 
 - Install: `pnpm install`
 - Web development: `pnpm dev:web`
-- Web build: `pnpm build:web`
-- All builds: `pnpm build`
+- Web build: `pnpm build:web` (`pnpm build` is the same thing)
 - Web typecheck: `pnpm --filter web exec tsc -b`
