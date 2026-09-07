@@ -3,9 +3,9 @@ import type { Category, Diary, Importance, Todo } from "@tlitodos/types";
 /**
  * 카테고리 색. Figma `component` 프레임의 category 배리언트에서 읽었습니다.
  *
- * `strong`이 카테고리 색입니다. 이름표 글자, 완료 표시, 달력 점에 모두 쓰이고,
- * 달력 점과 완료 표시에는 80% 불투명도가 걸립니다. `color`는 카테고리를 만들 때
- * 서버에 저장하는 값입니다.
+ * `strong`이 기본 강조색입니다. 카테고리를 처음 만들 때 서버에 이 값을 저장하고,
+ * 이후에는 서버가 준 색(사용자가 프로필에서 고른 색)을 씁니다. 이름표 글자,
+ * 완료 표시, 달력 점에 모두 쓰이고, 점과 완료 표시에는 80% 불투명도가 걸립니다.
  *
  * Figma의 달력 점은 이름표와 다른 색을 쓰고 있지만, 한 카테고리에 색 하나로
  * 가기로 정했습니다.
@@ -14,32 +14,69 @@ export const CATEGORY_PRESETS = [
   {
     key: "todo",
     name: "해야할 일",
-    color: "#ffcfe1",
     strong: "#ff5e9a",
     locked: true,
   },
   {
     key: "custom1",
     name: "카테고리 추가 1",
-    color: "#ffb3e3",
     strong: "#ff00a2",
     locked: false,
   },
   {
     key: "custom2",
     name: "카테고리 추가 2",
-    color: "#ffdde9",
     strong: "#ff8cb6",
     locked: false,
   },
   {
     key: "hobby",
     name: "취미",
-    color: "#ffc4cd",
     strong: "#ff3959",
     locked: true,
   },
 ] as const;
+
+/**
+ * 카테고리 색으로 고를 수 있는 색. Figma 프로필 화면의 팔레트(6×4)입니다.
+ */
+export const CATEGORY_SWATCHES = [
+  "#ff5e9a",
+  "#ff00a2",
+  "#ff8cb6",
+  "#ffaecc",
+  "#ff60c5",
+  "#ff3959",
+  "#ffcc00",
+  "#ff8b00",
+  "#fd6100",
+  "#c2d837",
+  "#8bbc87",
+  "#538d44",
+  "#00e38a",
+  "#00ddea",
+  "#60a4e0",
+  "#00a9f2",
+  "#0078ff",
+  "#0e58b0",
+  "#c65efc",
+  "#7d5bba",
+  "#7e00b2",
+  "#191919",
+  "#7b959d",
+  "#786f87",
+] as const;
+
+/**
+ * 화면에 쓸 카테고리 강조색.
+ *
+ * 사용자가 프로필에서 색을 고를 수 있으므로 서버가 준 값이 먼저입니다. 값이
+ * 없거나 색이 아니면 순서에 따른 기본 색으로 떨어집니다.
+ */
+export const categoryAccent = (color: string | null | undefined, index: number) =>
+  /^#[0-9a-f]{3,8}$/i.test(color ?? "")
+    ? (color as string)
+    : (CATEGORY_PRESETS[Math.min(index, CATEGORY_PRESETS.length - 1)] ?? CATEGORY_PRESETS[0]).strong;
 
 export type CategoryTone = (typeof CATEGORY_PRESETS)[number]["key"];
 

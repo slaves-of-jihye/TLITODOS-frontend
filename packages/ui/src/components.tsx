@@ -1,6 +1,6 @@
 import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { CATEGORY_PRESETS, splitTodoContent, type CategoryTone } from "@tlitodos/core";
+import { splitTodoContent } from "@tlitodos/core";
 import type { GroupMember, Todo } from "@tlitodos/types";
 import { icons } from "./icons";
 import { palette, theme, uiGlyphFont } from "./theme";
@@ -216,26 +216,20 @@ const ClusterCount = styled.span`
 
 export const CategoryPill = ({
   name,
-  tone,
+  accent,
   own,
   onAdd,
   onManage,
 }: {
   name: string;
-  tone: CategoryTone;
+  accent: string;
   own: boolean;
   onAdd?: () => void;
   onManage?: () => void;
 }) => {
-  const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
   const hasAddAction = own && Boolean(onAdd);
   return (
-    <Pill
-      accent={preset.strong}
-      hasAddAction={hasAddAction}
-      onClick={own && !preset.locked ? onManage : undefined}
-      role={own && !preset.locked ? "button" : undefined}
-    >
+    <Pill accent={accent} hasAddAction={hasAddAction} onClick={onManage} role={onManage ? "button" : undefined}>
       <span>{name}</span>
       {own && onAdd ? (
         <PlusButton
@@ -291,22 +285,21 @@ const PlusButton = styled.button`
 
 export const TodoRow = ({
   todo,
-  tone,
+  accent,
   own,
   onToggle,
   onEdit,
 }: {
   todo: Todo;
-  tone: CategoryTone;
+  accent: string;
   own: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
 }) => {
-  const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
   const content = splitTodoContent(todo.title);
   const detail = content.detail || todo.subtasks.map(item => item.content).join(" · ");
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
-  const fills = todo.isCompleted ? Array<string>(4).fill(preset.strong) : [null, null, null, null];
+  const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
     <TodoItem>
       <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
@@ -523,15 +516,14 @@ const DiaryButton = styled.button`
 `;
 
 export const DayStash = ({
-  tones,
-  completed,
+  marks,
   selected,
   today,
   date,
   onClick,
 }: {
-  tones: CategoryTone[];
-  completed: CategoryTone[];
+  /** 그 날 할 일이 있는 카테고리별 강조색과 완료 여부입니다. */
+  marks: { accent: string; done: boolean }[];
   selected?: boolean;
   today?: boolean;
   date: number;
@@ -539,13 +531,11 @@ export const DayStash = ({
 }) => {
   // 점 색은 카테고리 색 그대로입니다. 80% 불투명도는 사분면 자체에 걸려 있고,
   // 완료 여부는 색이 아니라 가운데 체크로 나타냅니다.
-  const fills = tones
-    .slice(0, 4)
-    .map(tone => (CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0]).strong);
-  const allDone = tones.length > 0 && tones.every(tone => completed.includes(tone));
+  const fills = marks.slice(0, 4).map(mark => mark.accent);
+  const allDone = marks.length > 0 && marks.every(mark => mark.done);
   return (
     <DayButton onClick={onClick}>
-      <StatusCluster fills={fills} checked={allDone} count={tones.length > 4 ? tones.length : undefined} />
+      <StatusCluster fills={fills} checked={allDone} count={marks.length > 4 ? marks.length : undefined} />
       <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
         {String(date).padStart(2, "0")}
       </DateLabel>

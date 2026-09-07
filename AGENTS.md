@@ -14,11 +14,10 @@
 ## Product invariants
 
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
-- One accent per category (`strong` in `CATEGORY_PRESETS`), used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
-  - 해야할 일: `#ff5e9a`
-  - custom 1: `#ff00a2`
-  - custom 2: `#ff8cb6`
-  - 취미: `#ff3959`
+- A category's accent is the `color` the server returns for it, used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
+- `strong` in `CATEGORY_PRESETS` is only the seed: it is stored when the four categories are created, and it is the fallback when the server value is missing or not a colour.
+  - 해야할 일: `#ff5e9a`, custom 1: `#ff00a2`, custom 2: `#ff8cb6`, 취미: `#ff3959`
+- Users pick a category's colour on the profile screen from `CATEGORY_SWATCHES` (24 colours from Figma).
 - The category label sits on a neutral `#eef1f6` pill; there is no per-category background any more.
 - `해야할 일` and `취미` are locked. Custom categories can be renamed but cannot be deleted in the UI.
 - Create exactly four categories for a newly created user in the order above.

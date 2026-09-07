@@ -1,9 +1,9 @@
 import styled from "@emotion/styled";
 import {
-  CATEGORY_PRESETS,
   addMonths,
   buildRoutineDates,
-  categoryToneAt,
+  CATEGORY_PRESETS,
+  categoryAccent,
   composeTodoContent,
   dateOnly,
   formatLocalDate,
@@ -15,7 +15,6 @@ import {
   sortCategories,
   splitTodoContent,
   withOptionalTime,
-  type CategoryTone,
   type RoutineRepeat,
 } from "@tlitodos/core";
 import {
@@ -108,7 +107,7 @@ export const LoginModal = () => {
         if (session.isNewUser || current.length < 4) {
           const desired = CATEGORY_PRESETS.map((preset, index) => ({
             name: index === 0 ? "해야할 일" : index === 3 ? "취미" : `사용자 설정 ${index}`,
-            color: preset.color,
+            color: preset.strong,
           }));
           if (current.length === 0) {
             await Promise.all(desired.map(category => api.categories.create(category)));
@@ -517,22 +516,21 @@ export const CalendarPanel = ({
           if (!date) return <span key={`empty-${index}`} />;
           const value = formatLocalDate(date);
           const dayTodos = todos.filter(todo => sameLocalDate(todo.dueDate, value));
-          const tones: CategoryTone[] = [];
-          const completed: CategoryTone[] = [];
-          sorted.forEach((category, catIndex) => {
+          const marks = sorted.flatMap((category, catIndex) => {
             const list = dayTodos.filter(todo => todo.categoryId === category.categoryId);
-            if (list.length) {
-              const tone = categoryToneAt(catIndex);
-              tones.push(tone);
-              if (list.every(todo => todo.isCompleted)) completed.push(tone);
-            }
+            if (!list.length) return [];
+            return [
+              {
+                accent: categoryAccent(category.color, catIndex),
+                done: list.every(todo => todo.isCompleted),
+              },
+            ];
           });
           return (
             <DayStash
               key={value}
               date={date.getDate()}
-              tones={tones}
-              completed={completed}
+              marks={marks}
               selected={value === selectedDate}
               today={value === today}
               onClick={() => onDateChange(value)}
@@ -1031,10 +1029,9 @@ export const TodoEditorModal = ({
             <DependencyList>
               {candidates.length ? (
                 candidates.map(candidate => {
-                  const index = sortCategories(categories).findIndex(
-                    category => category.categoryId === candidate.categoryId,
-                  );
-                  const preset = CATEGORY_PRESETS[index] ?? CATEGORY_PRESETS[0];
+                  const ordered = sortCategories(categories);
+                  const index = ordered.findIndex(category => category.categoryId === candidate.categoryId);
+                  const accent = categoryAccent(ordered[index]?.color, Math.max(index, 0));
                   return (
                     <label key={candidate.todoId}>
                       <input
@@ -1045,8 +1042,8 @@ export const TodoEditorModal = ({
                       />
                       <i
                         style={{
-                          borderColor: preset.color,
-                          background: dependency === candidate.todoId ? preset.color : "transparent",
+                          borderColor: accent,
+                          background: dependency === candidate.todoId ? accent : "transparent",
                         }}
                       />
                       {candidate.title}
@@ -1274,18 +1271,18 @@ export const CategorySection = ({
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
 }) => {
-  const tone = categoryToneAt(index);
+  const accent = categoryAccent(category.color, index);
   return (
     <CategoryColumn>
       <CategoryPill
         name={category.name}
-        tone={tone}
+        accent={accent}
         own={own}
         onAdd={own ? () => onAdd(category) : undefined}
         onManage={own && index > 0 && index < 3 ? () => onManage(category) : undefined}
       />
       <TodoList>
-        <TodoRows todos={todos} tone={tone} own={own} onToggle={onToggle} onEdit={onEdit} />
+        <TodoRows todos={todos} accent={accent} own={own} onToggle={onToggle} onEdit={onEdit} />
       </TodoList>
     </CategoryColumn>
   );
@@ -1293,13 +1290,13 @@ export const CategorySection = ({
 // Kept separate so each row receives stable action closures.
 const TodoRows = ({
   todos,
-  tone,
+  accent,
   own,
   onToggle,
   onEdit,
 }: {
   todos: Todo[];
-  tone: CategoryTone;
+  accent: string;
   own: boolean;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
@@ -1309,7 +1306,7 @@ const TodoRows = ({
       <SharedTodoRow
         key={todo.todoId}
         todo={todo}
-        tone={tone}
+        accent={accent}
         own={own}
         onToggle={() => onToggle(todo)}
         onEdit={() => onEdit(todo)}

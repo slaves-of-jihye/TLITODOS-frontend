@@ -4,5 +4,7 @@
   "private": true,
   "type": "module",
   "exports": "./src/index.ts",
-  "dependencies": { "@tlitodos/types": "workspace:*" }
+  "dependencies": {
+    "@tlitodos/types": "workspace:*"
+  }
 }
