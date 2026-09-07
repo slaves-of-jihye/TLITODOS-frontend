@@ -36,6 +36,7 @@ import {
   Glyph,
   Modal,
   ProfileCard,
+  icons,
   theme,
 } from "@tlitodos/ui";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -307,15 +308,27 @@ export const AlarmPage = () => (
   </AppShell>
 );
 
+/** 자기소개 글자 수. 디자인의 카운터가 0/30입니다. */
+const BIO_LIMIT = 30;
+const NAME_LIMIT = 20;
+
+/**
+ * 라벨 + 회색 입력칸 한 줄.
+ *
+ * 보기 상태에서는 칸 전체가 편집 진입 버튼이고, 편집 상태에서는 칸 안에서
+ * 입력하고 오른쪽 취소/확인으로 끝냅니다. Enter로는 저장하지 않습니다.
+ */
 const EditableProfileRow = ({
   label,
   value,
-  multiline,
+  placeholder,
+  limit,
   onSave,
 }: {
   label: string;
   value: string;
-  multiline?: boolean;
+  placeholder: string;
+  limit: number;
   onSave: (next: string) => Promise<void>;
 }) => {
   const [editing, setEditing] = useState(false);
@@ -327,42 +340,32 @@ const EditableProfileRow = ({
       await onSave(draft.trim());
       setEditing(false);
     } catch {
-      /* 상위 행에서 오류 메시지를 표시합니다. */
+      /* 오류 문구는 프로필 화면에서 표시합니다. */
     } finally {
       setBusy(false);
     }
   };
   return (
-    <ProfileRow>
-      <div>
-        <small>{label}</small>
-        {editing ? (
-          multiline ? (
-            <textarea
-              value={draft}
-              maxLength={80}
-              onKeyDown={e => {
-                if (e.key === "Enter") e.preventDefault();
-              }}
-              onChange={e => setDraft(e.target.value)}
-            />
-          ) : (
+    <FieldBlock>
+      <FieldLabel>{label}</FieldLabel>
+      {editing ? (
+        <FieldRow>
+          <FieldBox as="div">
             <input
+              autoFocus
               value={draft}
-              maxLength={20}
-              onKeyDown={e => {
-                if (e.key === "Enter") e.preventDefault();
+              maxLength={limit}
+              placeholder={placeholder}
+              onKeyDown={event => {
+                if (event.key === "Enter") event.preventDefault();
               }}
-              onChange={e => setDraft(e.target.value)}
+              onChange={event => setDraft(event.target.value)}
             />
-          )
-        ) : (
-          <strong>{value || "아직 입력하지 않았어요"}</strong>
-        )}
-      </div>
-      <div>
-        {editing ? (
-          <>
+            <FieldCounter>
+              {draft.length}/{limit}
+            </FieldCounter>
+          </FieldBox>
+          <FieldActions>
             <Button
               onClick={() => {
                 setDraft(value);
@@ -372,21 +375,22 @@ const EditableProfileRow = ({
               취소
             </Button>
             <Button variant="primary" disabled={busy} onClick={finish}>
-              완료
+              확인
             </Button>
-          </>
-        ) : (
-          <Button
-            onClick={() => {
-              setDraft(value);
-              setEditing(true);
-            }}
-          >
-            <Glyph>›</Glyph>
-          </Button>
-        )}
-      </div>
-    </ProfileRow>
+          </FieldActions>
+        </FieldRow>
+      ) : (
+        <FieldBox
+          onClick={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+        >
+          <span data-empty={!value}>{value || placeholder}</span>
+          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
+        </FieldBox>
+      )}
+    </FieldBlock>
   );
 };
 
@@ -537,7 +541,7 @@ const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: Font
       >
         <span>{resolveFont(value).label}</span>
         <FontSelectCaret aria-hidden>
-          <Glyph>▾</Glyph>
+          <img src={icons.arrowUp} alt="" />
         </FontSelectCaret>
       </FontSelectTrigger>
       {open ? (
@@ -611,10 +615,10 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
     }
   };
   return (
-    <ProfileRow>
-      <div>
-        <small>폰트</small>
-        {editing ? (
+    <FieldBlock>
+      <FieldLabel>폰트 설정</FieldLabel>
+      {editing ? (
+        <FieldRow>
           <FontSelect
             value={draft}
             onChange={next => {
@@ -622,30 +626,26 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
               applyFont(next, { persist: false });
             }}
           />
-        ) : (
-          <strong>{resolveFont(value).label}</strong>
-        )}
-      </div>
-      <div>
-        {editing ? (
-          <>
+          <FieldActions>
             <Button onClick={revert}>취소</Button>
             <Button variant="primary" disabled={busy} onClick={finish}>
-              완료
+              확인
             </Button>
-          </>
-        ) : (
-          <Button
-            onClick={() => {
-              setDraft(value);
-              setEditing(true);
-            }}
-          >
-            <Glyph>›</Glyph>
-          </Button>
-        )}
-      </div>
-    </ProfileRow>
+          </FieldActions>
+        </FieldRow>
+      ) : (
+        <FieldBox
+          style={{ fontFamily: fontFamilyStack(value) }}
+          onClick={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+        >
+          <span>{resolveFont(value).label}</span>
+          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
+        </FieldBox>
+      )}
+    </FieldBlock>
   );
 };
 
@@ -687,20 +687,29 @@ export const ProfilePage = () => {
   };
   return (
     <AppShell>
-      <PageTitle>프로필</PageTitle>
+      <ProfileTitle>나의 프로필</ProfileTitle>
       <ProfilePanel>
-        <ProfileHero>
-          {profileImage ? <img src={profileImage} alt="프로필" /> : <span>🌱</span>}
-          <div>
-            <h2>{me?.name || "사용자"}</h2>
-            <p>{me?.bio || "오늘도 한 걸음씩"}</p>
-          </div>
-          <ProfileHeroAction>
+        <FieldBlock>
+          <FieldLabel>프로필 사진</FieldLabel>
+          <PhotoRow>
+            {profileImage ? <img src={profileImage} alt="프로필" /> : <span aria-hidden>🌱</span>}
             <ProfileImageAction onPick={uploadProfileImage} />
-          </ProfileHeroAction>
-        </ProfileHero>
-        <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
-        <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
+          </PhotoRow>
+        </FieldBlock>
+        <EditableProfileRow
+          label="이름"
+          value={me?.name ?? ""}
+          placeholder="이름을 작성하세요"
+          limit={NAME_LIMIT}
+          onSave={name => save({ name })}
+        />
+        <EditableProfileRow
+          label="자기소개"
+          value={me?.bio ?? ""}
+          placeholder="자기소개를 작성하세요"
+          limit={BIO_LIMIT}
+          onSave={bio => save({ bio })}
+        />
         <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
         {error ? <ErrorText>{error}</ErrorText> : null}
         <InstallAppAction />
@@ -973,135 +982,135 @@ const PageTitle = styled.h1`
     font-size: 26px;
   }
 `;
+const ProfileTitle = styled.h1`
+  margin: 0 0 40px;
+  font-size: ${theme.text.h1};
+`;
 const ProfilePanel = styled.div`
-  width: min(620px, 100%);
-  margin: 48px auto;
-  @media (max-width: 600px) {
-    margin: 28px auto;
+  display: grid;
+  justify-items: start;
+  gap: 20px;
+  max-width: 560px;
+`;
+const FieldBlock = styled.div`
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 0 20px;
+`;
+const FieldLabel = styled.small`
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+`;
+const FieldRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+`;
+const FieldBox = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(340px, 100%);
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 12px 20px;
+  text-align: left;
+  color: ${theme.colors.ink};
+  font-size: ${theme.text.s};
+  > span {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
+  /* 아직 입력하지 않은 값은 자리표시자처럼 보이게 둡니다. */
+  > span[data-empty="true"] {
+    color: ${theme.colors.muted};
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+`;
+const FieldCounter = styled.span`
+  flex: none;
+  color: ${theme.colors.muted};
+`;
+const FieldChevron = styled.img`
+  flex: none;
+  width: 20px;
+  height: 20px;
+  transform: rotate(90deg);
+`;
+const FieldActions = styled.div`
+  display: flex;
+  gap: 6px;
+  flex: none;
 `;
 const HiddenFileInput = styled.input`
   display: none;
 `;
-const ProfileHeroAction = styled.div`
-  margin-left: auto;
-  @media (max-width: 600px) {
-    /* 좁은 화면에서는 아래로 내려 이름·자기소개를 밀지 않게 합니다. */
-    margin-left: 0;
-    flex-basis: 100%;
-    button {
-      width: 100%;
-    }
-  }
-`;
-const ProfileHero = styled.div`
+const PhotoRow = styled.div`
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 24px;
-  margin-bottom: 42px;
+  gap: 32px;
   img,
-  span {
-    width: 92px;
-    height: 92px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: #f7f9fb;
+  > span {
+    flex: none;
+    width: 100px;
+    height: 100px;
     display: grid;
     place-items: center;
-    font-size: 48px;
-  }
-  h2 {
-    margin: 0 0 8px;
-  }
-  p {
-    margin: 0;
-    color: ${theme.colors.muted};
+    border-radius: 50%;
+    object-fit: cover;
+    background: ${theme.colors.panel};
+    font-size: 44px;
   }
   @media (max-width: 600px) {
-    gap: 16px;
-    margin-bottom: 28px;
+    gap: 18px;
     img,
-    span {
-      width: 72px;
-      height: 72px;
-      font-size: 38px;
-    }
-    h2 {
-      font-size: 22px;
-    }
-    p {
-      overflow-wrap: anywhere;
-    }
-  }
-`;
-const ProfileRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: center;
-  padding: 22px 0;
-  border-bottom: 1px solid ${theme.colors.line};
-  > div:first-of-type {
-    flex: 1;
-    display: grid;
-    gap: 7px;
-  }
-  small {
-    color: ${theme.colors.muted};
-  }
-  strong {
-    font-size: 18px;
-  }
-  input,
-  textarea {
-    width: 100%;
-    border: 0;
-    border-radius: 10px;
-    background: #f7f9fb;
-    padding: 12px;
-  }
-  textarea {
-    min-height: 70px;
-    resize: vertical;
-  }
-  > div:last-child {
-    display: flex;
-    gap: 7px;
-  }
-  @media (max-width: 600px) {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 0;
-    > div:last-child {
-      justify-content: flex-end;
-      button {
-        min-width: 72px;
-      }
+    > span {
+      width: 80px;
+      height: 80px;
+      font-size: 34px;
     }
   }
 `;
 const FontSelectRoot = styled.div`
   position: relative;
+  width: min(240px, 100%);
 `;
 const FontSelectTrigger = styled.button`
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: ${theme.radius.sm};
   background: ${theme.colors.panel};
-  padding: 12px;
+  padding: 12px 20px;
   text-align: left;
-  font-size: 17px;
+  font-size: ${theme.text.s};
   color: ${theme.colors.ink};
 `;
 const FontSelectCaret = styled.span`
-  color: ${theme.colors.muted};
-  font-size: 13px;
+  display: grid;
+  place-items: center;
+  img {
+    width: 20px;
+    height: 20px;
+    transform: rotate(180deg);
+  }
 `;
 const FontOptionList = styled.div`
   position: absolute;
@@ -1116,9 +1125,9 @@ const FontOptionList = styled.div`
   overflow-y: auto;
   display: grid;
   gap: 2px;
-  padding: 6px;
+  padding: 0;
   background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  border: 1px solid ${theme.colors.panel};
   border-radius: ${theme.radius.sm};
   box-shadow: ${theme.shadow};
 `;
@@ -1129,14 +1138,14 @@ const FontOption = styled.button`
   gap: 12px;
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: ${theme.radius.sm};
   background: transparent;
-  padding: 12px;
+  padding: 8px 20px;
   text-align: left;
-  font-size: 18px;
-  line-height: 1.35;
+  font-size: ${theme.text.s};
   color: ${theme.colors.ink};
-  &[data-active="true"] {
+  &[data-active="true"],
+  &[aria-selected="true"] {
     background: ${theme.colors.panel};
   }
 `;

@@ -23,37 +23,41 @@ export const AppShell = styled.div`
   }
 `;
 
+/**
+ * 디자인의 `selection` 컴포넌트입니다. 회색 테두리 pill이 기본이고, 주 동작은
+ * 검은 pill입니다. 초록 계열은 새 디자인에 없어 없앴습니다.
+ */
 export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "ghost" | "danger" }>`
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid ${({ variant = "soft" }) => (variant === "soft" ? palette.gray200 : "transparent")};
   border-radius: ${theme.radius.pill};
-  padding: 12px 20px;
-  font-weight: 700;
+  padding: 4px 12px;
+  font-size: ${theme.text.s};
   background: ${({ variant = "soft" }) =>
-    variant === "primary"
-      ? "#dff6ad"
-      : variant === "dark"
-        ? theme.colors.selected
-        : variant === "ghost"
-          ? "transparent"
-          : variant === "danger"
-            ? "#fff0f3"
-            : theme.colors.panel};
+    variant === "primary" || variant === "dark"
+      ? palette.black
+      : variant === "ghost"
+        ? "transparent"
+        : variant === "danger"
+          ? "#fff0f3"
+          : palette.gray100};
   color: ${({ variant = "soft" }) =>
-    variant === "dark" ? "white" : variant === "danger" ? theme.colors.red : theme.colors.ink};
-  transition:
-    transform 0.16s ease,
-    background 0.16s ease;
-  &:hover {
-    transform: translateY(-1px);
-  }
+    variant === "primary" || variant === "dark"
+      ? palette.white
+      : variant === "danger"
+        ? theme.colors.red
+        : theme.colors.ink};
+  transition: background 0.16s ease;
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
-    transform: none;
   }
   @media (max-width: 600px) {
-    min-height: 44px;
-    padding: 11px 16px;
+    min-height: 40px;
+    padding: 6px 14px;
   }
 `;
 
