@@ -8,6 +8,7 @@ import {
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
+  diaryDate,
   formatLongKoreanDate,
   isDiaryForDate,
   resolveFont,
@@ -38,14 +39,13 @@ import {
   AppShell,
   BottomNav,
   Button,
-  ButtonStack,
   CategoryPill,
   DiaryBadge,
   ErrorText,
   Glyph,
   icons,
   Modal,
-  ProfileCard,
+  palette,
   theme,
 } from "@tlitodos/ui";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -60,6 +60,9 @@ import {
   CategorySection,
   DependencyBlockModal,
   GroupActionModals,
+  GroupInfoModal,
+  GroupTopBar,
+  MemberTabs,
   InstallAppAction,
   TodoDetailModal,
   WorkspaceHeader,
@@ -244,18 +247,17 @@ const TodoWorkspace = ({
         onClose={() => setManage(null)}
       />
       <DependencyBlockModal todos={blocked} open={blocked.length > 0} onClose={() => setBlocked([])} />
-      <Modal
-        open={diaryPreview !== null}
-        title={`${ownerName || "친구"}님의 일기`}
-        onClose={() => setDiaryPreview(null)}
-      >
-        <DiaryContent>
-          {diaryPreview?.emotion ? <b>{diaryPreview.emotion}</b> : null}
+      {/* Figma group 섹션의 `modal / diary`입니다. 닫기 버튼이 없어 뒤 배경을 눌러 닫습니다. */}
+      <Modal open={diaryPreview !== null} sheet onClose={() => setDiaryPreview(null)} aria-label="친구의 일기">
+        <DiaryPreview>
+          <DiaryPreviewTitle>{ownerName || "친구"}님의 일기</DiaryPreviewTitle>
+          <DiaryBadge
+            emotion={diaryPreview?.emotion}
+            nickname={ownerName || "친구"}
+            date={formatLongKoreanDate(diaryPreview ? (diaryDate(diaryPreview) ?? "") : "")}
+          />
           <p>{diaryPreview ? splitDiaryContent(diaryPreview.content).content : ""}</p>
-        </DiaryContent>
-        <ButtonStack>
-          <Button onClick={() => setDiaryPreview(null)}>닫기</Button>
-        </ButtonStack>
+        </DiaryPreview>
       </Modal>
       {/* BetModal is intentionally kept out of the active MVP build. */}
     </>
@@ -274,79 +276,120 @@ export const MyHome = () => {
   );
 };
 
+/**
+ * 그룹 화면.
+ *
+ * Figma의 group 섹션 `main / today`입니다. 맨 위 줄에서 그룹을 빠져나가거나 설정을
+ * 열고, 그 아래 멤버 줄에서 누구의 할 일을 볼지 고릅니다. 나를 골랐을 때는 홈과
+ * 같은 내 할 일(그룹으로 좁히지 않은 전체)을 보여주고, 다른 멤버는 그룹에 공개된
+ * 할 일만 읽기 전용으로 보여줍니다.
+ */
 export const GroupHome = () => {
-  const { groupId } = useParams();
+  const { groupId, userId } = useParams();
   const id = Number(groupId);
   const navigate = useNavigate();
-  const header = useHeaderModal();
   const { data: me } = useMe();
-  const { data: group, isLoading } = useGroup(Number.isFinite(id) ? id : null);
-  const [copied, setCopied] = useState(false);
-  const members = group?.members.filter(member => member.userId !== me?.userId) ?? [];
+  const { data: group } = useGroup(Number.isFinite(id) ? id : null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const members = useMemo(() => {
+    const list = group?.members ?? [];
+    const mine = list.find(member => member.userId === me?.userId);
+    return mine ? [mine, ...list.filter(member => member.userId !== mine.userId)] : list;
+  }, [group, me]);
+  const activeId = userId ? Number(userId) : (me?.userId ?? null);
+  const active = members.find(member => member.userId === activeId);
+  const own = activeId !== null && activeId === me?.userId;
   return (
     <AppShell>
-      <WorkspaceHeader activeGroupId={id} onCreate={header.openCreate} onJoin={header.openJoin} />
-      <GroupTitleRow>
-        <div>
-          <h1>{group?.name || "그룹"}</h1>
-          <p>{group?.description || "함께하는 멤버들의 TODO를 확인해 보세요."}</p>
-        </div>
-        {group?.inviteCode ? (
-          <Button
-            onClick={async () => {
-              await navigator.clipboard.writeText(group.inviteCode);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1400);
-            }}
-          >
-            {copied ? "복사했어요" : "초대코드 복사"}
-          </Button>
-        ) : null}
-      </GroupTitleRow>
-      {isLoading ? (
-        <EmptyState>그룹을 불러오는 중...</EmptyState>
-      ) : members.length ? (
-        <MemberGrid>
-          {members.map(member => (
-            <ProfileCard
-              key={member.userId}
-              member={{ ...member, profileImageUrl: resolveAssetUrl(member.profileImageUrl) }}
-              onClick={() => navigate(`/groups/${id}/members/${member.userId}`)}
-            />
-          ))}
-        </MemberGrid>
+      <GroupTopBar name={group?.name || "그룹"} onBack={() => navigate("/")} onSettings={() => setSettingsOpen(true)} />
+      <MemberTabs
+        members={members}
+        activeUserId={activeId}
+        onSelect={next => navigate(next === me?.userId ? `/groups/${id}` : `/groups/${id}/members/${next}`)}
+      />
+      {own ? (
+        <TodoWorkspace own groupId={null} />
       ) : (
-        <EmptyState>아직 다른 그룹 멤버가 없습니다.</EmptyState>
+        <TodoWorkspace own={false} ownerId={activeId ?? undefined} ownerName={active?.name} groupId={id} />
       )}
       <PageNav active="home" />
-      <GroupActionModals mode={header.mode} onClose={header.close} />
+      <GroupInfoModal open={settingsOpen} group={group ?? null} onClose={() => setSettingsOpen(false)} />
     </AppShell>
   );
 };
 
-export const FriendHome = () => {
-  const { groupId, userId } = useParams();
-  const group = Number(groupId);
-  const user = Number(userId);
-  const header = useHeaderModal();
-  const { data: detail } = useGroup(Number.isFinite(group) ? group : null);
-  const member = detail?.members.find(item => item.userId === user);
+/**
+ * 알림 화면.
+ *
+ * Figma는 친구의 할 일 완료 / 친구의 일기 / 친구의 내기 요청 세 갈래를 pill로
+ * 고르고 그 아래에 알림을 쌓아 보여줍니다. 서버에 알림 목록 엔드포인트가 없어
+ * (`GET /api/v1/diaries`는 내 일기만, 친구 할 일은 그룹 안 오늘 목록만 줍니다)
+ * 지금은 고르는 줄까지만 두고 목록은 비워 둡니다. 내기는 MVP 밖이라 갈래에서
+ * 빼 두었습니다.
+ */
+const ALARM_FILTERS = [
+  { key: "todo", label: "친구의 할 일 완료" },
+  { key: "diary", label: "친구의 일기" },
+  // { key: "bet", label: "친구의 내기 요청" },
+] as const;
+export const AlarmPage = () => {
+  const [filter, setFilter] = useState<(typeof ALARM_FILTERS)[number]["key"]>("todo");
+  const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
   return (
     <AppShell>
-      <WorkspaceHeader activeGroupId={group} onCreate={header.openCreate} onJoin={header.openJoin} />
-      <TodoWorkspace own={false} ownerId={user} ownerName={member?.name} groupId={group} />
-      <PageNav active="home" />
-      <GroupActionModals mode={header.mode} onClose={header.close} />
+      <AlarmColumn>
+        <AlarmHead>
+          <PageTitle>알림</PageTitle>
+          <AlarmFilters role="tablist">
+            {ALARM_FILTERS.map(item => (
+              <AlarmFilter
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={filter === item.key}
+                selected={filter === item.key}
+                onClick={() => setFilter(item.key)}
+              >
+                {item.label}
+              </AlarmFilter>
+            ))}
+          </AlarmFilters>
+        </AlarmHead>
+        <AlarmEmpty>아직 도착한 {label} 알림이 없습니다.</AlarmEmpty>
+      </AlarmColumn>
+      <PageNav active="alarm" />
     </AppShell>
   );
 };
-
-export const AlarmPage = () => (
-  <AppShell>
-    <PageTitle>알림</PageTitle>
-    <PageNav active="alarm" />
-  </AppShell>
-);
+const AlarmColumn = styled.div`
+  display: grid;
+  gap: 32px;
+  width: min(485px, 100%);
+  justify-items: start;
+`;
+const AlarmHead = styled.div`
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  width: 100%;
+`;
+const AlarmFilters = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+`;
+const AlarmFilter = styled.button<{ selected: boolean }>`
+  border: 0;
+  border-radius: ${theme.radius.pill};
+  padding: 6px 20px;
+  font-size: ${theme.text.h3};
+  background: ${({ selected }) => (selected ? palette.black : palette.gray200)};
+  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
+`;
+const AlarmEmpty = styled.p`
+  margin: 0;
+  color: ${theme.colors.muted};
+`;
 
 /** 자기소개 글자 수. 디자인의 카운터가 0/30입니다. */
 const BIO_LIMIT = 30;
@@ -1098,61 +1141,28 @@ const CategoryBoard = styled.div`
     gap: 28px;
   }
 `;
+const DiaryPreview = styled.div`
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+`;
+const DiaryPreviewTitle = styled.p`
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+`;
 const EmptyState = styled.div`
   min-height: 260px;
   display: grid;
   place-items: center;
   text-align: center;
   color: ${theme.colors.muted};
-`;
-const DiaryContent = styled.div`
-  border-radius: 16px;
-  background: #f7f9fb;
-  padding: 24px;
-  b {
-    font-size: 34px;
-  }
-  p {
-    white-space: pre-wrap;
-    line-height: 1.8;
-  }
-`;
-const GroupTitleRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 10px 0 52px;
-  h1 {
-    margin: 0 0 8px;
-  }
-  p {
-    margin: 0;
-    color: ${theme.colors.muted};
-  }
-  @media (max-width: 600px) {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 20px;
-    margin: 0 0 34px;
-    h1 {
-      font-size: 27px;
-    }
-    > button {
-      width: 100%;
-    }
-  }
-`;
-const MemberGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 30px 70px;
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (max-width: 560px) {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
 `;
 const PageTitle = styled.h1`
   margin: 0;

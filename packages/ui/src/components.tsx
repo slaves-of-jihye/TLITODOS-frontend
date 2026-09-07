@@ -116,26 +116,23 @@ const ViewChipButton = styled.button<{ active: boolean }>`
   align-items: center;
   gap: 8px;
   border: 0;
-  padding: 5px 15px 5px 5px;
+  padding: 4px 10px 4px 4px;
   border-radius: ${theme.radius.pill};
-  font-weight: 700;
-  background: ${({ active }) => (active ? theme.colors.selected : "#f0f3f7")};
-  color: ${({ active }) => (active ? "white" : theme.colors.ink)};
+  font-size: ${theme.text.h3};
+  background: ${({ active }) => (active ? palette.black : palette.gray200)};
+  color: ${({ active }) => (active ? palette.white : theme.colors.ink)};
   white-space: nowrap;
-  @media (max-width: 600px) {
-    min-height: 44px;
-  }
 `;
 const Avatar = styled.img`
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   background: white;
 `;
 const AvatarFallback = styled.span`
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 50%;

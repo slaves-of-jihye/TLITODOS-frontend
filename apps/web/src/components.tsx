@@ -28,10 +28,11 @@ import {
   useInvalidateTodos,
   useJoinGroup,
   useMe,
+  useRemoveGroupMember,
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, Importance, Todo, TodoPatchRequest } from "@tlitodos/types";
+import type { Category, GroupDetail, GroupMember, Importance, Todo, TodoPatchRequest } from "@tlitodos/types";
 import {
   Button,
   ButtonStack,
@@ -358,17 +359,9 @@ export const WorkspaceHeader = ({
   onJoin: () => void;
 }) => {
   const navigate = useNavigate();
-  const { data: me } = useMe();
   const { data: groups = [] } = useGroups();
   return (
     <HeaderRow>
-      <ViewChip
-        active={activeGroupId === undefined}
-        avatar={resolveAssetUrl(me?.profileImageUrl)}
-        onClick={() => navigate("/")}
-      >
-        {me?.name || "나의 TODO"}
-      </ViewChip>
       {groups.map(group => (
         <ViewChip
           key={group.groupId}
@@ -387,6 +380,229 @@ export const WorkspaceHeader = ({
     </HeaderRow>
   );
 };
+
+/** 그룹 화면 맨 위 줄. 뒤로가기 · 그룹 이름 · 그룹 설정입니다. */
+export const GroupTopBar = ({
+  name,
+  onBack,
+  onSettings,
+}: {
+  name: string;
+  onBack: () => void;
+  onSettings: () => void;
+}) => (
+  <GroupBar>
+    <GroupBarButton type="button" onClick={onBack}>
+      <BackArrow src={icons.arrowUp} alt="" aria-hidden />
+      뒤로가기
+    </GroupBarButton>
+    <GroupBarTitle>{name}</GroupBarTitle>
+    <GroupBarButton type="button" onClick={onSettings}>
+      <MoreIcon src={icons.more} alt="" aria-hidden />
+      그룹 설정
+    </GroupBarButton>
+  </GroupBar>
+);
+const GroupBar = styled.header`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 26px;
+`;
+const GroupBarButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+`;
+const GroupBarTitle = styled.p`
+  margin: 0;
+  min-width: 0;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+  overflow-wrap: anywhere;
+`;
+const BackArrow = styled.img`
+  width: 24px;
+  height: 24px;
+  transform: rotate(-90deg);
+`;
+const MoreIcon = styled.img`
+  width: 4px;
+  height: 18px;
+`;
+
+/** 그룹 멤버를 고르는 줄. 나를 맨 앞에 둡니다. */
+export const MemberTabs = ({
+  members,
+  activeUserId,
+  onSelect,
+}: {
+  members: GroupMember[];
+  activeUserId: number | null;
+  onSelect: (userId: number) => void;
+}) => (
+  <MemberRow>
+    {members.map(member => (
+      <ViewChip
+        key={member.userId}
+        active={member.userId === activeUserId}
+        avatar={resolveAssetUrl(member.profileImageUrl)}
+        onClick={() => onSelect(member.userId)}
+      >
+        {member.name}
+      </ViewChip>
+    ))}
+  </MemberRow>
+);
+const MemberRow = styled.div`
+  display: flex;
+  gap: 16px;
+  margin-bottom: 36px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  > * {
+    flex: 0 0 auto;
+  }
+`;
+
+/**
+ * 그룹 설정 시트.
+ *
+ * 디자인의 `groupinfo`입니다. 멤버 강퇴만 실제로 동작합니다 — 그룹 이름 변경과
+ * 그룹 삭제는 서버에 해당하는 엔드포인트가 없습니다(`PATCH /api/v1/groups/{groupId}`,
+ * `DELETE /api/v1/groups/{groupId}`가 생기면 이어 붙일 수 있습니다).
+ */
+export const GroupInfoModal = ({
+  open,
+  group,
+  onClose,
+}: {
+  open: boolean;
+  group: GroupDetail | null;
+  onClose: () => void;
+}) => {
+  const { data: me } = useMe();
+  const [selected, setSelected] = useState<number | null>(null);
+  const removeMember = useRemoveGroupMember(group?.groupId ?? null);
+  const others = group?.members.filter(member => member.userId !== me?.userId) ?? [];
+  return (
+    <Modal open={open} sheet onClose={onClose} aria-label="그룹 설정">
+      <SheetForm>
+        <GroupInfoTitle>{group?.name ?? "그룹"}</GroupInfoTitle>
+        <SheetActions>
+          <GroupInfoAction type="button" disabled title="서버에 그룹 수정 엔드포인트가 아직 없습니다.">
+            <img src={icons.edit} alt="" aria-hidden />
+            그룹명 수정
+          </GroupInfoAction>
+          <GroupInfoAction type="button" disabled title="서버에 그룹 삭제 엔드포인트가 아직 없습니다.">
+            <img src={icons.trash} alt="" aria-hidden />
+            그룹 삭제
+          </GroupInfoAction>
+        </SheetActions>
+        <MemberOptions role="radiogroup" aria-label="멤버 고르기">
+          {others.length ? (
+            others.map(member => (
+              <MemberOption
+                key={member.userId}
+                type="button"
+                role="radio"
+                aria-checked={selected === member.userId}
+                selected={selected === member.userId}
+                onClick={() => setSelected(selected === member.userId ? null : member.userId)}
+              >
+                <i aria-hidden />
+                {member.name}
+              </MemberOption>
+            ))
+          ) : (
+            <DetailEmpty>아직 다른 멤버가 없습니다.</DetailEmpty>
+          )}
+        </MemberOptions>
+        {removeMember.error ? <ErrorText>{errorMessage(removeMember.error)}</ErrorText> : null}
+        <SheetCancel
+          type="button"
+          disabled={selected === null || removeMember.isPending}
+          onClick={async () => {
+            if (selected === null) return;
+            const name = others.find(member => member.userId === selected)?.name ?? "";
+            if (!window.confirm(`${name}님을 그룹에서 내보낼까요?`)) return;
+            try {
+              await removeMember.mutateAsync(selected);
+              setSelected(null);
+            } catch {
+              /* mutation.error를 표시합니다. */
+            }
+          }}
+        >
+          {removeMember.isPending ? "내보내는 중..." : "선택한 멤버 강퇴"}
+        </SheetCancel>
+      </SheetForm>
+    </Modal>
+  );
+};
+const GroupInfoTitle = styled.p`
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+  overflow-wrap: anywhere;
+`;
+const GroupInfoAction = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 12px;
+  background: ${palette.gray200};
+  padding: 10px 20px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  img {
+    width: 18px;
+    height: 18px;
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+const MemberOptions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
+`;
+const MemberOption = styled.button<{ selected: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid ${palette.gray200};
+  border-radius: ${theme.radius.pill};
+  background: ${palette.white};
+  padding: 4px 12px 4px 4px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+  i {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid ${palette.gray300};
+    background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
+  }
+`;
 
 export const GroupActionModals = ({ mode, onClose }: { mode: "create" | "join" | null; onClose: () => void }) => {
   const createGroup = useCreateGroup();

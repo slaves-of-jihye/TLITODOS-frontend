@@ -19,4 +19,5 @@ export const icons = {
   trash: `${base}/trash.svg`,
   calendar: `${base}/calendar.svg`,
   routine: `${base}/routine.svg`,
+  more: `${base}/more.svg`,
 } as const;

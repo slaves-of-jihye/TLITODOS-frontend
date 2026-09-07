@@ -132,6 +132,17 @@ export const useJoinGroup = () => {
     onSuccess: () => invalidate(queryKeys.groups),
   });
 };
+export const useRemoveGroupMember = (groupId: number | null) => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (userId: number) => api.groups.removeMember(groupId!, userId),
+    onSuccess: () => {
+      invalidate(queryKeys.group(groupId ?? -1));
+      invalidate(queryKeys.groups);
+    },
+  });
+};
 export const useUpdateProfile = () => {
   const api = useApi();
   const invalidate = useDetachedInvalidate();

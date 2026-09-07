@@ -25,7 +25,10 @@
 - Friend todo pages are read-only. Bet UI is intentionally present only as commented/non-MVP code.
 - A todo dependency can only be a non-hobby todo on the todo's selected date. Incomplete dependencies block completion and must be named in the feedback modal.
 - Partial visibility and active bet flows are non-MVP and stay commented out.
-- Alerts is an empty MVP page with only the `알림` title.
+- Alerts shows the design's filter pills (`친구의 할 일 완료`, `친구의 일기`) over an empty list. The bet pill stays commented out, and the list stays empty until the backend gains a notification-list endpoint — `GET /api/v1/diaries` returns only the current user's diaries and friend todos are reachable only per group and per date.
+- The group screen is one page: a top bar (`뒤로가기` / group name / `그룹 설정`), a member row, then the same two-column workspace. Selecting yourself shows your own full todo list; selecting anyone else shows that member's group-visible todos, read-only.
+- `그룹명 수정` and `그룹 삭제` in the group settings sheet are disabled: the backend has no `PATCH`/`DELETE /api/v1/groups/{groupId}`. Kicking a member works through `DELETE /api/v1/groups/{groupId}/members/{userId}`.
+- Routines repeat 매일/매주/격주/매월/매년. The backend has no routine endpoint, so the dates are expanded in `buildRoutineDates` and created one todo at a time; 매월/매년 skip months that lack the start day.
 - Profile edits save only through the explicit completion button. Enter never saves, and route changes cancel drafts.
 - Login blocks every route and uses an overlay 1.5 times darker than ordinary modal overlays.
 - The bottom navigation remains at the bottom of authenticated pages.
