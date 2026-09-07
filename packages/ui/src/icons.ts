@@ -13,4 +13,6 @@ export const icons = {
   plus: `${base}/plus.svg`,
   arrowUp: `${base}/arrow-up.svg`,
   check: `${base}/check.svg`,
+  emojiAdd: `${base}/emoji-add.svg`,
+  imageBox: `${base}/image-box.svg`,
 } as const;

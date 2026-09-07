@@ -7,6 +7,7 @@ import {
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
+  formatLongKoreanDate,
   isDiaryForDate,
   resolveFont,
   sortCategories,
@@ -27,7 +28,7 @@ import {
   useUpdateFont,
   useUpdateProfile,
 } from "@tlitodos/hooks";
-import type { Category, Diary, Todo } from "@tlitodos/types";
+import type { Category, Diary, DiaryCreateRequest, DiaryPatchRequest, Todo, UiVisibility } from "@tlitodos/types";
 import {
   AppShell,
   BottomNav,
@@ -36,7 +37,6 @@ import {
   CategoryPill,
   DiaryBadge,
   ErrorText,
-  Field,
   Glyph,
   icons,
   Modal,
@@ -809,6 +809,10 @@ export const ProfilePage = () => {
   );
 };
 
+/** 일기 이미지도 프로필 사진과 같은 5MB 기준으로 막습니다. */
+const MAX_DIARY_IMAGE_BYTES = 5 * 1024 * 1024;
+const EMOTIONS = ["😊", "🥳", "😌", "😢", "😤"];
+
 const DiaryForm = ({
   selectedDate,
   existing,
@@ -821,73 +825,139 @@ const DiaryForm = ({
   const navigate = useNavigate();
   const save = useSaveDiary();
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
+  const [emotionOpen, setEmotionOpen] = useState(false);
   const [content, setContent] = useState(existing ? splitDiaryContent(existing.content).content : "");
+  const [visibility, setVisibility] = useState<UiVisibility>(existing?.visibility === "PRIVATE" ? "PRIVATE" : "GROUP");
+  const [image, setImage] = useState<File | null>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
+  // 이미지는 생성 요청의 multipart로만 올릴 수 있습니다. 수정에는 파일 필드가 없습니다.
+  const canAttach = !existing;
+  const submit = async () => {
+    setError("");
+    try {
+      let body: DiaryCreateRequest | DiaryPatchRequest | FormData;
+      if (image && canAttach) {
+        body = new FormData();
+        body.append("content", composeDiaryContent(selectedDate, content));
+        body.append("visibility", visibility);
+        if (emotion) body.append("emotion", emotion);
+        body.append("image", image);
+      } else {
+        body = {
+          content: composeDiaryContent(selectedDate, content),
+          emotion: emotion || null,
+          visibility,
+        };
+      }
+      await save.mutateAsync({ id: existing?.diaryId, body });
+      navigate("/");
+    } catch (reason) {
+      setError(message(reason));
+    }
+  };
   return (
     <AppShell>
-      <DiaryHead>
-        <div>
-          <Button onClick={() => navigate("/")}>
-            <Glyph>‹</Glyph> 돌아가기
-          </Button>
-          <h1>{existing ? "일기 수정하기" : "오늘의 일기 쓰기"}</h1>
-          <p>
-            {userName} · {selectedDate.replaceAll("-", ".")}
-          </p>
-        </div>
-      </DiaryHead>
-      <DiaryEditor>
-        <Field>
-          오늘의 기분 (선택)
-          <EmotionRow>
-            {["", "😊", "🥳", "😌", "😢", "😤"].map(item => (
-              <button
-                type="button"
-                key={item || "none"}
-                data-selected={emotion === item}
-                onClick={() => setEmotion(item)}
-              >
-                {item || "없음"}
-              </button>
-            ))}
-          </EmotionRow>
-        </Field>
-        <Field>
-          오늘의 기록
+      <DiaryTopBar>
+        <DiaryTextAction onClick={() => navigate("/")}>취소</DiaryTextAction>
+        <h1>일기</h1>
+        <DiaryTextAction disabled={!content.trim() || save.isPending} onClick={submit}>
+          완료
+        </DiaryTextAction>
+      </DiaryTopBar>
+      <DiaryBody>
+        <DiaryMain>
+          <DiaryDate>{formatLongKoreanDate(selectedDate)}</DiaryDate>
           <textarea
             value={content}
             maxLength={1000}
-            onChange={e => setContent(e.target.value)}
-            placeholder="오늘 하루는 어땠나요?"
+            onChange={event => setContent(event.target.value)}
+            placeholder={`${userName || "오늘"}님의 오늘은 어떤 하루였나요? 오늘 하루를 기록해보세요`}
           />
           <small>{content.length}/1000</small>
-        </Field>
-        {error ? <ErrorText>{error}</ErrorText> : null}
-        <ButtonStack>
-          <Button
-            variant="primary"
-            disabled={!content.trim() || save.isPending}
-            onClick={async () => {
-              setError("");
-              try {
-                await save.mutateAsync({
-                  id: existing?.diaryId,
-                  body: {
-                    content: composeDiaryContent(selectedDate, content),
-                    emotion: emotion || null,
-                    visibility: "PRIVATE",
-                  },
-                });
-                navigate("/");
-              } catch (reason) {
-                setError(message(reason));
-              }
-            }}
-          >
-            {existing ? "수정 완료" : "일기 저장하기"}
-          </Button>
-        </ButtonStack>
-      </DiaryEditor>
+        </DiaryMain>
+        <DiaryRail>
+          <div>
+            <DiaryRailLabel>
+              그룹 안 공개 범위 설정하기 <b aria-hidden>*</b>
+            </DiaryRailLabel>
+            <DiaryPillRow>
+              <Button variant={visibility === "GROUP" ? "primary" : "soft"} onClick={() => setVisibility("GROUP")}>
+                전체 공개
+              </Button>
+              {/* 일부 공개는 MVP 범위 밖입니다. 자리만 두고 막아 둡니다. */}
+              <Button disabled title="일부 공개는 MVP 이후 제공됩니다.">
+                일부 공개
+              </Button>
+              <Button variant={visibility === "PRIVATE" ? "primary" : "soft"} onClick={() => setVisibility("PRIVATE")}>
+                비밀
+              </Button>
+            </DiaryPillRow>
+          </div>
+          <DiaryRailRow>
+            <div>
+              <DiaryRailLabel as="span">오늘의 감정 선택하기</DiaryRailLabel>
+              <DiaryIconAction
+                aria-label="오늘의 감정 선택하기"
+                aria-expanded={emotionOpen}
+                onClick={() => setEmotionOpen(!emotionOpen)}
+              >
+                {emotion ? <span>{emotion}</span> : <img src={icons.emojiAdd} alt="" aria-hidden />}
+              </DiaryIconAction>
+              {emotionOpen ? (
+                <EmotionRow role="group" aria-label="감정">
+                  {["", ...EMOTIONS].map(item => (
+                    <button
+                      type="button"
+                      key={item || "none"}
+                      data-selected={emotion === item}
+                      onClick={() => {
+                        setEmotion(item);
+                        setEmotionOpen(false);
+                      }}
+                    >
+                      {item || "없음"}
+                    </button>
+                  ))}
+                </EmotionRow>
+              ) : null}
+            </div>
+            <div>
+              <DiaryRailLabel as="span">이미지 첨부하기</DiaryRailLabel>
+              <DiaryIconAction
+                aria-label="이미지 첨부하기"
+                disabled={!canAttach}
+                title={canAttach ? undefined : "이미지는 일기를 처음 쓸 때만 첨부할 수 있습니다."}
+                onClick={() => imageInput.current?.click()}
+              >
+                <img src={icons.imageBox} alt="" aria-hidden />
+              </DiaryIconAction>
+              <HiddenFileInput
+                ref={imageInput}
+                type="file"
+                accept="image/*"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (!file.type.startsWith("image/")) {
+                    setError("이미지 파일만 올릴 수 있습니다.");
+                    return;
+                  }
+                  if (file.size > MAX_DIARY_IMAGE_BYTES) {
+                    setError("이미지는 5MB까지 올릴 수 있습니다.");
+                    return;
+                  }
+                  setError("");
+                  setImage(file);
+                }}
+              />
+              {image ? <DiaryAttachment>{image.name}</DiaryAttachment> : null}
+            </div>
+          </DiaryRailRow>
+          {error ? <ErrorText>{error}</ErrorText> : null}
+        </DiaryRail>
+      </DiaryBody>
       <PageNav active="home" />
     </AppShell>
   );
@@ -1299,33 +1369,129 @@ const LogoutButton = styled.button`
   font-weight: 800;
   padding: 10px 0;
 `;
-const DiaryHead = styled.div`
-  margin-bottom: 36px;
+const DiaryTopBar = styled.header`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 40px;
   h1 {
-    margin: 24px 0 6px;
+    margin: 0;
+    font-size: ${theme.text.h1};
   }
-  p {
+`;
+const DiaryTextAction = styled.button`
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+`;
+const DiaryBody = styled.div`
+  display: grid;
+  /* 오른쪽 열은 디자인 폭(313px)을 확보하고, 좁아지면 본문이 먼저 줄어듭니다. */
+  grid-template-columns: minmax(0, 800px) minmax(313px, 1fr);
+  align-items: start;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+`;
+const DiaryDate = styled.p`
+  margin: 0;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+`;
+const DiaryMain = styled.div`
+  display: grid;
+  gap: 10px;
+  padding: 24px 20px;
+  textarea {
+    min-height: 400px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    resize: vertical;
+    font-size: ${theme.text.h3};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+  > small {
+    justify-self: end;
     color: ${theme.colors.muted};
+    font-size: ${theme.text.xs};
   }
   @media (max-width: 600px) {
-    margin-bottom: 26px;
-    h1 {
-      margin-top: 20px;
-      font-size: 27px;
+    padding: 0;
+    textarea {
+      min-height: 240px;
     }
   }
 `;
-const DiaryEditor = styled.div`
-  width: min(760px, 100%);
-  margin: 0 auto;
+const DiaryRail = styled.aside`
   display: grid;
-  gap: 26px;
+  gap: 40px;
+  align-content: start;
+  padding: 24px 20px;
   @media (max-width: 600px) {
-    gap: 22px;
-    textarea {
-      min-height: 42vh;
-    }
+    gap: 28px;
+    padding: 0;
   }
+`;
+const DiaryRailLabel = styled.p`
+  margin: 0 0 12px;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+  b {
+    color: ${theme.colors.red};
+  }
+`;
+const DiaryPillRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+const DiaryRailRow = styled.div`
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  > div {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+  }
+`;
+const DiaryIconAction = styled.button`
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  img {
+    width: 40px;
+    height: 40px;
+  }
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+`;
+const DiaryAttachment = styled.small`
+  max-width: 160px;
+  color: ${theme.colors.muted};
+  font-size: ${theme.text.xs};
+  overflow-wrap: anywhere;
 `;
 const EmotionRow = styled.div`
   display: flex;

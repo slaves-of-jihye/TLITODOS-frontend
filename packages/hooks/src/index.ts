@@ -265,10 +265,10 @@ export const useSaveDiary = () => {
   const invalidate = useDetachedInvalidate();
   const writeBack = useWriteBack();
   return useMutation({
-    mutationFn: (payload: { id?: number; body: DiaryCreateRequest | DiaryPatchRequest }) =>
+    mutationFn: (payload: { id?: number; body: DiaryCreateRequest | DiaryPatchRequest | FormData }) =>
       payload.id
         ? api.diaries.update(payload.id, payload.body as DiaryPatchRequest)
-        : api.diaries.create(payload.body as DiaryCreateRequest),
+        : api.diaries.create(payload.body as DiaryCreateRequest | FormData),
     onSuccess: saved => {
       writeBack.diaries(diaries =>
         diaries.some(diary => diary.diaryId === saved.diaryId)

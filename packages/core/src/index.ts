@@ -186,6 +186,13 @@ export const getCalendarDays = (viewDate: Date) => {
   ];
 };
 
+/** "2026년 5월 10일 일요일" 형태. 일기 화면의 날짜 표기입니다. */
+export const formatLongKoreanDate = (value: string) => {
+  const date = parseLocalDate(value);
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"][date.getDay()];
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${weekday}요일`;
+};
+
 export const getTodoTitle = (selectedDate: string, today = formatLocalDate(new Date())) => {
   if (selectedDate === today) return "오늘의 TODO!";
   const date = parseLocalDate(selectedDate);
