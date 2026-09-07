@@ -623,47 +623,6 @@ const DaysGrid = styled.div`
   }
 `;
 
-export const CategoryManageModal = ({
-  category,
-  open,
-  onClose,
-}: {
-  category: Category | null;
-  open: boolean;
-  onClose: () => void;
-}) => {
-  const [name, setName] = useState(category?.name ?? "");
-  const update = useUpdateCategory();
-  return (
-    <Modal open={open} title="카테고리 이름 변경" onClose={onClose}>
-      <Field>
-        이름
-        <input value={name} maxLength={16} onChange={e => setName(e.target.value)} />
-        <small>{name.length}/16</small>
-      </Field>
-      {update.error ? <ErrorText>{errorMessage(update.error)}</ErrorText> : null}
-      <ButtonStack>
-        <Button
-          variant="primary"
-          disabled={!category || !name.trim()}
-          onClick={async () => {
-            if (!category) return;
-            try {
-              await update.mutateAsync({ id: category.categoryId, body: { name: name.trim(), color: category.color } });
-              onClose();
-            } catch {
-              /* mutation.error를 표시합니다. */
-            }
-          }}
-        >
-          완료
-        </Button>
-        <Button onClick={onClose}>취소</Button>
-      </ButtonStack>
-    </Modal>
-  );
-};
-
 type DeadlineValue = { date: string; time: string };
 const formatSheetDate = (value: string) => value.replaceAll("-", ".");
 const formatSheetTime = (value: string) => {
@@ -918,6 +877,114 @@ const SheetSubmit = styled.button`
     cursor: not-allowed;
   }
 `;
+
+const SheetCancel = styled(SheetSubmit)`
+  background: ${palette.gray200};
+  color: ${theme.colors.ink};
+`;
+const SheetField = styled.div`
+  display: grid;
+  gap: 8px;
+  width: 100%;
+`;
+const SheetLabel = styled.label`
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+`;
+const SheetInput = styled.input`
+  width: 100%;
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 12px 20px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+`;
+const SheetActions = styled.div`
+  display: flex;
+  gap: 20px;
+  > * {
+    flex: 1;
+  }
+  @media (max-width: 600px) {
+    gap: 12px;
+  }
+`;
+
+export const CategoryManageModal = ({
+  category,
+  open,
+  onClose,
+}: {
+  category: Category | null;
+  open: boolean;
+  onClose: () => void;
+}) => {
+  const [name, setName] = useState(category?.name ?? "");
+  const update = useUpdateCategory();
+  return (
+    <Modal open={open} sheet onClose={onClose} aria-label="카테고리 이름 변경">
+      <SheetForm>
+        <SheetHeading>카테고리 이름 변경</SheetHeading>
+        <SheetField>
+          <SheetLabel htmlFor="category-name">이름</SheetLabel>
+          <SheetInput id="category-name" value={name} maxLength={16} onChange={e => setName(e.target.value)} />
+        </SheetField>
+        {update.error ? <ErrorText>{errorMessage(update.error)}</ErrorText> : null}
+        <SheetActions>
+          <SheetCancel type="button" onClick={onClose}>
+            취소
+          </SheetCancel>
+          <SheetSubmit
+            type="button"
+            disabled={!category || !name.trim() || update.isPending}
+            onClick={async () => {
+              if (!category) return;
+              try {
+                await update.mutateAsync({
+                  id: category.categoryId,
+                  body: { name: name.trim(), color: category.color },
+                });
+                onClose();
+              } catch {
+                /* mutation.error를 표시합니다. */
+              }
+            }}
+          >
+            완료
+          </SheetSubmit>
+        </SheetActions>
+      </SheetForm>
+    </Modal>
+  );
+};
+
+/** 선행 할 일이 남아 완료를 막을 때 뜨는 시트. Figma에는 없고 규칙상 필요합니다. */
+export const DependencyBlockModal = ({
+  todos,
+  open,
+  onClose,
+}: {
+  todos: Todo[];
+  open: boolean;
+  onClose: () => void;
+}) => (
+  <Modal open={open} sheet onClose={onClose} aria-label="먼저 완료해야 할 일이 있어요">
+    <SheetForm>
+      <SheetHeading>먼저 완료해야 할 일이 있어요</SheetHeading>
+      <SheetRows>
+        {todos.map(todo => (
+          <SheetRow as="div" key={todo.todoId}>
+            <span>{splitTodoContent(todo.title).title}</span>
+          </SheetRow>
+        ))}
+      </SheetRows>
+      <SheetSubmit type="button" onClick={onClose}>
+        확인
+      </SheetSubmit>
+    </SheetForm>
+  </Modal>
+);
 
 /** 세부사항 글자 수. 디자인의 카운터가 0/100입니다. */
 const TODO_DETAIL_LIMIT = 100;
@@ -1446,39 +1513,6 @@ const RepeatOption = styled.button<{ selected: boolean }>`
     border-radius: 50%;
     border: 1px solid ${palette.gray300};
     background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
-  }
-`;
-
-export const DependencyBlockModal = ({
-  todos,
-  open,
-  onClose,
-}: {
-  todos: Todo[];
-  open: boolean;
-  onClose: () => void;
-}) => (
-  <Modal open={open} title="먼저 완료해야 할 일이 있어요" onClose={onClose}>
-    <p>아래 할 일을 모두 완료한 뒤 다시 체크해 주세요.</p>
-    <BlockList>
-      {todos.map(todo => (
-        <li key={todo.todoId}>{todo.title}</li>
-      ))}
-    </BlockList>
-    <ButtonStack>
-      <Button variant="primary" onClick={onClose}>
-        확인
-      </Button>
-    </ButtonStack>
-  </Modal>
-);
-const BlockList = styled.ul`
-  margin: 22px 0;
-  padding: 18px 38px;
-  border-radius: 14px;
-  background: #f7f9fb;
-  li + li {
-    margin-top: 8px;
   }
 `;
 
