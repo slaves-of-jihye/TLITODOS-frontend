@@ -14,7 +14,7 @@
 ## Product invariants
 
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
-- Category accents read from Figma (`strong` in `CATEGORY_PRESETS`), used for the category label, the completion mark and the calendar dots:
+- One accent per category (`strong` in `CATEGORY_PRESETS`), used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
   - 해야할 일: `#ff5e9a`
   - custom 1: `#ff00a2`
   - custom 2: `#ff8cb6`

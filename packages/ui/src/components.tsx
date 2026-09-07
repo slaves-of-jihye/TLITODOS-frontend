@@ -533,10 +533,11 @@ export const DayStash = ({
   date: number;
   onClick?: () => void;
 }) => {
-  const fills = tones.slice(0, 4).map(tone => {
-    const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
-    return completed.includes(tone) ? preset.strong : preset.stash;
-  });
+  // 점 색은 카테고리 색 그대로입니다. 80% 불투명도는 사분면 자체에 걸려 있고,
+  // 완료 여부는 색이 아니라 가운데 체크로 나타냅니다.
+  const fills = tones
+    .slice(0, 4)
+    .map(tone => (CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0]).strong);
   const allDone = tones.length > 0 && tones.every(tone => completed.includes(tone));
   return (
     <DayButton onClick={onClick}>
