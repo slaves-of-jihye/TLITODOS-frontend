@@ -30,7 +30,7 @@ import {
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, Importance, Todo, UiVisibility } from "@tlitodos/types";
+import type { Category, Importance, Todo, TodoPatchRequest, UiVisibility } from "@tlitodos/types";
 import {
   Button,
   ButtonStack,
@@ -44,6 +44,7 @@ import {
   icons,
   Modal,
   Option,
+  palette,
   Selection,
   StatusCluster,
   theme,
@@ -747,6 +748,366 @@ const MiniDays = styled.div`
   }
 `;
 
+/** 세부사항 글자 수. 디자인의 카운터가 0/100입니다. */
+const TODO_DETAIL_LIMIT = 100;
+
+/**
+ * 할 일 상세 시트.
+ *
+ * 제목은 여기서 고치지 않습니다 — "할 일 수정하기"를 누르면 시트를 닫고 목록에서
+ * 바로 고치게 합니다(추가할 때와 같은 입력 줄). 세부사항·중요도·선행 할 일은 이
+ * 안에서 저장하고, 마감기한과 루틴은 각자의 모달을 엽니다.
+ */
+export const TodoDetailModal = ({
+  open,
+  todo,
+  categories,
+  todos,
+  selectedDate,
+  onClose,
+  onEditTitle,
+}: {
+  open: boolean;
+  todo: Todo | null;
+  categories: Category[];
+  todos: Todo[];
+  selectedDate: string;
+  onClose: () => void;
+  onEditTitle: (todo: Todo) => void;
+}) => {
+  const updateTodo = useUpdateTodo();
+  const addDependency = useAddDependency();
+  const deleteTodo = useDeleteTodo();
+  // 루틴은 날짜마다 한 건씩 만들므로 무효화는 끝난 뒤 한 번만 합니다.
+  const createTodo = useCreateTodo({ invalidate: false });
+  const invalidateTodos = useInvalidateTodos();
+  const content = splitTodoContent(todo?.title ?? "");
+  const [detail, setDetail] = useState(content.detail);
+  const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
+  const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
+  const [deadline, setDeadline] = useState<DeadlineValue>({
+    date: dateOnly(todo?.dueDate) ?? selectedDate,
+    time: todo?.dueDate?.includes("T") ? todo.dueDate.slice(11, 16) : "23:59",
+  });
+  const [deadlineOpen, setDeadlineOpen] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const ordered = sortCategories(categories);
+  const candidates = todos.filter(
+    candidate =>
+      candidate.todoId !== todo?.todoId &&
+      sameLocalDate(candidate.dueDate, selectedDate) &&
+      !isHobbyCategory(ordered.find(category => category.categoryId === candidate.categoryId) ?? { name: "취미" }),
+  );
+  const patch = async (body: TodoPatchRequest) => {
+    if (!todo) return;
+    setBusy(true);
+    setError("");
+    try {
+      await updateTodo.mutateAsync({ id: todo.todoId, body });
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <Modal open={open} sheet onClose={onClose} aria-label="할 일 상세">
+        {todo ? (
+          <DetailSheet>
+            <DetailTitle>{content.title}</DetailTitle>
+            <DetailBody>
+              <div>
+                <DetailActions>
+                  <DetailAction onClick={() => onEditTitle(todo)}>
+                    <img src={icons.edit} alt="" aria-hidden />할 일 수정하기
+                  </DetailAction>
+                  <DetailAction
+                    disabled={deleteTodo.isPending}
+                    onClick={async () => {
+                      if (!window.confirm("이 할 일을 삭제할까요?")) return;
+                      setError("");
+                      try {
+                        await deleteTodo.mutateAsync(todo.todoId);
+                        onClose();
+                      } catch (reason) {
+                        setError(errorMessage(reason));
+                      }
+                    }}
+                  >
+                    <img src={icons.trash} alt="" aria-hidden />할 일 삭제하기
+                  </DetailAction>
+                </DetailActions>
+                <DetailBlock>
+                  <DetailLabel>할 일에 대한 세부사항 입력하기</DetailLabel>
+                  <DetailField>
+                    <input
+                      value={detail}
+                      maxLength={TODO_DETAIL_LIMIT}
+                      placeholder="세부사항을 작성하세요..."
+                      disabled={busy}
+                      onChange={event => setDetail(event.target.value)}
+                      onBlur={() => {
+                        if (detail !== content.detail) {
+                          void patch({ title: composeTodoContent(content.title, detail) });
+                        }
+                      }}
+                    />
+                    <small>
+                      {detail.length}/{TODO_DETAIL_LIMIT}
+                    </small>
+                  </DetailField>
+                </DetailBlock>
+                <DetailBlock>
+                  <DetailLabel>Q. 이 일을 하기 전 선행해야 할 일이 있나요?</DetailLabel>
+                  {candidates.length ? (
+                    <DependencyRows>
+                      {candidates.map(candidate => {
+                        const index = ordered.findIndex(category => category.categoryId === candidate.categoryId);
+                        const accent = categoryAccent(ordered[index]?.color, Math.max(index, 0));
+                        const chosen = dependency === candidate.todoId;
+                        return (
+                          <DependencyRow
+                            key={candidate.todoId}
+                            aria-pressed={chosen}
+                            disabled={busy}
+                            onClick={async () => {
+                              setDependency(chosen ? null : candidate.todoId);
+                              if (chosen) return;
+                              setError("");
+                              try {
+                                await addDependency.mutateAsync({
+                                  id: todo.todoId,
+                                  dependencyTodoId: candidate.todoId,
+                                });
+                                invalidateTodos();
+                              } catch (reason) {
+                                setError(errorMessage(reason));
+                              }
+                            }}
+                          >
+                            <StatusCluster
+                              fills={chosen ? [accent, accent, accent, accent] : [null, null, null, null]}
+                              checked={chosen}
+                            />
+                            <span>{splitTodoContent(candidate.title).title}</span>
+                          </DependencyRow>
+                        );
+                      })}
+                    </DependencyRows>
+                  ) : (
+                    <DetailEmpty>선택할 수 있는 선행 할 일이 없습니다.</DetailEmpty>
+                  )}
+                </DetailBlock>
+              </div>
+              <div>
+                <DetailBlock>
+                  <DetailLabel>중요도(우선순위) 설정하기</DetailLabel>
+                  <DetailPills>
+                    {(
+                      [
+                        ["NONE", "선택하지 않음"],
+                        ["HIGH", "높음"],
+                        ["LOW", "낮음"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <Button
+                        key={key}
+                        variant={importance === key ? "primary" : "soft"}
+                        disabled={busy}
+                        onClick={() => {
+                          setImportance(key);
+                          void patch({ importance: key });
+                        }}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </DetailPills>
+                </DetailBlock>
+                <DetailBlock>
+                  <DetailAction onClick={() => setDeadlineOpen(true)}>
+                    <img src={icons.calendar} alt="" aria-hidden />
+                    마감기한 설정하기
+                  </DetailAction>
+                  <DetailAction onClick={() => setRoutineOpen(true)}>
+                    <img src={icons.routine} alt="" aria-hidden />
+                    루틴으로 등록하기
+                  </DetailAction>
+                </DetailBlock>
+              </div>
+            </DetailBody>
+            {error ? <ErrorText>{error}</ErrorText> : null}
+          </DetailSheet>
+        ) : null}
+      </Modal>
+      <DeadlineModal
+        open={deadlineOpen}
+        value={deadline}
+        onChange={next => {
+          setDeadline(next);
+          void patch({ dueDate: withOptionalTime(next.date, next.time) });
+        }}
+        onClose={() => setDeadlineOpen(false)}
+      />
+      <RoutineModal
+        key={`${routineOpen}-${selectedDate}`}
+        open={routineOpen}
+        initialDate={dateOnly(todo?.dueDate) ?? selectedDate}
+        onClose={() => setRoutineOpen(false)}
+        onRegister={async value => {
+          if (!todo) return;
+          setError("");
+          try {
+            for (const date of buildRoutineDates(value.start, value.end, value.repeat)) {
+              await createTodo.mutateAsync({
+                title: todo.title,
+                categoryId: todo.categoryId,
+                importance: todo.importance,
+                hardship: todo.hardship,
+                dueDate: withOptionalTime(date, value.time),
+                visibility: todo.visibility === "GROUP" ? "GROUP" : "PRIVATE",
+                groupId: todo.groupId,
+                isRoutine: true,
+              });
+            }
+            invalidateTodos();
+            setRoutineOpen(false);
+            onClose();
+          } catch (reason) {
+            setError(errorMessage(reason));
+          }
+        }}
+      />
+    </>
+  );
+};
+
+const DetailSheet = styled.div`
+  display: grid;
+  gap: 32px;
+`;
+const DetailTitle = styled.p`
+  margin: 0;
+  text-align: center;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  overflow-wrap: anywhere;
+`;
+const DetailBody = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 357px) minmax(0, 1fr);
+  gap: 60px;
+  align-items: start;
+  > div {
+    display: grid;
+    gap: 40px;
+    align-content: start;
+  }
+  @media (max-width: 700px) {
+    grid-template-columns: 1fr;
+    gap: 32px;
+    > div {
+      gap: 28px;
+    }
+  }
+`;
+const DetailActions = styled.div`
+  display: flex;
+  gap: 20px;
+`;
+const DetailAction = styled.button`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: ${palette.gray200};
+  padding: 10px 20px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+  img {
+    width: 18px;
+    height: 18px;
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+const DetailBlock = styled.div`
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+`;
+const DetailLabel = styled.p`
+  margin: 0;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+`;
+const DetailField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 12px 20px;
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+  small {
+    flex: none;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.muted};
+  }
+`;
+const DependencyRows = styled.div`
+  display: grid;
+  width: 100%;
+`;
+const DependencyRow = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: transparent;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  &:disabled {
+    cursor: progress;
+  }
+`;
+const DetailEmpty = styled.small`
+  color: ${theme.colors.muted};
+`;
+const DetailPills = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
 export const DeadlineModal = ({
   open,
   value,
@@ -1259,9 +1620,11 @@ export const CategorySection = ({
   todos,
   own,
   adding,
+  editingTitleId,
   onAdd,
   onCancelAdd,
   onCreate,
+  onRenameTitle,
   onManage,
   onToggle,
   onEdit,
@@ -1272,9 +1635,12 @@ export const CategorySection = ({
   own: boolean;
   /** 이 카테고리에 인라인 입력 줄이 열려 있는지. */
   adding?: boolean;
+  /** 제목을 인라인으로 고치는 중인 할 일. */
+  editingTitleId?: number | null;
   onAdd: (category: Category) => void;
   onCancelAdd: () => void;
   onCreate: (category: Category, title: string) => Promise<void>;
+  onRenameTitle: (todo: Todo, title: string) => Promise<void>;
   onManage: (category: Category) => void;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
@@ -1290,7 +1656,26 @@ export const CategorySection = ({
         onManage={own && index > 0 && index < 3 ? () => onManage(category) : undefined}
       />
       <TodoList>
-        <TodoRows todos={todos} accent={accent} own={own} onToggle={onToggle} onEdit={onEdit} />
+        {todos.map(todo =>
+          todo.todoId === editingTitleId ? (
+            <TodoDraftRow
+              key={todo.todoId}
+              accent={accent}
+              initial={splitTodoContent(todo.title).title}
+              onCancel={onCancelAdd}
+              onCommit={title => onRenameTitle(todo, title)}
+            />
+          ) : (
+            <SharedTodoRow
+              key={todo.todoId}
+              todo={todo}
+              accent={accent}
+              own={own}
+              onToggle={() => onToggle(todo)}
+              onEdit={() => onEdit(todo)}
+            />
+          ),
+        )}
         {adding ? (
           <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
         ) : null}
@@ -1298,33 +1683,6 @@ export const CategorySection = ({
     </CategoryColumn>
   );
 };
-
-const TodoRows = ({
-  todos,
-  accent,
-  own,
-  onToggle,
-  onEdit,
-}: {
-  todos: Todo[];
-  accent: string;
-  own: boolean;
-  onToggle: (todo: Todo) => void;
-  onEdit: (todo: Todo) => void;
-}) => (
-  <>
-    {todos.map(todo => (
-      <SharedTodoRow
-        key={todo.todoId}
-        todo={todo}
-        accent={accent}
-        own={own}
-        onToggle={() => onToggle(todo)}
-        onEdit={() => onEdit(todo)}
-      />
-    ))}
-  </>
-);
 
 /** 할 일 제목 글자 수. 디자인의 카운터가 0/40입니다. */
 const TODO_TITLE_LIMIT = 40;
@@ -1337,14 +1695,16 @@ const TODO_TITLE_LIMIT = 40;
  */
 const TodoDraftRow = ({
   accent,
+  initial = "",
   onCancel,
   onCommit,
 }: {
   accent: string;
+  initial?: string;
   onCancel: () => void;
   onCommit: (title: string) => Promise<void>;
 }) => {
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initial);
   const [busy, setBusy] = useState(false);
   const commit = async () => {
     if (!title.trim() || busy) return;

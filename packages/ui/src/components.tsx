@@ -630,6 +630,7 @@ export const Modal = ({
   onClose,
   nested = false,
   login = false,
+  sheet = false,
 }: {
   open: boolean;
   title?: string;
@@ -637,40 +638,43 @@ export const Modal = ({
   onClose?: () => void;
   nested?: boolean;
   login?: boolean;
+  /** 디자인의 상세 시트처럼 넓은 화면에서도 아래에 붙는 형태입니다. */
+  sheet?: boolean;
 }) =>
   open ? (
     <Overlay
       login={login}
+      sheet={sheet}
       onMouseDown={event => {
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog login={login} role="dialog" aria-modal="true" aria-label={title}>
+      <Dialog login={login} sheet={sheet} role="dialog" aria-modal="true" aria-label={title}>
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>
     </Overlay>
   ) : null;
-const Overlay = styled.div<{ login: boolean }>`
+const Overlay = styled.div<{ login: boolean; sheet: boolean }>`
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
-  place-items: center;
-  padding: 22px;
+  place-items: ${({ sheet }) => (sheet ? "end center" : "center")};
+  padding: ${({ sheet }) => (sheet ? "22px 22px 0" : "22px")};
   background: ${({ login }) => (login ? theme.colors.loginOverlay : theme.colors.overlay)};
   @media (max-width: 600px) {
     place-items: ${({ login }) => (login ? "center" : "end center")};
     padding: ${({ login }) => (login ? "16px" : "0")};
   }
 `;
-const Dialog = styled.div<{ login: boolean }>`
+const Dialog = styled.div<{ login: boolean; sheet: boolean }>`
   width: min(800px, 100%);
   max-height: calc(100vh - 44px);
   overflow: auto;
-  border-radius: ${theme.radius.lg};
+  border-radius: ${({ sheet }) => (sheet ? "40px 40px 0 0" : theme.radius.lg)};
   background: white;
-  padding: 54px 60px;
+  padding: ${({ sheet }) => (sheet ? "60px" : "54px 60px")};
   box-shadow: ${theme.shadow};
   h2 {
     margin: 0 0 30px;

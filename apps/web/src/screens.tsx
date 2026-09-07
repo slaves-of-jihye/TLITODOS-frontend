@@ -4,6 +4,7 @@ import {
   CATEGORY_SWATCHES,
   categoryAccent,
   composeDiaryContent,
+  composeTodoContent,
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
@@ -13,6 +14,7 @@ import {
   sortCategories,
   sortTodos,
   splitDiaryContent,
+  splitTodoContent,
   todosForDate,
   withOptionalTime,
   type FontKey,
@@ -29,6 +31,7 @@ import {
   useUpdateCategory,
   useUpdateFont,
   useUpdateProfile,
+  useUpdateTodo,
 } from "@tlitodos/hooks";
 import type { Category, Diary, DiaryCreateRequest, DiaryPatchRequest, Todo, UiVisibility } from "@tlitodos/types";
 import {
@@ -58,7 +61,7 @@ import {
   DependencyBlockModal,
   GroupActionModals,
   InstallAppAction,
-  TodoEditorModal,
+  TodoDetailModal,
   WorkspaceHeader,
 } from "./components";
 
@@ -73,8 +76,6 @@ const PageNav = ({ active }: { active: "home" | "alarm" | "profile" }) => {
   const navigate = useNavigate();
   return <BottomNav active={active} onNavigate={next => navigate(next === "home" ? "/" : `/${next}`)} />;
 };
-
-type EditorState = { category: Category | null; todo: Todo | null } | null;
 
 const TodoWorkspace = ({
   own,
@@ -109,9 +110,11 @@ const TodoWorkspace = ({
     onBlocked: setBlocked,
     onRevert: refetch,
   });
-  const [editor, setEditor] = useState<EditorState>(null);
   const [addingCategoryId, setAddingCategoryId] = useState<number | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<number | null>(null);
+  const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
   const createTodo = useCreateTodo();
+  const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
   const todos = useMemo(
@@ -186,8 +189,12 @@ const TodoWorkspace = ({
                   todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
                   own={own}
                   adding={addingCategoryId === category.categoryId}
+                  editingTitleId={editingTitleId}
                   onAdd={next => setAddingCategoryId(next.categoryId)}
-                  onCancelAdd={() => setAddingCategoryId(null)}
+                  onCancelAdd={() => {
+                    setAddingCategoryId(null);
+                    setEditingTitleId(null);
+                  }}
                   onCreate={async (next, title) => {
                     setAddingCategoryId(null);
                     await createTodo.mutateAsync({
@@ -200,24 +207,35 @@ const TodoWorkspace = ({
                       groupId: null,
                     });
                   }}
+                  onRenameTitle={async (todo, title) => {
+                    setEditingTitleId(null);
+                    const { detail } = splitTodoContent(todo.title);
+                    await updateTodo.mutateAsync({
+                      id: todo.todoId,
+                      body: { title: composeTodoContent(title, detail) },
+                    });
+                  }}
                   onManage={setManage}
                   onToggle={handleToggle}
-                  onEdit={todo => setEditor({ category: null, todo })}
+                  onEdit={setDetailTodo}
                 />
               ))}
             </CategoryBoard>
           )}
         </TodoArea>
       </WorkspaceGrid>
-      <TodoEditorModal
-        key={`${selectedDate}-${editor?.todo?.todoId ?? editor?.category?.categoryId ?? 0}`}
-        open={editor !== null}
-        selectedDate={selectedDate}
-        initialCategory={editor?.category ?? null}
-        todo={editor?.todo ?? null}
+      <TodoDetailModal
+        key={detailTodo?.todoId ?? 0}
+        open={detailTodo !== null}
+        todo={detailTodo}
         categories={categories}
         todos={selectedTodos}
-        onClose={() => setEditor(null)}
+        selectedDate={selectedDate}
+        onClose={() => setDetailTodo(null)}
+        onEditTitle={todo => {
+          setDetailTodo(null);
+          setEditingTitleId(todo.todoId);
+        }}
       />
       <CategoryManageModal
         key={manage?.categoryId ?? 0}
