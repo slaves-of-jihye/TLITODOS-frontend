@@ -134,6 +134,7 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
       inviteCode: (groupId: number) => request<GroupInviteCodeResponse>(`/api/v1/groups/${groupId}/invite-code`),
       removeMember: (groupId: number, userId: number) =>
         request<void>(`/api/v1/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
+      remove: (groupId: number) => request<MessageResponse>(`/api/v1/groups/${groupId}`, { method: "DELETE" }),
     },
     categories: {
       list: (query?: { groupId?: number | null; userId?: number | null }) =>

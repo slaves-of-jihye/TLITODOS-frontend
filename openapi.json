@@ -349,6 +349,49 @@
         }
       }
     },
+    "/api/v1/users/me/font": {
+      "patch": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Update font preference",
+        "description": "Stores the font key the client renders the app with. Unknown keys are rejected.",
+        "operationId": "updateFont",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FontSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Font preference updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FontSettingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/groups": {
       "get": {
         "tags": [
@@ -513,6 +556,48 @@
             "$ref": "#/components/responses/ValidationError"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Delete group",
+        "description": "Only the group leader can delete a group.",
+        "operationId": "deleteGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Group deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
       }
     },
     "/api/v1/groups/{groupId}/invite-code": {
@@ -599,6 +684,50 @@
           },
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{groupId}/leave": {
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Leave group",
+        "description": "The group leader cannot leave; delete the group instead.",
+        "operationId": "leaveGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Left the group.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
           },
           "404": {
             "$ref": "#/components/responses/NotFoundError"
@@ -932,6 +1061,54 @@
         }
       }
     },
+    "/api/v1/todos/daily-status": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "List daily todo statuses",
+        "description": "One entry per day of the requested month, including days with no todos. Counts only the authenticated user's todos; there is no userId parameter, so another member's calendar cannot be read through this operation.",
+        "operationId": "listDailyTodoStatuses",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "description": "Target month as YYYY-MM.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Daily statuses for every day of the month.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DailyTodoStatus"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/todos/{todoId}": {
       "patch": {
         "tags": [
@@ -1101,6 +1278,47 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/uncomplete": {
+      "patch": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Uncomplete todo",
+        "description": "Clears the completed flag and completedAt.",
+        "operationId": "uncompleteTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo marked not completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoUncompleteResponse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -1891,6 +2109,47 @@
           }
         }
       },
+      "DailyCategoryStatus": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "isCompleted"
+        ],
+        "properties": {
+          "categoryId": {
+            "type": "integer"
+          },
+          "isCompleted": {
+            "type": "boolean",
+            "description": "True when every todo of that category on that date is completed."
+          }
+        }
+      },
+      "DailyTodoStatus": {
+        "type": "object",
+        "required": [
+          "date",
+          "incompleteCount",
+          "categoryStatuses"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "Local calendar date as YYYY-MM-DD."
+          },
+          "incompleteCount": {
+            "type": "integer",
+            "description": "Number of that date's todos that are not completed."
+          },
+          "categoryStatuses": {
+            "type": "array",
+            "description": "Only categories that have a todo on that date.",
+            "items": {
+              "$ref": "#/components/schemas/DailyCategoryStatus"
+            }
+          }
+        }
+      },
       "DependencyCreateRequest": {
         "type": "object",
         "required": [
@@ -2410,6 +2669,49 @@
           }
         }
       },
+      "FontSettingRequest": {
+        "type": "object",
+        "required": [
+          "font"
+        ],
+        "properties": {
+          "font": {
+            "type": "string",
+            "enum": [
+              "PRETENDARD",
+              "KYOBO_HANDWRITING_2019",
+              "CAFE24_SSURROUND_AIR",
+              "GOYANG",
+              "GRIUN_FROMSOL",
+              "PAPERLOGY"
+            ]
+          }
+        }
+      },
+      "FontSettingResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "font"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "font": {
+            "type": "string",
+            "enum": [
+              "PRETENDARD",
+              "KYOBO_HANDWRITING_2019",
+              "CAFE24_SSURROUND_AIR",
+              "GOYANG",
+              "GRIUN_FROMSOL",
+              "PAPERLOGY"
+            ]
+          }
+        }
+      },
       "Subtask": {
         "type": "object",
         "required": [
@@ -2560,6 +2862,27 @@
           "isCompleted": {
             "type": "boolean",
             "const": true
+          }
+        }
+      },
+      "TodoUncompleteResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "todoId",
+          "isCompleted"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": true
+          },
+          "todoId": {
+            "type": "integer"
+          },
+          "isCompleted": {
+            "type": "boolean",
+            "const": false
           }
         }
       },
@@ -2858,6 +3181,8 @@
     "GET /api/v1/categories and GET /api/v1/todos accept optional userId. Viewing another user's data also requires groupId, and both users must be members of that group. For another user's todos, only GROUP and PUBLIC visibility values are returned.",
     "GET /api/v1/groups/{groupId}/invite-code returns only groupId and inviteCode for lightweight invite-code display.",
     "The backend currently stores dueDate, createdAt, completedAt, expiresAt, refreshExpiresAt, and diary createdAt as strings rather than strict date-time schema values.",
-    "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image."
+    "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image.",
+    "GET /api/v1/todos/daily-status counts only the authenticated user's todos and takes no userId, so another member's calendar has to be summarised from GET /api/v1/todos.",
+    "There is no PATCH /api/v1/groups/{groupId}: a group's name and description cannot be changed after creation."
   ]
 }

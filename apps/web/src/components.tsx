@@ -24,6 +24,7 @@ import {
   useApi,
   useCreateGroup,
   useCreateTodo,
+  useDeleteGroup,
   useDeleteTodo,
   useGroups,
   useInvalidateTodos,
@@ -484,9 +485,9 @@ const MemberRow = styled.div`
 /**
  * 그룹 설정 시트.
  *
- * 디자인의 `groupinfo`입니다. 멤버 강퇴만 실제로 동작합니다 — 그룹 이름 변경과
- * 그룹 삭제는 서버에 해당하는 엔드포인트가 없습니다(`PATCH /api/v1/groups/{groupId}`,
- * `DELETE /api/v1/groups/{groupId}`가 생기면 이어 붙일 수 있습니다).
+ * 디자인의 `groupinfo`입니다. 그룹 삭제는 그룹장만 할 수 있고, 그룹장이 아니면
+ * 눌리지 않습니다. 그룹 이름 변경은 서버에 `PATCH /api/v1/groups/{groupId}`가 없어
+ * 아직 눌리지 않습니다.
  */
 export const GroupInfoModal = ({
   open,
@@ -497,10 +498,13 @@ export const GroupInfoModal = ({
   group: GroupDetail | null;
   onClose: () => void;
 }) => {
+  const navigate = useNavigate();
   const { data: me } = useMe();
   const [selected, setSelected] = useState<number | null>(null);
   const removeMember = useRemoveGroupMember(group?.groupId ?? null);
+  const deleteGroup = useDeleteGroup();
   const others = group?.members.filter(member => member.userId !== me?.userId) ?? [];
+  const isLeader = group?.members.find(member => member.userId === me?.userId)?.role === "LEADER";
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="그룹 설정">
       <SheetForm>
@@ -510,9 +514,24 @@ export const GroupInfoModal = ({
             <img src={icons.edit} alt="" aria-hidden />
             그룹명 수정
           </GroupInfoAction>
-          <GroupInfoAction type="button" disabled title="서버에 그룹 삭제 엔드포인트가 아직 없습니다.">
+          <GroupInfoAction
+            type="button"
+            disabled={!group || !isLeader || deleteGroup.isPending}
+            title={isLeader ? undefined : "그룹장만 그룹을 삭제할 수 있습니다."}
+            onClick={async () => {
+              if (!group) return;
+              if (!window.confirm(`${group.name} 그룹을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+              try {
+                await deleteGroup.mutateAsync(group.groupId);
+                onClose();
+                navigate("/");
+              } catch {
+                /* mutation.error를 시트에 표시합니다. */
+              }
+            }}
+          >
             <img src={icons.trash} alt="" aria-hidden />
-            그룹 삭제
+            {deleteGroup.isPending ? "삭제 중..." : "그룹 삭제"}
           </GroupInfoAction>
         </SheetActions>
         <MemberOptions role="radiogroup" aria-label="멤버 고르기">
@@ -534,7 +553,9 @@ export const GroupInfoModal = ({
             <DetailEmpty>아직 다른 멤버가 없습니다.</DetailEmpty>
           )}
         </MemberOptions>
-        {removeMember.error ? <ErrorText>{errorMessage(removeMember.error)}</ErrorText> : null}
+        {removeMember.error || deleteGroup.error ? (
+          <ErrorText>{errorMessage(removeMember.error ?? deleteGroup.error)}</ErrorText>
+        ) : null}
         <SheetCancel
           type="button"
           disabled={selected === null || removeMember.isPending}

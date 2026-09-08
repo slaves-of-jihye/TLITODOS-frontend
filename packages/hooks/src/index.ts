@@ -165,6 +165,18 @@ export const useRemoveGroupMember = (groupId: number | null) => {
     },
   });
 };
+/** 그룹장만 지울 수 있습니다. 그룹장이 아니면 서버가 403으로 거절합니다. */
+export const useDeleteGroup = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (groupId: number) => api.groups.remove(groupId),
+    onSuccess: (_result, groupId) => {
+      invalidate(queryKeys.group(groupId));
+      invalidate(queryKeys.groups);
+    },
+  });
+};
 export const useUpdateProfile = () => {
   const api = useApi();
   const invalidate = useDetachedInvalidate();
