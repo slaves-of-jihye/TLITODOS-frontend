@@ -139,24 +139,16 @@ export const StatusCluster = ({
   checked?: boolean;
   count?: number;
   size?: number;
-}) => {
-  /**
-   * 가운데 글자는 사분면 네 칸이 다 찼을 때만 흰색입니다.
-   *
-   * 빈 칸은 gray/200이라 그 위에 흰 글자를 얹으면 읽히지 않습니다. 한 칸이라도
-   * 비어 있으면 검은색으로 씁니다.
-   */
-  const onFilled = [0, 1, 2, 3].every(index => fills[index]);
-  return (
-    <Cluster style={{ width: size, height: size }}>
-      {[0, 1, 2, 3].map(index => (
-        <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
-      ))}
-      {checked ? <ClusterCheck onFilled={onFilled} aria-hidden /> : null}
-      {!checked && count ? <ClusterCount onFilled={onFilled}>{count}</ClusterCount> : null}
-    </Cluster>
-  );
-};
+}) => (
+  // 가운데 표시는 사분면이 얼마나 찼든 항상 흰색입니다.
+  <Cluster style={{ width: size, height: size }}>
+    {[0, 1, 2, 3].map(index => (
+      <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
+    ))}
+    {checked ? <ClusterCheck aria-hidden /> : null}
+    {!checked && count ? <ClusterCount>{count}</ClusterCount> : null}
+  </Cluster>
+);
 const Cluster = styled.span`
   position: relative;
   display: block;
@@ -191,23 +183,24 @@ const Quadrant = styled.i`
  * 내보낸 아이콘은 흰색으로 칠해져 있어 그대로는 색을 바꿀 수 없습니다. 같은
  * 파일을 마스크로 쓰고 색은 배경으로 넣어, 한 장으로 흰색과 검은색을 다 냅니다.
  */
-const ClusterCheck = styled.span<{ onFilled: boolean }>`
+/** 내보낸 SVG가 흰 단색이라, 색을 바꿀 수 있게 마스크로 얹습니다. */
+const ClusterCheck = styled.span`
   position: absolute;
   left: 50%;
   top: 50%;
   width: 40%;
   height: 40%;
   transform: translate(-50%, -50%);
-  background: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
+  background: ${palette.white};
   -webkit-mask: url(${icons.check}) center / contain no-repeat;
   mask: url(${icons.check}) center / contain no-repeat;
 `;
-const ClusterCount = styled.span<{ onFilled: boolean }>`
+const ClusterCount = styled.span`
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  color: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
+  color: ${palette.white};
   font-size: ${theme.text.s};
   line-height: 1;
 `;
