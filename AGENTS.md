@@ -36,7 +36,7 @@
 - A todo dependency can only be a non-hobby todo on the todo's selected date. Incomplete dependencies block completion and must be named in the feedback modal.
 - Partial visibility and active bet flows are non-MVP and stay commented out.
 - Alerts read `GET /api/v1/notifications` with the design's filter pills (`친구의 할 일 완료` -> `TODO_COMPLETED`, `친구의 일기` -> `DIARY_CREATED`); the bet pill stays commented out. Tapping a row marks it read, and `nextCursor` drives a `더 보기` button.
-- The group screen is one page: a top bar (`뒤로가기` / group name / `그룹 설정`), a member row, then the same two-column workspace. Selecting yourself shows your own full todo list; selecting anyone else shows that member's group-visible todos, read-only.
+- The group screen is one page: a top bar (`뒤로가기` / group name / `그룹 설정`, the last shown only to the leader since every action in that sheet is leader-only), a member row, then the same two-column workspace. Selecting yourself shows your own full todo list; selecting anyone else shows that member's group-visible todos, read-only.
 - In the group settings sheet, `그룹명 수정` (`PATCH /api/v1/groups/{groupId}`), `그룹 삭제` (`DELETE /api/v1/groups/{groupId}`) and bulk kicking (`POST /api/v1/groups/{groupId}/members/remove`) all work and are leader-only. `POST /api/v1/groups/{groupId}/leave` exists but has no place in the design, so it is unused.
 - The member row carries a `초대코드 공유하기` button styled like `초대코드로 참여하기`; the code comes from the group detail response, so nothing extra is fetched.
 - Signing up no longer creates a personal group, so `GET /api/v1/groups` can be an empty array. Never assume a first group exists — the home screen needs only a `categoryId`.

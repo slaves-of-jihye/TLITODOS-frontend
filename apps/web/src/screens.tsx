@@ -324,9 +324,15 @@ export const GroupHome = () => {
   const activeId = userId ? Number(userId) : (me?.userId ?? null);
   const active = members.find(member => member.userId === activeId);
   const own = activeId !== null && activeId === me?.userId;
+  // 시트 안의 그룹명 수정·삭제·강퇴가 모두 그룹장 전용이라, 그룹장에게만 버튼을 보입니다.
+  const isLeader = me ? members.find(member => member.userId === me.userId)?.role === "LEADER" : false;
   return (
     <AppShell>
-      <GroupTopBar name={group?.name || "그룹"} onBack={() => navigate("/")} onSettings={() => setSettingsOpen(true)} />
+      <GroupTopBar
+        name={group?.name || "그룹"}
+        onBack={() => navigate("/")}
+        onSettings={isLeader ? () => setSettingsOpen(true) : undefined}
+      />
       <MemberTabs
         members={members}
         activeUserId={activeId}

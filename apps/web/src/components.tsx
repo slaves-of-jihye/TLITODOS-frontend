@@ -390,7 +390,12 @@ export const WorkspaceHeader = ({
   );
 };
 
-/** 그룹 화면 맨 위 줄. 뒤로가기 · 그룹 이름 · 그룹 설정입니다. */
+/**
+ * 그룹 화면 맨 위 줄. 뒤로가기 · 그룹 이름 · 그룹 설정입니다.
+ *
+ * 시트 안의 동작이 모두 그룹장 전용이라, `onSettings`는 그룹장일 때만 넘어옵니다.
+ * 없으면 버튼 자리를 비웁니다 — 그래도 이름은 가운데에 남습니다.
+ */
 export const GroupTopBar = ({
   name,
   onBack,
@@ -398,7 +403,7 @@ export const GroupTopBar = ({
 }: {
   name: string;
   onBack: () => void;
-  onSettings: () => void;
+  onSettings?: () => void;
 }) => (
   <GroupBar>
     <GroupBarButton type="button" onClick={onBack}>
@@ -406,18 +411,26 @@ export const GroupTopBar = ({
       뒤로가기
     </GroupBarButton>
     <GroupBarTitle>{name}</GroupBarTitle>
-    <GroupBarButton type="button" onClick={onSettings}>
-      <MoreIcon src={icons.more} alt="" aria-hidden />
-      그룹 설정
-    </GroupBarButton>
+    <GroupBarEnd>
+      {onSettings ? (
+        <GroupBarButton type="button" onClick={onSettings}>
+          그룹 설정
+        </GroupBarButton>
+      ) : null}
+    </GroupBarEnd>
   </GroupBar>
 );
+/** 양쪽 칸을 같은 너비로 두어, 오른쪽 버튼이 없어도 이름이 가운데 있습니다. */
 const GroupBar = styled.header`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   margin-bottom: 26px;
+`;
+const GroupBarEnd = styled.div`
+  display: flex;
+  justify-content: flex-end;
 `;
 const GroupBarButton = styled.button`
   display: inline-flex;
@@ -441,10 +454,6 @@ const BackArrow = styled.img`
   width: 24px;
   height: 24px;
   transform: rotate(-90deg);
-`;
-const MoreIcon = styled.img`
-  width: 4px;
-  height: 18px;
 `;
 
 /** 그룹 멤버를 고르는 줄. 나를 맨 앞에 둡니다. */
