@@ -2,7 +2,7 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import { FontSync } from "./app/FontSync";
 import { useSessionStore } from "./app/sessionStore";
 import { InstallPrompt, LoginModal } from "./components";
-import { AlarmPage, DiaryPage, FriendHome, GroupHome, MyHome, NotFoundPage, ProfilePage } from "./screens";
+import { AlarmPage, DiaryPage, GroupHome, MyHome, NotFoundPage, ProfilePage } from "./screens";
 
 function App() {
   const accessToken = useSessionStore(state => state.accessToken);
@@ -17,7 +17,7 @@ function App() {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/diary" element={<DiaryPage />} />
           <Route path="/groups/:groupId" element={<GroupHome />} />
-          <Route path="/groups/:groupId/members/:userId" element={<FriendHome />} />
+          <Route path="/groups/:groupId/members/:userId" element={<GroupHome />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       ) : null}

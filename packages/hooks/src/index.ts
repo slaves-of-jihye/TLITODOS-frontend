@@ -1,13 +1,17 @@
 import { createContext, useCallback, useContext, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiClient } from "@tlitodos/api-client";
 import type {
   Category,
+  CategoryPatchRequest,
   CategoryRequest,
   DiaryCreateRequest,
   DiaryPatchRequest,
   GroupCreateRequest,
   GroupJoinRequest,
+  NotificationType,
+  RoutineCreateRequest,
+  RoutineScheduleRequest,
   TodoCreateRequest,
   Diary,
   Todo,
@@ -33,7 +37,17 @@ export const queryKeys = {
   categoryList: (groupId: number | null, userId: number | null) => ["categories", groupId, userId] as const,
   todos: (groupId: number | null, userId: number | null, date: string | null) =>
     ["todos", groupId, userId, date] as const,
-  diaries: ["diaries"] as const,
+  /**
+   * 달별 요약은 `["todos", ...]` 밑에 두지 않습니다.
+   *
+   * `writeBack.todos`가 `["todos"]` 접두사로 캐시를 훑어 `Todo[]`로 고치기 때문에,
+   * 모양이 다른 이 응답이 같은 접두사에 있으면 망가집니다.
+   */
+  dailyStatus: (month: string, groupId: number | null, userId: number | null) =>
+    ["todos-daily-status", month, groupId, userId] as const,
+  diaries: (date: string | null, groupId: number | null, userId: number | null) =>
+    ["diaries", date, groupId, userId] as const,
+  notifications: (type: NotificationType | null) => ["notifications", type] as const,
 };
 
 /**
@@ -68,7 +82,7 @@ const useWriteBack = () => {
           previous ? update(previous) : previous,
         ),
       diaries: (update: (diaries: Diary[]) => Diary[]) =>
-        cache.setQueryData<Diary[]>(queryKeys.diaries, previous => (previous ? update(previous) : previous)),
+        cache.setQueriesData<Diary[]>({ queryKey: ["diaries"] }, previous => (previous ? update(previous) : previous)),
     }),
     [cache],
   );
@@ -111,9 +125,65 @@ export const useTodos = (groupId: number | null, date: string | null, userId: nu
   });
 };
 
-export const useDiaries = (enabled = true) => {
+/**
+ * 달력에 쓰는 달별 요약입니다. `month`는 `YYYY-MM`입니다.
+ *
+ * `groupId`/`userId`를 주면 그 멤버의 달을 받아 옵니다. 요청자와 대상자가 같은
+ * 그룹이어야 하고, 아니면 서버가 403으로 거절합니다.
+ */
+export const useDailyTodoStatuses = (
+  month: string | null,
+  { groupId = null, userId = null }: { groupId?: number | null; userId?: number | null } = {},
+  enabled = true,
+) => {
   const api = useApi();
-  return useQuery({ queryKey: queryKeys.diaries, queryFn: api.diaries.list, enabled });
+  return useQuery({
+    queryKey: queryKeys.dailyStatus(month ?? "", groupId, userId),
+    queryFn: () => api.todos.dailyStatus(month!, { groupId, userId }),
+    enabled: enabled && month !== null,
+  });
+};
+
+export const useDiaries = (
+  {
+    date = null,
+    groupId = null,
+    userId = null,
+  }: { date?: string | null; groupId?: number | null; userId?: number | null } = {},
+  enabled = true,
+) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.diaries(date, groupId, userId),
+    queryFn: () => api.diaries.list({ date, groupId, userId }),
+    enabled,
+  });
+};
+
+/**
+ * 알림 목록. `type`을 주면 그 종류만 받습니다.
+ *
+ * 서버가 `nextCursor`로 이어 주므로 무한 스크롤 형태로 받아 둡니다. 화면은
+ * `pages`를 이어 붙여 씁니다.
+ */
+export const useNotifications = (type: NotificationType | null = null, enabled = true) => {
+  const api = useApi();
+  return useInfiniteQuery({
+    queryKey: queryKeys.notifications(type),
+    queryFn: ({ pageParam }) => api.notifications.list({ type, cursor: pageParam }),
+    initialPageParam: null as number | null,
+    getNextPageParam: page => page.nextCursor,
+    enabled,
+  });
+};
+
+export const useMarkNotificationRead = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (notificationId: number) => api.notifications.markRead(notificationId),
+    onSuccess: () => invalidate(["notifications"]),
+  });
 };
 
 export const useCreateGroup = () => {
@@ -130,6 +200,53 @@ export const useJoinGroup = () => {
   return useMutation({
     mutationFn: (body: GroupJoinRequest) => api.groups.join(body),
     onSuccess: () => invalidate(queryKeys.groups),
+  });
+};
+export const useRemoveGroupMember = (groupId: number | null) => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (userId: number) => api.groups.removeMember(groupId!, userId),
+    onSuccess: () => {
+      invalidate(queryKeys.group(groupId ?? -1));
+      invalidate(queryKeys.groups);
+    },
+  });
+};
+/** 그룹장만 이름을 바꿀 수 있습니다. */
+export const useRenameGroup = (groupId: number | null) => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (name: string) => api.groups.rename(groupId!, { name }),
+    onSuccess: () => {
+      invalidate(queryKeys.group(groupId ?? -1));
+      invalidate(queryKeys.groups);
+    },
+  });
+};
+/** 여러 명을 한 번에 내보냅니다. 그룹장만 할 수 있습니다. */
+export const useRemoveGroupMembers = (groupId: number | null) => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (userIds: number[]) => api.groups.removeMembers(groupId!, { userIds }),
+    onSuccess: () => {
+      invalidate(queryKeys.group(groupId ?? -1));
+      invalidate(queryKeys.groups);
+    },
+  });
+};
+/** 그룹장만 지울 수 있습니다. 그룹장이 아니면 서버가 403으로 거절합니다. */
+export const useDeleteGroup = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: (groupId: number) => api.groups.remove(groupId),
+    onSuccess: (_result, groupId) => {
+      invalidate(queryKeys.group(groupId));
+      invalidate(queryKeys.groups);
+    },
   });
 };
 export const useUpdateProfile = () => {
@@ -169,7 +286,7 @@ export const useUpdateCategory = () => {
   const invalidate = useDetachedInvalidate();
   const writeBack = useWriteBack();
   return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: CategoryRequest }) => api.categories.update(id, body),
+    mutationFn: ({ id, body }: { id: number; body: CategoryPatchRequest }) => api.categories.update(id, body),
     onSuccess: updated => {
       writeBack.categories(categories =>
         categories.map(category =>
@@ -189,7 +306,10 @@ export const useUpdateCategory = () => {
  */
 export const useInvalidateTodos = () => {
   const invalidate = useDetachedInvalidate();
-  return useCallback(() => invalidate(["todos"]), [invalidate]);
+  return useCallback(() => {
+    invalidate(["todos"]);
+    invalidate(["todos-daily-status"]);
+  }, [invalidate]);
 };
 
 type MutationOptions = { invalidate?: boolean };
@@ -225,6 +345,7 @@ export const useDeleteTodo = () => {
       // 재요청이 돌아오기 전까지 지운 할 일이 남아 보이지 않게 먼저 걷어냅니다.
       writeBack.todos(todos => todos.filter(todo => todo.todoId !== id));
       invalidate(["todos"]);
+      invalidate(["todos-daily-status"]);
     },
   });
 };
@@ -240,7 +361,11 @@ export const useCompleteTodo = () => {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.todos.complete(id),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey: ["todos"] }),
+        cache.invalidateQueries({ queryKey: ["todos-daily-status"] }),
+      ]),
   });
 };
 export const useUncompleteTodo = () => {
@@ -248,7 +373,11 @@ export const useUncompleteTodo = () => {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.todos.uncomplete(id),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey: ["todos"] }),
+        cache.invalidateQueries({ queryKey: ["todos-daily-status"] }),
+      ]),
   });
 };
 export const useAddDependency = ({ invalidate = true }: MutationOptions = {}) => {
@@ -260,22 +389,68 @@ export const useAddDependency = ({ invalidate = true }: MutationOptions = {}) =>
     onSuccess: invalidate ? () => invalidateTodos() : undefined,
   });
 };
+/** 선행 할 일을 통째로 바꿉니다. 빈 배열이면 모두 해제합니다. */
+export const useSetDependencies = ({ invalidate = true }: MutationOptions = {}) => {
+  const api = useApi();
+  const invalidateTodos = useInvalidateTodos();
+  return useMutation({
+    mutationFn: ({ id, dependencyTodoIds }: { id: number; dependencyTodoIds: number[] }) =>
+      api.todos.setDependencies(id, { dependencyTodoIds }),
+    onSuccess: invalidate ? () => invalidateTodos() : undefined,
+  });
+};
+
+/**
+ * 루틴을 한 번의 요청으로 만듭니다.
+ *
+ * `requestId`는 화면이 만들어 넘깁니다 — 재시도는 같은 키와 같은 본문이어야
+ * 중복이 생기지 않기 때문에, 훅이 매번 새로 뽑아서는 안 됩니다.
+ */
+export const useCreateRoutine = () => {
+  const api = useApi();
+  const invalidateTodos = useInvalidateTodos();
+  return useMutation({
+    mutationFn: (body: RoutineCreateRequest) => api.todos.createRoutine(body),
+    onSuccess: () => invalidateTodos(),
+  });
+};
+
+/** 이미 있는 할 일을 루틴으로 돌립니다. 원본이 첫 회차가 됩니다. */
+export const useConvertToRoutine = () => {
+  const api = useApi();
+  const invalidateTodos = useInvalidateTodos();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: RoutineScheduleRequest }) => api.todos.convertToRoutine(id, body),
+    onSuccess: () => invalidateTodos(),
+  });
+};
+
+/** 완료한 회차와 원본까지 전부 지웁니다. 화면에서 전체 삭제임을 먼저 알립니다. */
+export const useDeleteRoutine = () => {
+  const api = useApi();
+  const invalidateTodos = useInvalidateTodos();
+  return useMutation({
+    mutationFn: (routineId: number) => api.todos.removeRoutine(routineId),
+    onSuccess: () => invalidateTodos(),
+  });
+};
+
 export const useSaveDiary = () => {
   const api = useApi();
   const invalidate = useDetachedInvalidate();
   const writeBack = useWriteBack();
   return useMutation({
-    mutationFn: (payload: { id?: number; body: DiaryCreateRequest | DiaryPatchRequest }) =>
+    mutationFn: (payload: { id?: number; body: DiaryCreateRequest | DiaryPatchRequest | FormData }) =>
       payload.id
         ? api.diaries.update(payload.id, payload.body as DiaryPatchRequest)
-        : api.diaries.create(payload.body as DiaryCreateRequest),
+        : api.diaries.create(payload.body as DiaryCreateRequest | FormData),
     onSuccess: saved => {
       writeBack.diaries(diaries =>
         diaries.some(diary => diary.diaryId === saved.diaryId)
           ? diaries.map(diary => (diary.diaryId === saved.diaryId ? saved : diary))
           : [...diaries, saved],
       );
-      invalidate(queryKeys.diaries);
+      invalidate(["diaries"]);
     },
   });
 };

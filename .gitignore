@@ -22,15 +22,6 @@
 **/build
 **/release
 
-# Electron packaging
-**/*.asar
-**/*.dmg
-**/*.exe
-**/*.AppImage
-**/*.deb
-**/*.rpm
-**/*.snap
-
 # =========================
 # Coverage / testing
 # =========================

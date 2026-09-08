@@ -5,11 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev:web": "pnpm --filter web dev",
-    "dev:desktop": "pnpm --filter desktop dev",
-    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:desktop\"",
+    "dev": "pnpm dev:web",
     "build:web": "pnpm --filter web build",
-    "build:desktop": "pnpm --filter desktop build",
-    "build": "pnpm build:web && pnpm build:desktop",
+    "build": "pnpm build:web",
     "typecheck": "pnpm --filter web exec tsc -b",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx}\""
@@ -22,7 +20,6 @@
     "node": "^22.13.0 || >=24.0.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
     "prettier": "^3.9.5"
   }
 }

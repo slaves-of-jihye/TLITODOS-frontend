@@ -1,47 +1,65 @@
 import styled from "@emotion/styled";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  composeDiaryContent,
+  CATEGORY_SWATCHES,
+  buildDailyStatuses,
+  categoryAccent,
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
-  getTodoTitle,
+  diaryDate,
+  formatLongKoreanDate,
   isDiaryForDate,
+  monthKey,
   resolveFont,
   sortCategories,
   sortTodos,
-  splitDiaryContent,
   todosForDate,
   type FontKey,
 } from "@tlitodos/core";
 import {
   useApi,
   useCategories,
+  useCreateTodo,
+  useDailyTodoStatuses,
   useDiaries,
   useGroup,
+  useMarkNotificationRead,
   useMe,
+  useNotifications,
   useSaveDiary,
   useTodos,
+  useUpdateCategory,
   useUpdateFont,
   useUpdateProfile,
+  useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, Diary, Todo } from "@tlitodos/types";
+import type {
+  AppNotification,
+  Category,
+  Diary,
+  DiaryCreateRequest,
+  DiaryPatchRequest,
+  NotificationType,
+  Todo,
+  UiVisibility,
+} from "@tlitodos/types";
 import {
   AppShell,
   BottomNav,
   Button,
-  ButtonStack,
+  CategoryPill,
   DiaryBadge,
   ErrorText,
-  Field,
   Glyph,
+  icons,
   Modal,
-  ProfileCard,
+  palette,
   theme,
 } from "@tlitodos/ui";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { resolveAssetUrl } from "./app/assetUrl";
+import { useAssetObjectUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
 import { useTodoCompletion } from "./app/useTodoCompletion";
@@ -51,8 +69,11 @@ import {
   CategorySection,
   DependencyBlockModal,
   GroupActionModals,
-  InstallAppAction,
-  TodoEditorModal,
+  GroupInfoModal,
+  GroupInviteModal,
+  GroupTopBar,
+  MemberTabs,
+  TodoDetailModal,
   WorkspaceHeader,
 } from "./components";
 
@@ -67,8 +88,6 @@ const PageNav = ({ active }: { active: "home" | "alarm" | "profile" }) => {
   const navigate = useNavigate();
   return <BottomNav active={active} onNavigate={next => navigate(next === "home" ? "/" : `/${next}`)} />;
 };
-
-type EditorState = { category: Category | null; todo: Todo | null } | null;
 
 const TodoWorkspace = ({
   own,
@@ -90,20 +109,33 @@ const TodoWorkspace = ({
   const categoriesQuery = useCategories(groupId, targetUserId);
   const { data: categoriesRaw = [] } = categoriesQuery;
   const categories = useMemo(() => sortCategories(categoriesRaw), [categoriesRaw]);
-  const todosQuery = useTodos(groupId, null, targetUserId);
-  const { data: allTodosRaw = [], refetch } = todosQuery;
+  /**
+   * 할 일은 고른 날짜만 받아 옵니다.
+   *
+   * 달력에 찍을 개수는 달별 요약이 따로 주므로, 목록까지 통째로 받을 이유가
+   * 없습니다. 날짜를 옮기면 그 날짜 몫만 새로 받고, 달을 옮기면 요약만 새로
+   * 받습니다. 마감일이 없는 할 일도 함께 오지만 `todosForDate`가 걸러냅니다.
+   */
+  const todosQuery = useTodos(groupId, selectedDate, targetUserId);
+  const { data: dateTodosRaw = [], refetch } = todosQuery;
   const ownerTodos = useMemo(
-    () => (ownerId === undefined ? allTodosRaw : allTodosRaw.filter(todo => todo.userId === ownerId)),
-    [allTodosRaw, ownerId],
+    () => (ownerId === undefined ? dateTodosRaw : dateTodosRaw.filter(todo => todo.userId === ownerId)),
+    [dateTodosRaw, ownerId],
   );
-  const { data: diaries = [] } = useDiaries();
+  // daily-status가 groupId/userId를 받으므로 남의 달력도 달 전체를 받아 옵니다.
+  const { data: serverStatuses = [] } = useDailyTodoStatuses(monthKey(month), { groupId, userId: targetUserId });
+  const { data: diaries = [] } = useDiaries({ date: selectedDate, groupId, userId: targetUserId });
   const [blocked, setBlocked] = useState<Todo[]>([]);
   const { overrides: completionOverrides, toggle } = useTodoCompletion({
     serverTodos: ownerTodos,
     onBlocked: setBlocked,
     onRevert: refetch,
   });
-  const [editor, setEditor] = useState<EditorState>(null);
+  const [addingCategoryId, setAddingCategoryId] = useState<number | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<number | null>(null);
+  const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
+  const createTodo = useCreateTodo();
+  const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
   const todos = useMemo(
@@ -116,6 +148,16 @@ const TodoWorkspace = ({
     [ownerTodos, completionOverrides],
   );
   const selectedTodos = useMemo(() => todosForDate(todos, selectedDate), [todos, selectedDate]);
+  /**
+   * 달력에 찍을 날짜별 요약입니다.
+   *
+   * 달 전체는 서버 요약을 씁니다. 고른 날짜만은 손안의 목록으로 덮습니다 —
+   * 체크를 눌렀을 때 낙관적 표시가 달력에도 바로 보여야 하기 때문입니다.
+   */
+  const dailyStatuses = useMemo(() => {
+    const local = buildDailyStatuses(selectedTodos).find(status => status.date === selectedDate);
+    return local ? [...serverStatuses.filter(status => status.date !== selectedDate), local] : serverStatuses;
+  }, [serverStatuses, selectedTodos, selectedDate]);
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );
@@ -125,38 +167,40 @@ const TodoWorkspace = ({
     if (!own) return;
     toggle(todo.todoId);
   };
-  const nonHobby = categories.slice(0, -1);
-  const hobby = categories.length ? categories[categories.length - 1] : undefined;
+  // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
+  const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : null);
   return (
     <>
       <WorkspaceGrid>
         <div>
-          <OwnerTitle>{own ? `🌱 ${me?.name || "나"}` : `🐰 ${ownerName || "친구"}`}</OwnerTitle>
+          <OwnerRow>
+            <OwnerProfile>
+              {ownerImage ? <img src={ownerImage} alt="" /> : <span aria-hidden>{own ? "🌱" : "🐰"}</span>}
+              <div>
+                <strong>{own ? me?.name || "나" : ownerName || "친구"}</strong>
+                {own && me?.bio ? <small>{me.bio}</small> : null}
+              </div>
+            </OwnerProfile>
+            {own || selectedDiary ? (
+              <DiaryBadge
+                emotion={selectedDiary?.emotion}
+                nickname={selectedDiary ? "일기" : "일기쓰기"}
+                onClick={() =>
+                  own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
+                }
+              />
+            ) : null}
+          </OwnerRow>
           <CalendarPanel
             month={month}
             selectedDate={selectedDate}
-            todos={todos}
+            statuses={dailyStatuses}
             categories={categories}
             onMonthChange={setMonth}
             onDateChange={setSelectedDate}
           />
         </div>
         <TodoArea>
-          <TodoToolbar>
-            {own || selectedDiary ? (
-              <DiaryBadge
-                emotion={selectedDiary?.emotion}
-                nickname={selectedDiary ? "일기" : "일기쓰기"}
-                date={selectedDate.replaceAll("-", ".")}
-                onClick={() =>
-                  own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
-                }
-              />
-            ) : (
-              <span />
-            )}
-            <h2>{getTodoTitle(selectedDate)}</h2>
-          </TodoToolbar>
           {loadError ? (
             <EmptyState>
               <ErrorText>{message(loadError)}</ErrorText>
@@ -167,48 +211,57 @@ const TodoWorkspace = ({
             <EmptyState>카테고리를 준비하고 있어요.</EmptyState>
           ) : (
             <CategoryBoard>
-              <CategoryStack>
-                {nonHobby.map((category, index) => (
-                  <CategorySection
-                    key={category.categoryId}
-                    category={category}
-                    index={index}
-                    todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
-                    own={own}
-                    onAdd={next => setEditor({ category: next, todo: null })}
-                    onManage={setManage}
-                    onToggle={handleToggle}
-                    onEdit={todo => setEditor({ category: null, todo })}
-                  />
-                ))}
-              </CategoryStack>
-              {hobby ? (
-                <CategoryStack>
-                  <CategorySection
-                    category={hobby}
-                    index={categories.length - 1}
-                    todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === hobby.categoryId))}
-                    own={own}
-                    onAdd={next => setEditor({ category: next, todo: null })}
-                    onManage={setManage}
-                    onToggle={handleToggle}
-                    onEdit={todo => setEditor({ category: null, todo })}
-                  />
-                </CategoryStack>
-              ) : null}
+              {categories.map((category, index) => (
+                <CategorySection
+                  key={category.categoryId}
+                  category={category}
+                  index={index}
+                  todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
+                  own={own}
+                  adding={addingCategoryId === category.categoryId}
+                  editingTitleId={editingTitleId}
+                  onAdd={next => setAddingCategoryId(next.categoryId)}
+                  onCancelAdd={() => {
+                    setAddingCategoryId(null);
+                    setEditingTitleId(null);
+                  }}
+                  onCreate={async (next, title) => {
+                    setAddingCategoryId(null);
+                    await createTodo.mutateAsync({
+                      title,
+                      categoryId: next.categoryId,
+                      importance: "NONE",
+                      hardship: 1,
+                      // 하루짜리 할 일은 시작일과 마감일이 같습니다. 시간은 상세에서 붙입니다.
+                      startDate: selectedDate,
+                      dueDate: selectedDate,
+                    });
+                  }}
+                  onRenameTitle={async (todo, title) => {
+                    setEditingTitleId(null);
+                    await updateTodo.mutateAsync({ id: todo.todoId, body: { title } });
+                  }}
+                  onManage={setManage}
+                  onToggle={handleToggle}
+                  onEdit={setDetailTodo}
+                />
+              ))}
             </CategoryBoard>
           )}
         </TodoArea>
       </WorkspaceGrid>
-      <TodoEditorModal
-        key={`${selectedDate}-${editor?.todo?.todoId ?? editor?.category?.categoryId ?? 0}`}
-        open={editor !== null}
-        selectedDate={selectedDate}
-        initialCategory={editor?.category ?? null}
-        todo={editor?.todo ?? null}
+      <TodoDetailModal
+        key={detailTodo?.todoId ?? 0}
+        open={detailTodo !== null}
+        todo={detailTodo}
         categories={categories}
         todos={selectedTodos}
-        onClose={() => setEditor(null)}
+        selectedDate={selectedDate}
+        onClose={() => setDetailTodo(null)}
+        onEditTitle={todo => {
+          setDetailTodo(null);
+          setEditingTitleId(todo.todoId);
+        }}
       />
       <CategoryManageModal
         key={manage?.categoryId ?? 0}
@@ -217,18 +270,17 @@ const TodoWorkspace = ({
         onClose={() => setManage(null)}
       />
       <DependencyBlockModal todos={blocked} open={blocked.length > 0} onClose={() => setBlocked([])} />
-      <Modal
-        open={diaryPreview !== null}
-        title={`${ownerName || "친구"}님의 일기`}
-        onClose={() => setDiaryPreview(null)}
-      >
-        <DiaryContent>
-          {diaryPreview?.emotion ? <b>{diaryPreview.emotion}</b> : null}
-          <p>{diaryPreview ? splitDiaryContent(diaryPreview.content).content : ""}</p>
-        </DiaryContent>
-        <ButtonStack>
-          <Button onClick={() => setDiaryPreview(null)}>닫기</Button>
-        </ButtonStack>
+      {/* Figma group 섹션의 `modal / diary`입니다. 닫기 버튼이 없어 뒤 배경을 눌러 닫습니다. */}
+      <Modal open={diaryPreview !== null} sheet onClose={() => setDiaryPreview(null)} aria-label="친구의 일기">
+        <DiaryPreview>
+          <DiaryPreviewTitle>{ownerName || "친구"}님의 일기</DiaryPreviewTitle>
+          <DiaryBadge
+            emotion={diaryPreview?.emotion}
+            nickname={ownerName || "친구"}
+            date={formatLongKoreanDate(diaryPreview ? (diaryDate(diaryPreview) ?? "") : "")}
+          />
+          <p>{diaryPreview?.content ?? ""}</p>
+        </DiaryPreview>
       </Modal>
       {/* BetModal is intentionally kept out of the active MVP build. */}
     </>
@@ -247,89 +299,262 @@ export const MyHome = () => {
   );
 };
 
+/**
+ * 그룹 화면.
+ *
+ * Figma의 group 섹션 `main / today`입니다. 맨 위 줄에서 그룹을 빠져나가거나 설정을
+ * 열고, 그 아래 멤버 줄에서 누구의 할 일을 볼지 고릅니다. 나를 골랐을 때는 홈과
+ * 같은 내 할 일(그룹으로 좁히지 않은 전체)을 보여주고, 다른 멤버는 그룹에 공개된
+ * 할 일만 읽기 전용으로 보여줍니다.
+ */
 export const GroupHome = () => {
-  const { groupId } = useParams();
+  const { groupId, userId } = useParams();
   const id = Number(groupId);
   const navigate = useNavigate();
-  const header = useHeaderModal();
   const { data: me } = useMe();
-  const { data: group, isLoading } = useGroup(Number.isFinite(id) ? id : null);
-  const [copied, setCopied] = useState(false);
-  const members = group?.members.filter(member => member.userId !== me?.userId) ?? [];
+  const { data: group } = useGroup(Number.isFinite(id) ? id : null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const members = useMemo(() => {
+    const list = group?.members ?? [];
+    const mine = list.find(member => member.userId === me?.userId);
+    return mine ? [mine, ...list.filter(member => member.userId !== mine.userId)] : list;
+  }, [group, me]);
+  const activeId = userId ? Number(userId) : (me?.userId ?? null);
+  const active = members.find(member => member.userId === activeId);
+  const own = activeId !== null && activeId === me?.userId;
+  // 시트 안의 그룹명 수정·삭제·강퇴가 모두 그룹장 전용이라, 그룹장에게만 버튼을 보입니다.
+  const isLeader = me ? members.find(member => member.userId === me.userId)?.role === "LEADER" : false;
   return (
     <AppShell>
-      <WorkspaceHeader activeGroupId={id} onCreate={header.openCreate} onJoin={header.openJoin} />
-      <GroupTitleRow>
-        <div>
-          <h1>{group?.name || "그룹"}</h1>
-          <p>{group?.description || "함께하는 멤버들의 TODO를 확인해 보세요."}</p>
-        </div>
-        {group?.inviteCode ? (
-          <Button
-            onClick={async () => {
-              await navigator.clipboard.writeText(group.inviteCode);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1400);
-            }}
-          >
-            {copied ? "복사했어요" : "초대코드 복사"}
-          </Button>
-        ) : null}
-      </GroupTitleRow>
-      {isLoading ? (
-        <EmptyState>그룹을 불러오는 중...</EmptyState>
-      ) : members.length ? (
-        <MemberGrid>
-          {members.map(member => (
-            <ProfileCard
-              key={member.userId}
-              member={{ ...member, profileImageUrl: resolveAssetUrl(member.profileImageUrl) }}
-              onClick={() => navigate(`/groups/${id}/members/${member.userId}`)}
-            />
-          ))}
-        </MemberGrid>
+      <GroupTopBar
+        name={group?.name || "그룹"}
+        onBack={() => navigate("/")}
+        onSettings={isLeader ? () => setSettingsOpen(true) : undefined}
+      />
+      <MemberTabs
+        members={members}
+        activeUserId={activeId}
+        onSelect={next => navigate(next === me?.userId ? `/groups/${id}` : `/groups/${id}/members/${next}`)}
+        onShareInvite={() => setInviteOpen(true)}
+      />
+      {own ? (
+        <TodoWorkspace own groupId={null} />
       ) : (
-        <EmptyState>아직 다른 그룹 멤버가 없습니다.</EmptyState>
+        <TodoWorkspace own={false} ownerId={activeId ?? undefined} ownerName={active?.name} groupId={id} />
       )}
       <PageNav active="home" />
-      <GroupActionModals mode={header.mode} onClose={header.close} />
+      <GroupInfoModal
+        key={`settings-${settingsOpen}-${group?.name ?? ""}`}
+        open={settingsOpen}
+        group={group ?? null}
+        onClose={() => setSettingsOpen(false)}
+      />
+      <GroupInviteModal
+        key={`invite-${inviteOpen}`}
+        open={inviteOpen}
+        group={group ?? null}
+        onClose={() => setInviteOpen(false)}
+      />
     </AppShell>
   );
 };
 
-export const FriendHome = () => {
-  const { groupId, userId } = useParams();
-  const group = Number(groupId);
-  const user = Number(userId);
-  const header = useHeaderModal();
-  const { data: detail } = useGroup(Number.isFinite(group) ? group : null);
-  const member = detail?.members.find(item => item.userId === user);
+/**
+ * 알림 화면.
+ *
+ * Figma는 친구의 할 일 완료 / 친구의 일기 / 친구의 내기 요청 세 갈래를 pill로
+ * 고르고 그 아래에 알림을 쌓아 보여줍니다. 서버의 `GET /api/v1/notifications`가
+ * 그 세 종류를 그대로 내려 주고 `nextCursor`로 이어 줍니다. 내기는 MVP 밖이라
+ * 갈래에서 빼 두었습니다.
+ */
+const ALARM_FILTERS = [
+  { key: "TODO_COMPLETED", label: "친구의 할 일 완료" },
+  { key: "DIARY_CREATED", label: "친구의 일기" },
+  // { key: "BET_REQUESTED", label: "친구의 내기 요청" },
+] as const;
+
+/** 알림 한 줄에 쓰는 문구. 종류마다 다릅니다. */
+const alarmSentence = (item: AppNotification) => {
+  const who = item.actor.name || "친구";
+  if (item.type === "TODO_COMPLETED") return `${who}님이 "${item.todo?.title ?? "할 일"}"을 완료했어요.`;
+  if (item.type === "DIARY_CREATED") return `${who}님이 일기를 남겼어요.`;
+  return `${who}님이 내기를 요청했어요.`;
+};
+
+export const AlarmPage = () => {
+  const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
+  const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
+  const markRead = useMarkNotificationRead();
+  const items = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
   return (
     <AppShell>
-      <WorkspaceHeader activeGroupId={group} onCreate={header.openCreate} onJoin={header.openJoin} />
-      <TodoWorkspace own={false} ownerId={user} ownerName={member?.name} groupId={group} />
-      <PageNav active="home" />
-      <GroupActionModals mode={header.mode} onClose={header.close} />
+      <AlarmColumn>
+        <AlarmHead>
+          <PageTitle>알림</PageTitle>
+          <AlarmFilters role="tablist">
+            {ALARM_FILTERS.map(item => (
+              <AlarmFilter
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={filter === item.key}
+                selected={filter === item.key}
+                onClick={() => setFilter(item.key)}
+              >
+                {item.label}
+              </AlarmFilter>
+            ))}
+          </AlarmFilters>
+        </AlarmHead>
+        {error ? (
+          <ErrorText>{message(error)}</ErrorText>
+        ) : isLoading ? (
+          <AlarmEmpty>알림을 불러오는 중...</AlarmEmpty>
+        ) : items.length ? (
+          <AlarmList>
+            {items.map(item => (
+              <AlarmRow
+                key={item.notificationId}
+                type="button"
+                unread={item.readAt === null}
+                // 누르면 읽음으로 넘깁니다. 서버가 목록을 다시 주면 표시가 사라집니다.
+                onClick={() => item.readAt === null && markRead.mutate(item.notificationId)}
+              >
+                <ActorAvatar url={item.actor.profileImageUrl} />
+                <div>
+                  <strong>{alarmSentence(item)}</strong>
+                  {item.todo?.description ? <small>{item.todo.description}</small> : null}
+                </div>
+                {item.readAt === null ? <AlarmDot aria-label="읽지 않음" /> : null}
+              </AlarmRow>
+            ))}
+          </AlarmList>
+        ) : (
+          <AlarmEmpty>아직 도착한 {label} 알림이 없습니다.</AlarmEmpty>
+        )}
+        {hasNextPage ? (
+          <Button type="button" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+            {isFetchingNextPage ? "불러오는 중..." : "더 보기"}
+          </Button>
+        ) : null}
+      </AlarmColumn>
+      <PageNav active="alarm" />
     </AppShell>
   );
 };
+/** 사진은 인증이 필요해 한 줄씩 따로 받아 옵니다. */
+const ActorAvatar = ({ url }: { url: string | null }) => {
+  const src = useAssetObjectUrl(url);
+  return <AlarmAvatar>{src ? <img src={src} alt="" /> : <span aria-hidden>🐰</span>}</AlarmAvatar>;
+};
+const AlarmList = styled.div`
+  display: grid;
+  gap: 12px;
+  width: 100%;
+`;
+const AlarmRow = styled.button<{ unread: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid ${palette.gray200};
+  border-radius: ${theme.radius.sm};
+  background: ${({ unread }) => (unread ? palette.white : palette.gray100)};
+  padding: 12px 16px;
+  text-align: left;
+  color: ${theme.colors.ink};
+  > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  strong {
+    font-size: ${theme.text.s};
+    font-weight: 400;
+    overflow-wrap: anywhere;
+  }
+  small {
+    color: ${theme.colors.muted};
+    font-size: ${theme.text.xs};
+    overflow-wrap: anywhere;
+  }
+`;
+const AlarmAvatar = styled.span`
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: ${palette.gray100};
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+const AlarmDot = styled.i`
+  flex: none;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${theme.colors.red};
+`;
+const AlarmColumn = styled.div`
+  display: grid;
+  gap: 32px;
+  width: min(485px, 100%);
+  justify-items: start;
+`;
+const AlarmHead = styled.div`
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  width: 100%;
+`;
+const AlarmFilters = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+`;
+const AlarmFilter = styled.button<{ selected: boolean }>`
+  border: 0;
+  border-radius: ${theme.radius.pill};
+  padding: 6px 20px;
+  font-size: ${theme.text.h3};
+  background: ${({ selected }) => (selected ? palette.black : palette.gray200)};
+  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
+`;
+const AlarmEmpty = styled.p`
+  margin: 0;
+  color: ${theme.colors.muted};
+`;
 
-export const AlarmPage = () => (
-  <AppShell>
-    <PageTitle>알림</PageTitle>
-    <PageNav active="alarm" />
-  </AppShell>
-);
+/** 자기소개 글자 수. 디자인의 카운터가 0/30입니다. */
+const BIO_LIMIT = 30;
+const NAME_LIMIT = 20;
 
+/**
+ * 라벨 + 회색 입력칸 한 줄.
+ *
+ * 보기 상태에서는 칸 전체가 편집 진입 버튼이고, 편집 상태에서는 칸 안에서
+ * 입력하고 오른쪽 취소/확인으로 끝냅니다. Enter로는 저장하지 않습니다.
+ */
 const EditableProfileRow = ({
   label,
   value,
-  multiline,
+  placeholder,
+  limit,
   onSave,
 }: {
   label: string;
   value: string;
-  multiline?: boolean;
+  placeholder: string;
+  limit: number;
   onSave: (next: string) => Promise<void>;
 }) => {
   const [editing, setEditing] = useState(false);
@@ -341,42 +566,32 @@ const EditableProfileRow = ({
       await onSave(draft.trim());
       setEditing(false);
     } catch {
-      /* 상위 행에서 오류 메시지를 표시합니다. */
+      /* 오류 문구는 프로필 화면에서 표시합니다. */
     } finally {
       setBusy(false);
     }
   };
   return (
-    <ProfileRow>
-      <div>
-        <small>{label}</small>
-        {editing ? (
-          multiline ? (
-            <textarea
-              value={draft}
-              maxLength={80}
-              onKeyDown={e => {
-                if (e.key === "Enter") e.preventDefault();
-              }}
-              onChange={e => setDraft(e.target.value)}
-            />
-          ) : (
+    <FieldBlock>
+      <FieldLabel>{label}</FieldLabel>
+      {editing ? (
+        <FieldRow>
+          <FieldBox as="div">
             <input
+              autoFocus
               value={draft}
-              maxLength={20}
-              onKeyDown={e => {
-                if (e.key === "Enter") e.preventDefault();
+              maxLength={limit}
+              placeholder={placeholder}
+              onKeyDown={event => {
+                if (event.key === "Enter") event.preventDefault();
               }}
-              onChange={e => setDraft(e.target.value)}
+              onChange={event => setDraft(event.target.value)}
             />
-          )
-        ) : (
-          <strong>{value || "아직 입력하지 않았어요"}</strong>
-        )}
-      </div>
-      <div>
-        {editing ? (
-          <>
+            <FieldCounter>
+              {draft.length}/{limit}
+            </FieldCounter>
+          </FieldBox>
+          <FieldActions>
             <Button
               onClick={() => {
                 setDraft(value);
@@ -386,21 +601,22 @@ const EditableProfileRow = ({
               취소
             </Button>
             <Button variant="primary" disabled={busy} onClick={finish}>
-              완료
+              확인
             </Button>
-          </>
-        ) : (
-          <Button
-            onClick={() => {
-              setDraft(value);
-              setEditing(true);
-            }}
-          >
-            <Glyph>›</Glyph>
-          </Button>
-        )}
-      </div>
-    </ProfileRow>
+          </FieldActions>
+        </FieldRow>
+      ) : (
+        <FieldBox
+          onClick={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+        >
+          <FieldValue data-empty={!value}>{value || placeholder}</FieldValue>
+          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
+        </FieldBox>
+      )}
+    </FieldBlock>
   );
 };
 
@@ -551,7 +767,7 @@ const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: Font
       >
         <span>{resolveFont(value).label}</span>
         <FontSelectCaret aria-hidden>
-          <Glyph>▾</Glyph>
+          <img src={icons.arrowUp} alt="" />
         </FontSelectCaret>
       </FontSelectTrigger>
       {open ? (
@@ -625,10 +841,10 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
     }
   };
   return (
-    <ProfileRow>
-      <div>
-        <small>폰트</small>
-        {editing ? (
+    <FieldBlock>
+      <FieldLabel>폰트 설정</FieldLabel>
+      {editing ? (
+        <FieldRow>
           <FontSelect
             value={draft}
             onChange={next => {
@@ -636,30 +852,93 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
               applyFont(next, { persist: false });
             }}
           />
-        ) : (
-          <strong>{resolveFont(value).label}</strong>
-        )}
-      </div>
-      <div>
-        {editing ? (
-          <>
+          <FieldActions>
             <Button onClick={revert}>취소</Button>
             <Button variant="primary" disabled={busy} onClick={finish}>
-              완료
+              확인
             </Button>
-          </>
-        ) : (
-          <Button
-            onClick={() => {
-              setDraft(value);
-              setEditing(true);
-            }}
-          >
-            <Glyph>›</Glyph>
-          </Button>
-        )}
-      </div>
-    </ProfileRow>
+          </FieldActions>
+        </FieldRow>
+      ) : (
+        <FieldBox
+          style={{ fontFamily: fontFamilyStack(value) }}
+          onClick={() => {
+            setDraft(value);
+            setEditing(true);
+          }}
+        >
+          <FieldValue>{resolveFont(value).label}</FieldValue>
+          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
+        </FieldBox>
+      )}
+    </FieldBlock>
+  );
+};
+
+/**
+ * 카테고리 색 바꾸기.
+ *
+ * 한 번에 한 카테고리만 펼쳐 팔레트를 보여줍니다. 색을 고르면 바로 저장합니다 —
+ * 되돌릴 초안이 없어 이름·자기소개와 달리 확인 버튼을 두지 않았습니다.
+ */
+const CategoryColorSection = ({ onError }: { onError: (message: string) => void }) => {
+  const { data: categories = [] } = useCategories();
+  const sorted = useMemo(() => sortCategories(categories), [categories]);
+  const update = useUpdateCategory();
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const choose = async (category: Category, color: string) => {
+    setBusy(true);
+    onError("");
+    try {
+      await update.mutateAsync({ id: category.categoryId, body: { name: category.name, color } });
+      setOpenId(null);
+    } catch (reason) {
+      onError(message(reason));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!sorted.length) return null;
+  return (
+    <ColorSection>
+      <FieldLabel as="h2">카테고리 색상 변경</FieldLabel>
+      {sorted.map((category, index) => {
+        const accent = categoryAccent(category.color, index);
+        const open = openId === category.categoryId;
+        return (
+          <div key={category.categoryId}>
+            <ColorRow>
+              <CategoryPill name={category.name} accent={accent} own={false} />
+              <ColorEditButton
+                open={open}
+                aria-expanded={open}
+                onClick={() => setOpenId(open ? null : category.categoryId)}
+              >
+                <ColorDot style={{ background: accent }} />
+                <span>색상 편집</span>
+                <Glyph>›</Glyph>
+              </ColorEditButton>
+            </ColorRow>
+            {open ? (
+              <SwatchGrid role="group" aria-label={`${category.name} 색상`}>
+                {CATEGORY_SWATCHES.map(color => (
+                  <Swatch
+                    key={color}
+                    type="button"
+                    aria-label={color}
+                    aria-pressed={color.toLowerCase() === accent.toLowerCase()}
+                    disabled={busy}
+                    style={{ background: color }}
+                    onClick={() => choose(category, color)}
+                  />
+                ))}
+              </SwatchGrid>
+            ) : null}
+          </div>
+        );
+      })}
+    </ColorSection>
   );
 };
 
@@ -685,7 +964,7 @@ export const ProfilePage = () => {
     }
   };
   const save = (body: { name?: string; bio?: string }) => guard(() => update.mutateAsync(body));
-  const profileImage = resolveAssetUrl(me?.profileImageUrl);
+  const profileImage = useAssetObjectUrl(me?.profileImageUrl);
   const uploadProfileImage = (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("이미지 파일만 올릴 수 있습니다.");
@@ -701,44 +980,59 @@ export const ProfilePage = () => {
   };
   return (
     <AppShell>
-      <PageTitle>프로필</PageTitle>
-      <ProfilePanel>
-        <ProfileHero>
-          {profileImage ? <img src={profileImage} alt="프로필" /> : <span>🌱</span>}
-          <div>
-            <h2>{me?.name || "사용자"}</h2>
-            <p>{me?.bio || "오늘도 한 걸음씩"}</p>
-          </div>
-          <ProfileHeroAction>
-            <ProfileImageAction onPick={uploadProfileImage} />
-          </ProfileHeroAction>
-        </ProfileHero>
-        <EditableProfileRow label="이름" value={me?.name ?? ""} onSave={name => save({ name })} />
-        <EditableProfileRow label="자기소개" value={me?.bio ?? ""} multiline onSave={bio => save({ bio })} />
-        <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
-        {error ? <ErrorText>{error}</ErrorText> : null}
-        <InstallAppAction />
-        <LogoutButton
-          onClick={async () => {
-            try {
-              if (refreshToken) await api.auth.logout({ refreshToken });
-            } catch {
-              /* 로컬 세션은 항상 종료합니다. */
-            } finally {
-              clear();
-              // 다음 사용자가 이전 계정의 캐시를 잠깐이라도 보지 않게 비웁니다.
-              cache.clear();
-              navigate("/");
-            }
-          }}
-        >
-          로그아웃
-        </LogoutButton>
-      </ProfilePanel>
+      <ProfileTitle>나의 프로필</ProfileTitle>
+      <ProfileColumns>
+        <ProfilePanel>
+          <FieldBlock>
+            <FieldLabel>프로필 사진</FieldLabel>
+            <PhotoRow>
+              {profileImage ? <img src={profileImage} alt="프로필" /> : <span aria-hidden>🌱</span>}
+              <ProfileImageAction onPick={uploadProfileImage} />
+            </PhotoRow>
+          </FieldBlock>
+          <EditableProfileRow
+            label="이름"
+            value={me?.name ?? ""}
+            placeholder="이름을 작성하세요"
+            limit={NAME_LIMIT}
+            onSave={name => save({ name })}
+          />
+          <EditableProfileRow
+            label="자기소개"
+            value={me?.bio ?? ""}
+            placeholder="자기소개를 작성하세요"
+            limit={BIO_LIMIT}
+            onSave={bio => save({ bio })}
+          />
+          <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
+          {error ? <ErrorText>{error}</ErrorText> : null}
+          <LogoutButton
+            onClick={async () => {
+              try {
+                if (refreshToken) await api.auth.logout({ refreshToken });
+              } catch {
+                /* 로컬 세션은 항상 종료합니다. */
+              } finally {
+                clear();
+                // 다음 사용자가 이전 계정의 캐시를 잠깐이라도 보지 않게 비웁니다.
+                cache.clear();
+                navigate("/");
+              }
+            }}
+          >
+            로그아웃
+          </LogoutButton>
+        </ProfilePanel>
+        <CategoryColorSection onError={setError} />
+      </ProfileColumns>
       <PageNav active="profile" />
     </AppShell>
   );
 };
+
+/** 일기 이미지도 프로필 사진과 같은 5MB 기준으로 막습니다. */
+const MAX_DIARY_IMAGE_BYTES = 5 * 1024 * 1024;
+const EMOTIONS = ["😊", "🥳", "😌", "😢", "😤"];
 
 const DiaryForm = ({
   selectedDate,
@@ -752,73 +1046,136 @@ const DiaryForm = ({
   const navigate = useNavigate();
   const save = useSaveDiary();
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
-  const [content, setContent] = useState(existing ? splitDiaryContent(existing.content).content : "");
+  const [emotionOpen, setEmotionOpen] = useState(false);
+  const [content, setContent] = useState(existing?.content ?? "");
+  // 서버에서 GROUP(일부 공개)은 보류라 작성자만 보게 됩니다. 화면은 공개/비밀 두 갈래만 씁니다.
+  const [visibility, setVisibility] = useState<UiVisibility>(existing?.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE");
+  const [image, setImage] = useState<File | null>(null);
+  const imageInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
+  // 이미지는 생성 요청의 multipart로만 올릴 수 있습니다. 수정에는 파일 필드가 없습니다.
+  const canAttach = !existing;
+  const submit = async () => {
+    setError("");
+    try {
+      let body: DiaryCreateRequest | DiaryPatchRequest | FormData;
+      if (image && canAttach) {
+        body = new FormData();
+        body.append("date", selectedDate);
+        body.append("content", content);
+        body.append("visibility", visibility);
+        if (emotion) body.append("emotion", emotion);
+        body.append("image", image);
+      } else {
+        body = { date: selectedDate, content, emotion: emotion || null, visibility };
+      }
+      await save.mutateAsync({ id: existing?.diaryId, body });
+      navigate("/");
+    } catch (reason) {
+      setError(message(reason));
+    }
+  };
   return (
     <AppShell>
-      <DiaryHead>
-        <div>
-          <Button onClick={() => navigate("/")}>
-            <Glyph>‹</Glyph> 돌아가기
-          </Button>
-          <h1>{existing ? "일기 수정하기" : "오늘의 일기 쓰기"}</h1>
-          <p>
-            {userName} · {selectedDate.replaceAll("-", ".")}
-          </p>
-        </div>
-      </DiaryHead>
-      <DiaryEditor>
-        <Field>
-          오늘의 기분 (선택)
-          <EmotionRow>
-            {["", "😊", "🥳", "😌", "😢", "😤"].map(item => (
-              <button
-                type="button"
-                key={item || "none"}
-                data-selected={emotion === item}
-                onClick={() => setEmotion(item)}
-              >
-                {item || "없음"}
-              </button>
-            ))}
-          </EmotionRow>
-        </Field>
-        <Field>
-          오늘의 기록
+      <DiaryTopBar>
+        <DiaryTextAction onClick={() => navigate("/")}>취소</DiaryTextAction>
+        <h1>일기</h1>
+        <DiaryTextAction disabled={!content.trim() || save.isPending} onClick={submit}>
+          완료
+        </DiaryTextAction>
+      </DiaryTopBar>
+      <DiaryBody>
+        <DiaryMain>
+          <DiaryDate>{formatLongKoreanDate(selectedDate)}</DiaryDate>
           <textarea
             value={content}
             maxLength={1000}
-            onChange={e => setContent(e.target.value)}
-            placeholder="오늘 하루는 어땠나요?"
+            onChange={event => setContent(event.target.value)}
+            placeholder={`${userName || "오늘"}님의 오늘은 어떤 하루였나요? 오늘 하루를 기록해보세요`}
           />
-          <small>{content.length}/1000</small>
-        </Field>
-        {error ? <ErrorText>{error}</ErrorText> : null}
-        <ButtonStack>
-          <Button
-            variant="primary"
-            disabled={!content.trim() || save.isPending}
-            onClick={async () => {
-              setError("");
-              try {
-                await save.mutateAsync({
-                  id: existing?.diaryId,
-                  body: {
-                    content: composeDiaryContent(selectedDate, content),
-                    emotion: emotion || null,
-                    visibility: "PRIVATE",
-                  },
-                });
-                navigate("/");
-              } catch (reason) {
-                setError(message(reason));
-              }
-            }}
-          >
-            {existing ? "수정 완료" : "일기 저장하기"}
-          </Button>
-        </ButtonStack>
-      </DiaryEditor>
+        </DiaryMain>
+        <DiaryRail>
+          <div>
+            <DiaryRailLabel>
+              그룹 안 공개 범위 설정하기 <b aria-hidden>*</b>
+            </DiaryRailLabel>
+            <DiaryPillRow>
+              <Button variant={visibility === "PUBLIC" ? "primary" : "soft"} onClick={() => setVisibility("PUBLIC")}>
+                전체 공개
+              </Button>
+              {/* 일부 공개는 MVP 범위 밖입니다. 자리만 두고 막아 둡니다. */}
+              <Button disabled title="일부 공개는 MVP 이후 제공됩니다.">
+                일부 공개
+              </Button>
+              <Button variant={visibility === "PRIVATE" ? "primary" : "soft"} onClick={() => setVisibility("PRIVATE")}>
+                비밀
+              </Button>
+            </DiaryPillRow>
+          </div>
+          <DiaryRailRow>
+            <div>
+              <DiaryRailLabel as="span">오늘의 감정 선택하기</DiaryRailLabel>
+              <DiaryIconAction
+                aria-label="오늘의 감정 선택하기"
+                aria-expanded={emotionOpen}
+                onClick={() => setEmotionOpen(!emotionOpen)}
+              >
+                {emotion ? <span>{emotion}</span> : <img src={icons.emojiAdd} alt="" aria-hidden />}
+              </DiaryIconAction>
+              {emotionOpen ? (
+                <EmotionRow role="group" aria-label="감정">
+                  {["", ...EMOTIONS].map(item => (
+                    <button
+                      type="button"
+                      key={item || "none"}
+                      data-selected={emotion === item}
+                      onClick={() => {
+                        setEmotion(item);
+                        setEmotionOpen(false);
+                      }}
+                    >
+                      {item || "없음"}
+                    </button>
+                  ))}
+                </EmotionRow>
+              ) : null}
+            </div>
+            <div>
+              <DiaryRailLabel as="span">이미지 첨부하기</DiaryRailLabel>
+              <DiaryIconAction
+                aria-label="이미지 첨부하기"
+                disabled={!canAttach}
+                title={canAttach ? undefined : "이미지는 일기를 처음 쓸 때만 첨부할 수 있습니다."}
+                onClick={() => imageInput.current?.click()}
+              >
+                <img src={icons.imageBox} alt="" aria-hidden />
+              </DiaryIconAction>
+              <HiddenFileInput
+                ref={imageInput}
+                type="file"
+                accept="image/*"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  if (!file.type.startsWith("image/")) {
+                    setError("이미지 파일만 올릴 수 있습니다.");
+                    return;
+                  }
+                  if (file.size > MAX_DIARY_IMAGE_BYTES) {
+                    setError("이미지는 5MB까지 올릴 수 있습니다.");
+                    return;
+                  }
+                  setError("");
+                  setImage(file);
+                }}
+              />
+              {image ? <DiaryAttachment>{image.name}</DiaryAttachment> : null}
+            </div>
+          </DiaryRailRow>
+          {error ? <ErrorText>{error}</ErrorText> : null}
+        </DiaryRail>
+      </DiaryBody>
       <PageNav active="home" />
     </AppShell>
   );
@@ -828,7 +1185,7 @@ export const DiaryPage = () => {
   const [search] = useSearchParams();
   const selectedDate = search.get("date") || formatLocalDate(new Date());
   const { data: me } = useMe();
-  const { data: diaries = [] } = useDiaries();
+  const { data: diaries = [] } = useDiaries({ date: selectedDate });
   const existing = diaries.find(diary => isDiaryForDate(diary, selectedDate));
   return (
     <DiaryForm
@@ -854,8 +1211,9 @@ export const NotFoundPage = () => {
 
 const WorkspaceGrid = styled.main`
   display: grid;
-  grid-template-columns: minmax(330px, 450px) minmax(420px, 1fr);
-  gap: 8%;
+  /* 두 단 모두 줄어들 수 있게 둡니다. 좁은 폭에서 1100px를 넘겨 넘치지 않도록. */
+  grid-template-columns: minmax(0, ${theme.layout.calendar}) minmax(0, ${theme.layout.board});
+  gap: ${theme.layout.columnGap};
   align-items: start;
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -865,57 +1223,79 @@ const WorkspaceGrid = styled.main`
     gap: 36px;
   }
 `;
-const OwnerTitle = styled.h2`
-  margin: 0 0 34px;
-  font-size: 22px;
+const OwnerRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+`;
+const OwnerProfile = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: ${theme.radius.sm};
+  img,
+  > span {
+    flex: none;
+    width: 60px;
+    height: 60px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    object-fit: cover;
+    background: ${theme.colors.panel};
+    font-size: 30px;
+  }
+  strong {
+    display: block;
+    font-size: ${theme.text.h2};
+    overflow-wrap: anywhere;
+  }
+  small {
+    display: block;
+    color: ${theme.colors.muted};
+    font-size: ${theme.text.s};
+    overflow-wrap: anywhere;
+  }
   @media (max-width: 600px) {
-    margin-bottom: 20px;
-    font-size: 20px;
+    gap: 14px;
+    padding: 0;
+    img,
+    > span {
+      width: 48px;
+      height: 48px;
+      font-size: 24px;
+    }
   }
 `;
 const TodoArea = styled.section`
   min-width: 0;
 `;
-const TodoToolbar = styled.div`
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  margin: 12px 0 32px;
-  h2 {
-    grid-column: 2;
-    margin: 0;
-    font-size: 21px;
-  }
-  @media (max-width: 600px) {
-    display: flex;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin: 0 0 24px;
-    h2 {
-      order: -1;
-      width: 100%;
-      font-size: 20px;
-      line-height: 1.35;
-    }
-  }
-`;
 const CategoryBoard = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 72px;
-  @media (max-width: 600px) {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-`;
-const CategoryStack = styled.div`
-  display: grid;
-  align-content: start;
-  gap: 42px;
+  gap: 32px;
   @media (max-width: 600px) {
     gap: 28px;
   }
+`;
+const DiaryPreview = styled.div`
+  display: grid;
+  gap: 20px;
+  justify-items: start;
+  p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+`;
+const DiaryPreviewTitle = styled.p`
+  margin: 0;
+  width: 100%;
+  text-align: center;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
 `;
 const EmptyState = styled.div`
   min-height: 260px;
@@ -924,191 +1304,211 @@ const EmptyState = styled.div`
   text-align: center;
   color: ${theme.colors.muted};
 `;
-const DiaryContent = styled.div`
-  border-radius: 16px;
-  background: #f7f9fb;
-  padding: 24px;
-  b {
-    font-size: 34px;
-  }
-  p {
-    white-space: pre-wrap;
-    line-height: 1.8;
-  }
-`;
-const GroupTitleRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 10px 0 52px;
-  h1 {
-    margin: 0 0 8px;
-  }
-  p {
-    margin: 0;
-    color: ${theme.colors.muted};
-  }
-  @media (max-width: 600px) {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 20px;
-    margin: 0 0 34px;
-    h1 {
-      font-size: 27px;
-    }
-    > button {
-      width: 100%;
-    }
-  }
-`;
-const MemberGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 30px 70px;
-  @media (max-width: 900px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  @media (max-width: 560px) {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-`;
 const PageTitle = styled.h1`
   margin: 0;
-  font-size: 30px;
-  @media (max-width: 600px) {
-    font-size: 26px;
+  font-size: ${theme.text.h1};
+`;
+const ProfileTitle = styled.h1`
+  margin: 0 0 40px;
+  font-size: ${theme.text.h1};
+`;
+const ProfileColumns = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 410px);
+  gap: 12px;
+  align-items: start;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+`;
+const ColorSection = styled.section`
+  display: grid;
+  gap: 20px;
+  padding: 0 20px;
+  @media (min-width: 901px) {
+    /* 디자인에서는 왼쪽 단의 이름 칸 높이에 맞춰 시작합니다. */
+    margin-top: 113px;
+  }
+`;
+const ColorRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+`;
+const ColorEditButton = styled.button<{ open: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: 18px;
+  color: ${({ open }) => (open ? theme.colors.ink : theme.colors.muted)};
+`;
+const ColorDot = styled.span`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: none;
+`;
+const SwatchGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(6, 28px);
+  gap: 22px;
+  justify-content: center;
+  margin: 22px 0;
+`;
+const Swatch = styled.button`
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  padding: 0;
+  &[aria-pressed="true"] {
+    box-shadow:
+      0 0 0 3px ${theme.colors.white},
+      0 0 0 5px ${theme.colors.ink};
+  }
+  &:disabled {
+    cursor: progress;
   }
 `;
 const ProfilePanel = styled.div`
-  width: min(620px, 100%);
-  margin: 48px auto;
-  @media (max-width: 600px) {
-    margin: 28px auto;
+  display: grid;
+  justify-items: start;
+  gap: 20px;
+  max-width: 560px;
+`;
+const FieldBlock = styled.div`
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 0 20px;
+`;
+const FieldLabel = styled.small`
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+`;
+const FieldRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+`;
+/** 닫힌 줄과 편집 중인 줄이 같은 너비여야 눌렀을 때 칸이 흔들리지 않습니다. */
+const FIELD_WIDTH = "min(340px, 100%)";
+const FieldBox = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: ${FIELD_WIDTH};
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 12px 20px;
+  text-align: left;
+  color: ${theme.colors.ink};
+  font-size: ${theme.text.s};
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: inherit;
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
   }
+`;
+/**
+ * 칸을 채우는 값입니다.
+ *
+ * `FieldBox > span`으로 늘리면 글자 수 카운터까지 같이 늘어나 칸을 반씩 나눠
+ * 가집니다. 늘어나는 쪽만 따로 두고, 카운터는 글자 폭만 차지하게 둡니다.
+ */
+const FieldValue = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* 아직 입력하지 않은 값은 자리표시자처럼 보이게 둡니다. */
+  &[data-empty="true"] {
+    color: ${theme.colors.muted};
+  }
+`;
+const FieldCounter = styled.span`
+  flex: none;
+  color: ${theme.colors.muted};
+`;
+const FieldChevron = styled.img`
+  flex: none;
+  width: 20px;
+  height: 20px;
+  transform: rotate(90deg);
+`;
+const FieldActions = styled.div`
+  display: flex;
+  gap: 6px;
+  flex: none;
 `;
 const HiddenFileInput = styled.input`
   display: none;
 `;
-const ProfileHeroAction = styled.div`
-  margin-left: auto;
-  @media (max-width: 600px) {
-    /* 좁은 화면에서는 아래로 내려 이름·자기소개를 밀지 않게 합니다. */
-    margin-left: 0;
-    flex-basis: 100%;
-    button {
-      width: 100%;
-    }
-  }
-`;
-const ProfileHero = styled.div`
+const PhotoRow = styled.div`
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 24px;
-  margin-bottom: 42px;
+  gap: 32px;
   img,
-  span {
-    width: 92px;
-    height: 92px;
-    border-radius: 50%;
-    object-fit: cover;
-    background: #f7f9fb;
+  > span {
+    flex: none;
+    width: 100px;
+    height: 100px;
     display: grid;
     place-items: center;
-    font-size: 48px;
-  }
-  h2 {
-    margin: 0 0 8px;
-  }
-  p {
-    margin: 0;
-    color: ${theme.colors.muted};
+    border-radius: 50%;
+    object-fit: cover;
+    background: ${theme.colors.panel};
+    font-size: 44px;
   }
   @media (max-width: 600px) {
-    gap: 16px;
-    margin-bottom: 28px;
+    gap: 18px;
     img,
-    span {
-      width: 72px;
-      height: 72px;
-      font-size: 38px;
-    }
-    h2 {
-      font-size: 22px;
-    }
-    p {
-      overflow-wrap: anywhere;
-    }
-  }
-`;
-const ProfileRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: center;
-  padding: 22px 0;
-  border-bottom: 1px solid ${theme.colors.line};
-  > div:first-of-type {
-    flex: 1;
-    display: grid;
-    gap: 7px;
-  }
-  small {
-    color: ${theme.colors.muted};
-  }
-  strong {
-    font-size: 18px;
-  }
-  input,
-  textarea {
-    width: 100%;
-    border: 0;
-    border-radius: 10px;
-    background: #f7f9fb;
-    padding: 12px;
-  }
-  textarea {
-    min-height: 70px;
-    resize: vertical;
-  }
-  > div:last-child {
-    display: flex;
-    gap: 7px;
-  }
-  @media (max-width: 600px) {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 0;
-    > div:last-child {
-      justify-content: flex-end;
-      button {
-        min-width: 72px;
-      }
+    > span {
+      width: 80px;
+      height: 80px;
+      font-size: 34px;
     }
   }
 `;
 const FontSelectRoot = styled.div`
   position: relative;
+  width: ${FIELD_WIDTH};
 `;
 const FontSelectTrigger = styled.button`
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: ${theme.radius.sm};
   background: ${theme.colors.panel};
-  padding: 12px;
+  padding: 12px 20px;
   text-align: left;
-  font-size: 17px;
+  font-size: ${theme.text.s};
   color: ${theme.colors.ink};
 `;
 const FontSelectCaret = styled.span`
-  color: ${theme.colors.muted};
-  font-size: 13px;
+  display: grid;
+  place-items: center;
+  img {
+    width: 20px;
+    height: 20px;
+    transform: rotate(180deg);
+  }
 `;
 const FontOptionList = styled.div`
   position: absolute;
@@ -1123,9 +1523,9 @@ const FontOptionList = styled.div`
   overflow-y: auto;
   display: grid;
   gap: 2px;
-  padding: 6px;
+  padding: 0;
   background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.line};
+  border: 1px solid ${theme.colors.panel};
   border-radius: ${theme.radius.sm};
   box-shadow: ${theme.shadow};
 `;
@@ -1136,14 +1536,14 @@ const FontOption = styled.button`
   gap: 12px;
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: ${theme.radius.sm};
   background: transparent;
-  padding: 12px;
+  padding: 8px 20px;
   text-align: left;
-  font-size: 18px;
-  line-height: 1.35;
+  font-size: ${theme.text.s};
   color: ${theme.colors.ink};
-  &[data-active="true"] {
+  &[data-active="true"],
+  &[aria-selected="true"] {
     background: ${theme.colors.panel};
   }
 `;
@@ -1159,33 +1559,124 @@ const LogoutButton = styled.button`
   font-weight: 800;
   padding: 10px 0;
 `;
-const DiaryHead = styled.div`
-  margin-bottom: 36px;
+const DiaryTopBar = styled.header`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 40px;
   h1 {
-    margin: 24px 0 6px;
+    margin: 0;
+    font-size: ${theme.text.h1};
   }
-  p {
-    color: ${theme.colors.muted};
+`;
+const DiaryTextAction = styled.button`
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+`;
+const DiaryBody = styled.div`
+  display: grid;
+  /* 오른쪽 열은 디자인 폭(313px)을 확보하고, 좁아지면 본문이 먼저 줄어듭니다. */
+  grid-template-columns: minmax(0, 800px) minmax(313px, 1fr);
+  align-items: start;
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+`;
+const DiaryDate = styled.p`
+  margin: 0;
+  font-size: ${theme.text.h2};
+  color: ${theme.colors.ink};
+`;
+const DiaryMain = styled.div`
+  display: grid;
+  gap: 10px;
+  padding: 24px 20px;
+  textarea {
+    min-height: 400px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    resize: vertical;
+    font-size: ${theme.text.h3};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
   }
   @media (max-width: 600px) {
-    margin-bottom: 26px;
-    h1 {
-      margin-top: 20px;
-      font-size: 27px;
+    padding: 0;
+    textarea {
+      min-height: 240px;
     }
   }
 `;
-const DiaryEditor = styled.div`
-  width: min(760px, 100%);
-  margin: 0 auto;
+const DiaryRail = styled.aside`
   display: grid;
-  gap: 26px;
+  gap: 40px;
+  align-content: start;
+  padding: 24px 20px;
   @media (max-width: 600px) {
-    gap: 22px;
-    textarea {
-      min-height: 42vh;
-    }
+    gap: 28px;
+    padding: 0;
   }
+`;
+const DiaryRailLabel = styled.p`
+  margin: 0 0 12px;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+  b {
+    color: ${theme.colors.red};
+  }
+`;
+const DiaryPillRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+const DiaryRailRow = styled.div`
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  > div {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+  }
+`;
+const DiaryIconAction = styled.button`
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  img {
+    width: 40px;
+    height: 40px;
+  }
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+`;
+const DiaryAttachment = styled.small`
+  max-width: 160px;
+  color: ${theme.colors.muted};
+  font-size: ${theme.text.xs};
+  overflow-wrap: anywhere;
 `;
 const EmotionRow = styled.div`
   display: flex;

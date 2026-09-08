@@ -1,8 +1,8 @@
 import styled from "@emotion/styled";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { CATEGORY_PRESETS, splitTodoContent, type CategoryTone } from "@tlitodos/core";
-import type { GroupMember, Todo } from "@tlitodos/types";
-import { theme, uiGlyphFont } from "./theme";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { Todo } from "@tlitodos/types";
+import { icons } from "./icons";
+import { palette, theme, uiGlyphFont } from "./theme";
 
 /** 아이콘으로 쓰는 문장부호를 감쌉니다. 이유는 `uiGlyphFont` 주석에 있습니다. */
 export const Glyph = styled.span`
@@ -22,53 +22,41 @@ export const AppShell = styled.div`
   }
 `;
 
+/**
+ * 디자인의 `selection` 컴포넌트입니다. 회색 테두리 pill이 기본이고, 주 동작은
+ * 검은 pill입니다. 초록 계열은 새 디자인에 없어 없앴습니다.
+ */
 export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "ghost" | "danger" }>`
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid ${({ variant = "soft" }) => (variant === "soft" ? palette.gray200 : "transparent")};
   border-radius: ${theme.radius.pill};
-  padding: 12px 20px;
-  font-weight: 700;
+  padding: 4px 12px;
+  font-size: ${theme.text.s};
   background: ${({ variant = "soft" }) =>
-    variant === "primary"
-      ? "#dff6ad"
-      : variant === "dark"
-        ? theme.colors.selected
-        : variant === "ghost"
-          ? "transparent"
-          : variant === "danger"
-            ? "#fff0f3"
-            : theme.colors.panel};
+    variant === "primary" || variant === "dark"
+      ? palette.black
+      : variant === "ghost"
+        ? "transparent"
+        : variant === "danger"
+          ? "#fff0f3"
+          : palette.gray100};
   color: ${({ variant = "soft" }) =>
-    variant === "dark" ? "white" : variant === "danger" ? theme.colors.red : theme.colors.ink};
-  transition:
-    transform 0.16s ease,
-    background 0.16s ease;
-  &:hover {
-    transform: translateY(-1px);
-  }
+    variant === "primary" || variant === "dark"
+      ? palette.white
+      : variant === "danger"
+        ? theme.colors.red
+        : theme.colors.ink};
+  transition: background 0.16s ease;
   &:disabled {
     opacity: 0.45;
     cursor: not-allowed;
-    transform: none;
   }
   @media (max-width: 600px) {
-    min-height: 44px;
-    padding: 11px 16px;
-  }
-`;
-
-export const IconButton = styled.button`
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: ${theme.colors.panel};
-  font-family: ${uiGlyphFont};
-  font-size: 22px;
-  @media (max-width: 600px) {
-    width: 44px;
-    height: 44px;
+    min-height: 40px;
+    padding: 6px 14px;
   }
 `;
 
@@ -111,135 +99,211 @@ const ViewChipButton = styled.button<{ active: boolean }>`
   align-items: center;
   gap: 8px;
   border: 0;
-  padding: 5px 15px 5px 5px;
+  padding: 4px 10px 4px 4px;
   border-radius: ${theme.radius.pill};
-  font-weight: 700;
-  background: ${({ active }) => (active ? theme.colors.selected : "#f0f3f7")};
-  color: ${({ active }) => (active ? "white" : theme.colors.ink)};
+  font-size: ${theme.text.h3};
+  background: ${({ active }) => (active ? palette.black : palette.gray200)};
+  color: ${({ active }) => (active ? palette.white : theme.colors.ink)};
   white-space: nowrap;
-  @media (max-width: 600px) {
-    min-height: 44px;
-  }
 `;
 const Avatar = styled.img`
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   background: white;
 `;
 const AvatarFallback = styled.span`
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: white;
 `;
 
+/**
+ * 할 일 개수를 사분면 점으로 보여주는 표식.
+ *
+ * Figma의 `day/status5`입니다. 30px 안에 20px 원 네 개를 10px씩 어긋나게 겹쳐
+ * 두고, 채워지지 않은 칸은 회색으로 남깁니다. 가운데에는 남은 개수를 숫자로
+ * 얹고, 남은 게 없으면 대신 체크를 올립니다.
+ */
+export const StatusCluster = ({
+  fills,
+  checked,
+  count,
+  size = 30,
+}: {
+  fills: (string | null)[];
+  checked?: boolean;
+  count?: number;
+  size?: number;
+}) => {
+  /**
+   * 가운데 글자는 사분면 네 칸이 다 찼을 때만 흰색입니다.
+   *
+   * 빈 칸은 gray/200이라 그 위에 흰 글자를 얹으면 읽히지 않습니다. 한 칸이라도
+   * 비어 있으면 검은색으로 씁니다.
+   */
+  const onFilled = [0, 1, 2, 3].every(index => fills[index]);
+  return (
+    <Cluster style={{ width: size, height: size }}>
+      {[0, 1, 2, 3].map(index => (
+        <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
+      ))}
+      {checked ? <ClusterCheck onFilled={onFilled} aria-hidden /> : null}
+      {!checked && count ? <ClusterCount onFilled={onFilled}>{count}</ClusterCount> : null}
+    </Cluster>
+  );
+};
+const Cluster = styled.span`
+  position: relative;
+  display: block;
+  flex: none;
+`;
+const Quadrant = styled.i`
+  position: absolute;
+  width: 66.67%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0.8;
+  &[data-slot="0"] {
+    left: 0;
+    top: 0;
+  }
+  &[data-slot="1"] {
+    right: 0;
+    top: 0;
+  }
+  &[data-slot="2"] {
+    left: 0;
+    bottom: 0;
+  }
+  &[data-slot="3"] {
+    right: 0;
+    bottom: 0;
+  }
+`;
+/**
+ * 체크 표시.
+ *
+ * 내보낸 아이콘은 흰색으로 칠해져 있어 그대로는 색을 바꿀 수 없습니다. 같은
+ * 파일을 마스크로 쓰고 색은 배경으로 넣어, 한 장으로 흰색과 검은색을 다 냅니다.
+ */
+const ClusterCheck = styled.span<{ onFilled: boolean }>`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 40%;
+  height: 40%;
+  transform: translate(-50%, -50%);
+  background: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
+  -webkit-mask: url(${icons.check}) center / contain no-repeat;
+  mask: url(${icons.check}) center / contain no-repeat;
+`;
+const ClusterCount = styled.span<{ onFilled: boolean }>`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
+  font-size: ${theme.text.s};
+  line-height: 1;
+`;
+
 export const CategoryPill = ({
   name,
-  tone,
+  accent,
   own,
   onAdd,
   onManage,
 }: {
   name: string;
-  tone: CategoryTone;
+  accent: string;
   own: boolean;
   onAdd?: () => void;
   onManage?: () => void;
 }) => {
-  const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
   const hasAddAction = own && Boolean(onAdd);
   return (
-    <Pill
-      background={preset.background}
-      hasAddAction={hasAddAction}
-      onClick={own && !preset.locked ? onManage : undefined}
-      role={own && !preset.locked ? "button" : undefined}
-    >
+    <Pill accent={accent} hasAddAction={hasAddAction} onClick={onManage} role={onManage ? "button" : undefined}>
       <span>{name}</span>
       {own && onAdd ? (
         <PlusButton
           aria-label={`${name} 할 일 추가`}
-          background={preset.color}
           onClick={event => {
             event.stopPropagation();
             onAdd();
           }}
         >
-          +
+          <img src={icons.plus} alt="" aria-hidden />
         </PlusButton>
       ) : null}
     </Pill>
   );
 };
-const Pill = styled.div<{ background: string; hasAddAction: boolean }>`
+const Pill = styled.div<{ accent: string; hasAddAction: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 11px;
-  min-height: 40px;
+  gap: 16px;
   max-width: 100%;
-  padding: ${({ hasAddAction }) => (hasAddAction ? "5px 7px 5px 22px" : "5px 22px")};
+  padding: ${({ hasAddAction }) => (hasAddAction ? "6px 8px 6px 28px" : "6px 28px")};
   border-radius: ${theme.radius.pill};
-  background: ${({ background }) => background};
-  font-weight: 700;
+  background: ${palette.gray200};
+  color: ${({ accent }) => accent};
+  font-size: 18px;
   > span {
     min-width: 0;
     overflow-wrap: anywhere;
   }
   @media (max-width: 600px) {
     width: ${({ hasAddAction }) => (hasAddAction ? "100%" : "fit-content")};
-    min-height: 46px;
     justify-content: space-between;
-    padding: ${({ hasAddAction }) => (hasAddAction ? "5px 6px 5px 18px" : "5px 20px")};
   }
 `;
-const PlusButton = styled.button<{ background: string }>`
-  width: 28px;
-  height: 28px;
+const PlusButton = styled.button`
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: ${({ background }) => background};
-  color: white;
-  font-size: 22px;
-  line-height: 1;
+  background: transparent;
+  img {
+    width: 24px;
+    height: 24px;
+  }
   @media (max-width: 600px) {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
   }
 `;
 
 export const TodoRow = ({
   todo,
-  tone,
+  accent,
   own,
   onToggle,
   onEdit,
 }: {
   todo: Todo;
-  tone: CategoryTone;
+  accent: string;
   own: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
 }) => {
-  const preset = CATEGORY_PRESETS.find(item => item.key === tone) ?? CATEGORY_PRESETS[0];
-  const content = splitTodoContent(todo.title);
-  const detail = content.detail || todo.subtasks.map(item => item.content).join(" · ");
+  const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
+  // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
+  const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
     <TodoItem>
-      <CheckButton
-        aria-label={todo.isCompleted ? "완료됨" : "완료하기"}
-        disabled={!own}
-        done={todo.isCompleted}
-        color={preset.color}
-        onClick={onToggle}
-      >
-        {todo.isCompleted ? "✓" : ""}
+      <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
+        <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
       <TodoTextButton disabled={!own} onClick={onEdit}>
-        <strong>{content.title}</strong>
+        <strong>{todo.title}</strong>
         {detail ? <small>{detail}</small> : null}
       </TodoTextButton>
       {!own && !todo.isCompleted ? (
@@ -254,60 +318,44 @@ const TodoItem = styled.div`
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  min-height: 48px;
-  padding: 4px 0;
+  gap: 12px;
+  padding: 6px 8px;
+  border-radius: ${theme.radius.sm};
   &:hover > button:last-child:not(:disabled) {
     opacity: 1;
   }
   @media (max-width: 600px) {
-    min-height: 56px;
-    gap: 12px;
-    padding: 6px 2px;
+    padding: 8px 6px;
   }
 `;
-const CheckButton = styled.button<{ done: boolean; color: string }>`
+const CheckButton = styled.button`
   display: grid;
   place-items: center;
-  flex: 0 0 24px;
-  width: 24px;
-  height: 24px;
-  margin-top: 2px;
-  border-radius: 50%;
-  border: 2px solid ${({ color }) => color};
-  background: ${({ done, color }) => (done ? color : "transparent")};
-  color: white;
-  font-family: ${uiGlyphFont};
-  font-weight: 800;
+  flex: none;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
   &:disabled {
     cursor: default;
-  }
-  @media (max-width: 600px) {
-    flex-basis: 28px;
-    width: 28px;
-    height: 28px;
   }
 `;
 const TodoTextButton = styled.button`
   min-width: 0;
   flex: 1;
+  display: grid;
+  justify-items: start;
   border: 0;
   background: transparent;
   text-align: left;
   padding: 0;
   color: ${theme.colors.ink};
-  strong,
-  small {
-    display: block;
-  }
   strong {
-    font-size: 15px;
+    font-size: ${theme.text.h3};
     overflow-wrap: anywhere;
   }
   small {
-    margin-top: 7px;
     color: ${theme.colors.muted};
-    font-size: 12px;
+    font-size: ${theme.text.s};
     overflow-wrap: anywhere;
   }
   &:disabled {
@@ -318,110 +366,14 @@ const BetOverlay = styled.button`
   position: absolute;
   inset: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: ${theme.radius.sm};
   background: rgba(255, 255, 255, 0.86);
   color: ${theme.colors.ink};
-  font-weight: 800;
   opacity: 0;
   transition: opacity 0.18s;
   &:disabled {
     cursor: not-allowed;
   }
-`;
-
-export const Selection = ({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) => (
-  <RadioLabel>
-    <input type="radio" {...props} />
-    <span>{label}</span>
-  </RadioLabel>
-);
-export const Option = Selection;
-const RadioLabel = styled.label`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  input {
-    position: absolute;
-    opacity: 0;
-  }
-  span {
-    padding: 8px 13px;
-    border: 1px solid ${theme.colors.line};
-    border-radius: ${theme.radius.pill};
-    background: #f8f9fb;
-  }
-  input:checked + span {
-    background: #effad9;
-    border-color: #d2eb9e;
-  }
-  @media (max-width: 600px) {
-    span {
-      min-height: 42px;
-      display: inline-flex;
-      align-items: center;
-      padding: 9px 13px;
-    }
-  }
-`;
-
-export const ProfileCard = ({ member, onClick }: { member: GroupMember; onClick?: () => void }) => (
-  <ProfileButton onClick={onClick}>
-    {member.profileImageUrl ? <ProfileImage src={member.profileImageUrl} alt="" /> : <ProfileAvatar>🐰</ProfileAvatar>}
-    <span>
-      <strong>{member.name}</strong>
-      {member.bio?.trim() ? <small>{member.bio}</small> : null}
-    </span>
-  </ProfileButton>
-);
-const ProfileButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  width: 100%;
-  padding: 12px;
-  border: 0;
-  border-radius: 12px;
-  background: white;
-  text-align: left;
-  transition: background 0.15s;
-  &:hover {
-    background: #f6f8fa;
-  }
-  strong,
-  small {
-    display: block;
-  }
-  strong {
-    font-size: 20px;
-  }
-  small {
-    color: ${theme.colors.muted};
-    margin-top: 7px;
-  }
-  @media (max-width: 600px) {
-    gap: 14px;
-    min-height: 76px;
-    padding: 10px 8px;
-    strong {
-      font-size: 18px;
-    }
-  }
-`;
-const ProfileImage = styled.img`
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  object-fit: cover;
-`;
-const ProfileAvatar = styled.span`
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #fff3f7;
-  font-size: 33px;
 `;
 
 export const DiaryBadge = ({
@@ -432,155 +384,93 @@ export const DiaryBadge = ({
 }: {
   emotion?: string | null;
   nickname: string;
-  date: string;
+  /** 날짜를 보여줄 자리가 있는 곳(`modal / diary`)에서만 넘깁니다. */
+  date?: string;
   onClick?: () => void;
 }) => (
   <DiaryButton onClick={onClick}>
-    {emotion ? <span>{emotion}</span> : null}
+    <span aria-hidden>{emotion || "😀"}</span>
     <strong>{nickname}</strong>
-    <small>{date}</small>
+    {date ? <small>{date}</small> : null}
   </DiaryButton>
 );
 const DiaryButton = styled.button`
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 0;
+  border: 1px solid ${palette.gray200};
   border-radius: ${theme.radius.pill};
-  padding: 9px 14px;
-  background: #f7f9fb;
+  padding: 4px 12px;
+  background: ${palette.gray100};
+  color: ${theme.colors.ink};
+  font-size: ${theme.text.s};
+  white-space: nowrap;
   strong {
-    font-size: 13px;
+    font-size: ${theme.text.s};
   }
   small {
     color: ${theme.colors.muted};
-    font-size: 11px;
+    font-size: ${theme.text.xs};
   }
   @media (max-width: 600px) {
-    min-height: 42px;
+    min-height: 40px;
     max-width: 100%;
   }
 `;
 
 export const DayStash = ({
-  tones,
-  completed,
+  marks,
+  incompleteCount,
   selected,
   today,
   date,
   onClick,
 }: {
-  tones: CategoryTone[];
-  completed: CategoryTone[];
+  /** 그 날 할 일이 있는 카테고리별 강조색과 완료 여부입니다. */
+  marks: { accent: string; done: boolean }[];
+  /** 그 날 남은 할 일 수. 0이면 숫자 대신 체크를 올립니다. */
+  incompleteCount: number;
   selected?: boolean;
   today?: boolean;
   date: number;
   onClick?: () => void;
-}) => (
-  <DayButton onClick={onClick} selected={Boolean(selected)} today={Boolean(today)}>
-    <Stashes data-count={tones.length}>
-      {tones.length ? (
-        tones.slice(0, 4).map((tone, index) => {
-          const p = CATEGORY_PRESETS.find(x => x.key === tone) ?? CATEGORY_PRESETS[0];
-          return <Dot key={`${tone}-${index}`} style={{ background: completed.includes(tone) ? p.strong : p.stash }} />;
-        })
-      ) : (
-        <EmptyDot />
-      )}
-    </Stashes>
-    <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
-      {String(date).padStart(2, "0")}
-    </DateLabel>
-  </DayButton>
-);
-const DayButton = styled.button<{ selected: boolean; today: boolean }>`
-  width: 54px;
-  height: 68px;
+}) => {
+  // 다 끝낸 카테고리만 칩니다. 남은 카테고리는 빈 사분면으로 둡니다.
+  // 점 색은 카테고리 색 그대로이고, 80% 불투명도는 사분면 자체에 걸려 있습니다.
+  const fills = marks.slice(0, 4).map(mark => (mark.done ? mark.accent : null));
+  return (
+    <DayButton onClick={onClick}>
+      <StatusCluster
+        fills={fills}
+        checked={incompleteCount === 0 && marks.length > 0}
+        count={incompleteCount || undefined}
+      />
+      <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
+        {String(date).padStart(2, "0")}
+      </DateLabel>
+    </DayButton>
+  );
+};
+const DayButton = styled.button`
+  width: 100%;
   border: 0;
   background: transparent;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   padding: 0;
-  color: ${({ today }) => (today ? theme.colors.blue : theme.colors.ink)};
-  @media (max-width: 600px) {
-    width: 40px;
-    height: 64px;
-  }
-`;
-const Stashes = styled.span`
-  height: 36px;
-  width: 36px;
-  position: relative;
-  display: block;
-  i {
-    position: absolute;
-  }
-  &[data-count="1"] i {
-    left: 9px;
-    top: 9px;
-  }
-  &[data-count="2"] i:nth-of-type(1) {
-    left: 3px;
-    top: 9px;
-  }
-  &[data-count="2"] i:nth-of-type(2) {
-    left: 15px;
-    top: 9px;
-  }
-  &[data-count="3"] i:nth-of-type(1) {
-    left: 9px;
-    top: 1px;
-  }
-  &[data-count="3"] i:nth-of-type(2) {
-    left: 2px;
-    top: 15px;
-  }
-  &[data-count="3"] i:nth-of-type(3) {
-    left: 16px;
-    top: 15px;
-  }
-  &[data-count="4"] i:nth-of-type(1) {
-    left: 2px;
-    top: 2px;
-  }
-  &[data-count="4"] i:nth-of-type(2) {
-    left: 16px;
-    top: 2px;
-  }
-  &[data-count="4"] i:nth-of-type(3) {
-    left: 2px;
-    top: 16px;
-  }
-  &[data-count="4"] i:nth-of-type(4) {
-    left: 16px;
-    top: 16px;
-  }
-`;
-const Dot = styled.i`
-  display: block;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-`;
-const EmptyDot = styled.i`
-  display: block;
-  width: 20px;
-  height: 20px;
-  left: 8px;
-  top: 8px;
-  border: 2px solid #d7dde3;
-  border-radius: 50%;
+  color: inherit;
 `;
 const DateLabel = styled.span<{ selected: boolean; today: boolean }>`
-  min-width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: ${({ selected, today }) => (today ? theme.colors.selected : selected ? "#e2e5e8" : "transparent")};
-  color: ${({ today }) => (today ? "white" : "inherit")};
+  background: ${({ selected, today }) => (selected ? palette.black : today ? palette.gray200 : "transparent")};
+  color: ${({ selected }) => (selected ? palette.white : "inherit")};
+  font-size: ${theme.text.s};
 `;
 
 export const BottomNav = ({
@@ -591,22 +481,17 @@ export const BottomNav = ({
   onNavigate: (next: "home" | "alarm" | "profile") => void;
 }) => (
   <Nav>
-    <NavButton active={active === "home"} onClick={() => onNavigate("home")} aria-label="home">
-      <svg viewBox="0 0 24 24">
-        <path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" />
-      </svg>
-    </NavButton>
-    <NavButton active={active === "alarm"} onClick={() => onNavigate("alarm")} aria-label="alarm">
-      <svg viewBox="0 0 24 24">
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
-      </svg>
-    </NavButton>
-    <NavButton active={active === "profile"} onClick={() => onNavigate("profile")} aria-label="profile">
-      <svg viewBox="0 0 24 24">
-        <circle cx="12" cy="8" r="4" />
-        <path d="M4 21a8 8 0 0 1 16 0" />
-      </svg>
-    </NavButton>
+    {(
+      [
+        ["home", icons.home, "홈"],
+        ["alarm", icons.bell, "알림"],
+        ["profile", icons.profile, "프로필"],
+      ] as const
+    ).map(([key, src, label]) => (
+      <NavButton key={key} active={active === key} onClick={() => onNavigate(key)} aria-label={label}>
+        <img src={src} alt="" aria-hidden />
+      </NavButton>
+    ))}
   </Nav>
 );
 const Nav = styled.nav`
@@ -614,12 +499,12 @@ const Nav = styled.nav`
   left: 0;
   right: 0;
   bottom: 0;
-  height: 100px;
+  height: ${theme.layout.nav};
   display: flex;
   justify-content: center;
-  gap: 110px;
+  gap: 140px;
   align-items: center;
-  background: white;
+  background: ${palette.white};
   @media (max-width: 600px) {
     position: fixed;
     z-index: 60;
@@ -631,21 +516,19 @@ const Nav = styled.nav`
   }
 `;
 const NavButton = styled.button<{ active: boolean }>`
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   border: 0;
-  background: transparent;
-  color: ${({ active }) => (active ? theme.colors.ink : "#c6d0df")};
-  line-height: 1;
-  width: 52px;
-  height: 52px;
   border-radius: 50%;
-  svg {
-    width: 30px;
-    height: 30px;
-    fill: ${({ active }) => (active ? "currentColor" : "none")};
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  background: transparent;
+  /* 아이콘 색이 파일에 박혀 있어, 선택 여부는 불투명도로 나타냅니다. */
+  opacity: ${({ active }) => (active ? 1 : 0.3)};
+  transition: opacity 0.16s ease;
+  img {
+    width: 32px;
+    height: 32px;
   }
 `;
 
@@ -656,6 +539,7 @@ export const Modal = ({
   onClose,
   nested = false,
   login = false,
+  sheet = false,
 }: {
   open: boolean;
   title?: string;
@@ -663,40 +547,43 @@ export const Modal = ({
   onClose?: () => void;
   nested?: boolean;
   login?: boolean;
+  /** 디자인의 상세 시트처럼 넓은 화면에서도 아래에 붙는 형태입니다. */
+  sheet?: boolean;
 }) =>
   open ? (
     <Overlay
       login={login}
+      sheet={sheet}
       onMouseDown={event => {
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog login={login} role="dialog" aria-modal="true" aria-label={title}>
+      <Dialog login={login} sheet={sheet} role="dialog" aria-modal="true" aria-label={title}>
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>
     </Overlay>
   ) : null;
-const Overlay = styled.div<{ login: boolean }>`
+const Overlay = styled.div<{ login: boolean; sheet: boolean }>`
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
-  place-items: center;
-  padding: 22px;
+  place-items: ${({ sheet }) => (sheet ? "end center" : "center")};
+  padding: ${({ sheet }) => (sheet ? "22px 22px 0" : "22px")};
   background: ${({ login }) => (login ? theme.colors.loginOverlay : theme.colors.overlay)};
   @media (max-width: 600px) {
     place-items: ${({ login }) => (login ? "center" : "end center")};
     padding: ${({ login }) => (login ? "16px" : "0")};
   }
 `;
-const Dialog = styled.div<{ login: boolean }>`
+const Dialog = styled.div<{ login: boolean; sheet: boolean }>`
   width: min(800px, 100%);
   max-height: calc(100vh - 44px);
   overflow: auto;
-  border-radius: ${theme.radius.lg};
+  border-radius: ${({ sheet }) => (sheet ? "40px 40px 0 0" : theme.radius.lg)};
   background: white;
-  padding: 54px 60px;
+  padding: ${({ sheet }) => (sheet ? "60px" : "54px 60px")};
   box-shadow: ${theme.shadow};
   h2 {
     margin: 0 0 30px;
@@ -715,43 +602,6 @@ const Dialog = styled.div<{ login: boolean }>`
   }
 `;
 
-export const Field = styled.label`
-  display: grid;
-  gap: 9px;
-  font-weight: 700;
-  input,
-  textarea,
-  select {
-    width: 100%;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    background: #f7f9fb;
-    padding: 14px 16px;
-    color: ${theme.colors.ink};
-  }
-  textarea {
-    min-height: 96px;
-    resize: vertical;
-  }
-  small {
-    justify-self: end;
-    color: ${theme.colors.muted};
-    font-weight: 500;
-  }
-`;
-export const FormGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px 60px;
-  @media (max-width: 700px) {
-    grid-template-columns: 1fr;
-  }
-`;
-export const ButtonStack = styled.div`
-  display: grid;
-  gap: 10px;
-  margin-top: 28px;
-`;
 export const ErrorText = styled.p`
   color: ${theme.colors.red};
   font-size: 13px;
