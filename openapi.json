@@ -40,6 +40,14 @@
     {
       "name": "diaries",
       "description": "Diary entries with optional image uploads"
+    },
+    {
+      "name": "notifications",
+      "description": "Notification list, kind filter, paging, and read state"
+    },
+    {
+      "name": "uploads",
+      "description": "Authenticated access to uploaded images"
     }
   ],
   "paths": {
@@ -349,6 +357,121 @@
         }
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "List notifications",
+        "description": "Friend todo completions, friend diaries and bet requests, newest first. Cursor-paged.",
+        "operationId": "listNotifications",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NotificationType"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Return only this kind. Omit for every kind."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "exclusiveMinimum": 0
+            },
+            "description": "nextCursor from the previous page."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of notifications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notificationId}/read": {
+      "patch": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark a notification read",
+        "operationId": "markNotificationRead",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/NotificationId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notification marked read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/users/me/font": {
       "patch": {
         "tags": [
@@ -598,6 +721,58 @@
             "$ref": "#/components/responses/ValidationError"
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Rename group",
+        "description": "Group leader only. Only the name can be changed.",
+        "operationId": "renameGroup",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupRenameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Group renamed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
       }
     },
     "/api/v1/groups/{groupId}/invite-code": {
@@ -678,6 +853,60 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/groups/{groupId}/members/remove": {
+      "post": {
+        "tags": [
+          "groups"
+        ],
+        "summary": "Remove several members",
+        "description": "Group leader only. Removes every listed member in one request.",
+        "operationId": "removeGroupMembers",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/GroupId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembersRemoveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Members removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -868,7 +1097,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CategoryRequest"
+                "$ref": "#/components/schemas/CategoryPatchRequest"
               }
             }
           }
@@ -944,7 +1173,7 @@
           "todos"
         ],
         "summary": "List todos",
-        "description": "Returns the current user's todos by default. To view another member's todos, provide both userId and a groupId shared by the requester and that member; only GROUP and PUBLIC todos are returned for another member.",
+        "description": "Returns the current user's todos by default. Any logged-in user can read another user's todos: pass userId, and pass groupId as well on a group screen so the requester and that member are checked to share the group. Todos no longer carry a visibility, so nothing is filtered out by visibility. Editing, completing and deleting stay owner-only.",
         "operationId": "listTodos",
         "security": [
           {
@@ -972,9 +1201,10 @@
               "type": [
                 "string",
                 "null"
-              ]
+              ],
+              "format": "date"
             },
-            "description": "Filter by dueDate string. When provided, the backend returns todos whose dueDate equals this value plus todos whose dueDate is null."
+            "description": "Returns every todo whose startDate..dueDate range covers this date, both ends included."
           },
           {
             "name": "userId",
@@ -986,7 +1216,7 @@
                 "null"
               ]
             },
-            "description": "Todo owner user id. Omit to view the current user's todos. When specified for another user, groupId is required and only GROUP or PUBLIC todos are returned."
+            "description": "Todo owner user id. Omit to view the current user's todos. On a group screen send groupId too so shared membership is checked."
           }
         ],
         "responses": {
@@ -1067,7 +1297,7 @@
           "todos"
         ],
         "summary": "List daily todo statuses",
-        "description": "One entry per day of the requested month, including days with no todos. Counts only the authenticated user's todos; there is no userId parameter, so another member's calendar cannot be read through this operation.",
+        "description": "One entry per day of the month, for the calendar's dots and per-day counts. Pass userId (and groupId on a group screen) to summarise another member's month; the requester and that member must share the group. A todo spanning several days is counted on every day it covers.",
         "operationId": "listDailyTodoStatuses",
         "security": [
           {
@@ -1084,6 +1314,30 @@
               "type": "string",
               "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$"
             }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Todo owner user id. Omit to summarise the current user's month."
+          },
+          {
+            "name": "groupId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Group shared by the requester and userId."
           }
         ],
         "responses": {
@@ -1110,6 +1364,45 @@
       }
     },
     "/api/v1/todos/{todoId}": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Get todo",
+        "description": "Returns one todo. Any logged-in user can read it; only the owner can change it.",
+        "operationId": "getTodo",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Todo.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
       "patch": {
         "tags": [
           "todos"
@@ -1194,7 +1487,8 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           }
-        }
+        },
+        "description": "Deletes the todo. For a routine occurrence this deletes the entire routine, including completed occurrences, so warn the user before calling it."
       }
     },
     "/api/v1/todos/{todoId}/subtasks": {
@@ -1384,6 +1678,304 @@
             "$ref": "#/components/responses/ValidationError"
           }
         }
+      },
+      "put": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Replace todo dependencies",
+        "description": "Replaces the whole dependency list. An empty array clears it. Cycles are rejected.",
+        "operationId": "setTodoDependencies",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependenciesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dependencies replaced.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/dependencies/{dependencyTodoId}": {
+      "delete": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Remove one todo dependency",
+        "operationId": "deleteTodoDependency",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          },
+          {
+            "$ref": "#/components/parameters/DependencyTodoId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dependency removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/routines": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Create routine",
+        "description": "One request creates the routine and every occurrence in a single transaction. Do not loop a POST per date.",
+        "operationId": "createRoutine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineCreateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Routine created, or the stored result of an identical retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          },
+          "410": {
+            "description": "The routine for this requestId was deleted. Do not recreate it with the same key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/routines/{routineId}": {
+      "get": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Get routine rule",
+        "description": "Returns the immutable rule the routine was created from. Current occurrence state comes from the todo endpoints.",
+        "operationId": "getRoutine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoutineId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Routine rule.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Delete a routine and every occurrence",
+        "description": "Deletes all occurrences including completed ones and the original todo, plus dependency references, bets and notifications attached to them. Calling it again succeeds with deletedCount 0.",
+        "operationId": "deleteRoutine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RoutineId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Routine deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineDeleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/todos/{todoId}/routine": {
+      "post": {
+        "tags": [
+          "todos"
+        ],
+        "summary": "Turn a todo into a routine",
+        "description": "Moves the original todo to the first occurrence date and creates only the later dates. Title and category come from the original. A todo already in a routine is a 409; another user's todo is a 404.",
+        "operationId": "convertTodoToRoutine",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TodoId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutineScheduleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Routine created, or the stored result of an identical retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutineCreateResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "409": {
+            "$ref": "#/components/responses/ConflictError"
+          },
+          "410": {
+            "description": "The routine for this requestId was deleted. Do not recreate it with the same key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
       }
     },
     "/api/v1/todos/{todoId}/bets": {
@@ -1426,6 +2018,82 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/api/v1/bets": {
+      "get": {
+        "tags": [
+          "bets"
+        ],
+        "summary": "List bets",
+        "description": "Bets the current user requested or is the subject of.",
+        "operationId": "listBets",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Bet"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        }
+      }
+    },
+    "/api/v1/bets/{betId}": {
+      "get": {
+        "tags": [
+          "bets"
+        ],
+        "summary": "Get bet",
+        "operationId": "getBet",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BetId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Bet"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
           },
           "404": {
             "$ref": "#/components/responses/NotFoundError"
@@ -1625,7 +2293,47 @@
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
           }
-        }
+        },
+        "description": "Returns the current user's diaries by default. Pass userId (and groupId) to read a fellow group member's PUBLIC diaries.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date"
+            },
+            "description": "Filter by the diary's date."
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Diary author user id. Omit to read the current user's diaries."
+          },
+          {
+            "name": "groupId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "description": "Group shared by the requester and userId."
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -1799,6 +2507,141 @@
           }
         }
       }
+    },
+    "/uploads/profiles/{filename}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Get an uploaded profile image",
+        "description": "Requires Authorization: Bearer. An <img src> cannot send the header, so fetch the bytes and render an object URL.",
+        "operationId": "getProfileUpload",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Filename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file bytes.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/uploads/diaries/{filename}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Get an uploaded diary image",
+        "description": "Requires Authorization: Bearer. Only the author and, for PUBLIC diaries, fellow group members may read it.",
+        "operationId": "getDiaryUpload",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Filename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file bytes.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/uploads/bet-proofs/{filename}": {
+      "get": {
+        "tags": [
+          "uploads"
+        ],
+        "summary": "Get an uploaded bet proof image",
+        "description": "Requires Authorization: Bearer. Only the parties to the bet may read it.",
+        "operationId": "getBetProofUpload",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Filename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file bytes.",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1835,8 +2678,40 @@
           "type": "integer"
         }
       },
+      "DependencyTodoId": {
+        "name": "dependencyTodoId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "Filename": {
+        "name": "filename",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      },
       "GroupId": {
         "name": "groupId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "NotificationId": {
+        "name": "notificationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer"
+        }
+      },
+      "RoutineId": {
+        "name": "routineId",
         "in": "path",
         "required": true,
         "schema": {
@@ -2089,6 +2964,27 @@
           }
         }
       },
+      "CategoryPatchRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+          }
+        }
+      },
       "CategoryUpdateResponse": {
         "type": "object",
         "required": [
@@ -2166,6 +3062,7 @@
         "required": [
           "diaryId",
           "userId",
+          "date",
           "content",
           "imageUrl",
           "emotion",
@@ -2178,6 +3075,11 @@
           },
           "userId": {
             "type": "integer"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Local calendar date the diary belongs to, as YYYY-MM-DD."
           },
           "content": {
             "type": "string"
@@ -2213,6 +3115,11 @@
           "content"
         ],
         "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Local calendar date the diary belongs to. Defaults to today when omitted."
+          },
           "content": {
             "type": "string",
             "minLength": 1
@@ -2235,6 +3142,11 @@
           "content"
         ],
         "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Local calendar date the diary belongs to. Defaults to today when omitted."
+          },
           "content": {
             "type": "string",
             "minLength": 1
@@ -2261,6 +3173,14 @@
       "DiaryPatchRequest": {
         "type": "object",
         "properties": {
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Local calendar date the diary belongs to. Omit to leave it unchanged."
+          },
           "content": {
             "type": [
               "string",
@@ -2467,6 +3387,38 @@
           }
         }
       },
+      "GroupRenameRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        }
+      },
+      "MembersRemoveRequest": {
+        "type": "object",
+        "required": [
+          "userIds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "userIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 30,
+            "items": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      },
       "GroupJoinResponse": {
         "type": "object",
         "required": [
@@ -2669,6 +3621,118 @@
           }
         }
       },
+      "NotificationType": {
+        "type": "string",
+        "enum": [
+          "TODO_COMPLETED",
+          "DIARY_CREATED",
+          "BET_REQUESTED"
+        ]
+      },
+      "NotificationActor": {
+        "type": "object",
+        "required": [
+          "userId",
+          "name",
+          "profileImageUrl"
+        ],
+        "properties": {
+          "userId": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profileImageUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "notificationId",
+          "type",
+          "actor",
+          "todo",
+          "diaryId",
+          "bet",
+          "createdAt",
+          "readAt"
+        ],
+        "properties": {
+          "notificationId": {
+            "type": "integer"
+          },
+          "type": {
+            "$ref": "#/components/schemas/NotificationType"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/NotificationActor"
+          },
+          "todo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodoPreview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "diaryId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Bet"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "readAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "null while unread."
+          }
+        }
+      },
+      "NotificationsPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Pass back as cursor. null on the last page."
+          }
+        }
+      },
       "FontSettingRequest": {
         "type": "object",
         "required": [
@@ -2749,15 +3813,18 @@
           "todoId",
           "userId",
           "title",
+          "description",
           "categoryId",
+          "startDate",
+          "dueDate",
+          "time",
+          "timezone",
           "importance",
           "hardship",
-          "dueDate",
-          "visibility",
-          "groupId",
           "x",
           "y",
           "isRoutine",
+          "routineId",
           "isCompleted",
           "subtasks",
           "dependencies",
@@ -2772,10 +3839,40 @@
             "type": "integer"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Detail text. An empty string when the todo has none."
           },
           "categoryId": {
             "type": "integer"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "First day of the todo, as YYYY-MM-DD."
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Last day of the todo, inclusive. The todo appears on every date from startDate through dueDate."
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "HH:MM in five-minute steps, or null when no time is set."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone. Defaults to Asia/Seoul."
           },
           "importance": {
             "$ref": "#/components/schemas/Importance"
@@ -2784,22 +3881,6 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 5
-          },
-          "dueDate": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "Stored as a string. Use a consistent frontend format such as YYYY-MM-DD."
-          },
-          "visibility": {
-            "$ref": "#/components/schemas/Visibility"
-          },
-          "groupId": {
-            "type": [
-              "integer",
-              "null"
-            ]
           },
           "x": {
             "type": "number",
@@ -2811,6 +3892,13 @@
           },
           "isRoutine": {
             "type": "boolean"
+          },
+          "routineId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Owning routine id. Older rows may have isRoutine=true with routineId=null; those are not grouped or bulk-deleted."
           },
           "isCompleted": {
             "type": "boolean"
@@ -2843,6 +3931,26 @@
             "description": "ISO-like datetime string or null."
           }
         }
+      },
+      "TodoPreview": {
+        "type": "object",
+        "required": [
+          "todoId",
+          "title",
+          "description"
+        ],
+        "properties": {
+          "todoId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "description": "Todo summary embedded in a notification."
       },
       "TodoCompleteResponse": {
         "type": "object",
@@ -2892,10 +4000,17 @@
           "title",
           "categoryId"
         ],
+        "additionalProperties": false,
         "properties": {
           "title": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 100,
+            "default": ""
           },
           "categoryId": {
             "type": "integer"
@@ -2909,22 +4024,35 @@
             "maximum": 5,
             "default": 1
           },
+          "startDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "default": null,
+            "description": "Defaults to the creation date when omitted."
+          },
           "dueDate": {
             "type": [
               "string",
               "null"
             ],
-            "default": null
+            "format": "date",
+            "default": null,
+            "description": "Inclusive last day. Defaults to startDate when omitted."
           },
-          "visibility": {
-            "$ref": "#/components/schemas/Visibility"
-          },
-          "groupId": {
+          "time": {
             "type": [
-              "integer",
+              "string",
               "null"
             ],
-            "default": null
+            "default": null,
+            "description": "HH:MM in five-minute steps."
+          },
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Seoul"
           },
           "x": {
             "type": "number",
@@ -2935,10 +4063,6 @@
             "type": "number",
             "format": "float",
             "default": 0
-          },
-          "isRoutine": {
-            "type": "boolean",
-            "default": false
           }
         }
       },
@@ -2962,14 +4086,317 @@
           }
         }
       },
+      "DependenciesRequest": {
+        "type": "object",
+        "required": [
+          "dependencyTodoIds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "dependencyTodoIds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            "description": "Replaces the whole dependency list. An empty array clears it."
+          }
+        }
+      },
+      "RoutineFrequency": {
+        "type": "string",
+        "enum": [
+          "DAILY",
+          "WEEKLY",
+          "MONTHLY",
+          "YEARLY"
+        ]
+      },
+      "Recurrence": {
+        "type": "object",
+        "required": [
+          "frequency"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "frequency": {
+            "$ref": "#/components/schemas/RoutineFrequency"
+          },
+          "interval": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "default": 1,
+            "description": "WEEKLY only: 1 is every week, 2 every other week. Other frequencies accept 1."
+          },
+          "weekdays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 1,
+            "maxItems": 7,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "description": "WEEKLY only: Monday=1 through Sunday=7. Duplicates are removed and the list sorted. Omit to use the start date's weekday."
+          }
+        },
+        "description": "MONTHLY keeps the start date's day of month and skips months without it; YEARLY keeps the month and day. Missing dates are never moved to the end of the month."
+      },
+      "RoutineCreateRequest": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "startDate",
+          "endDate",
+          "title",
+          "categoryId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "One UUID per create action. A retry must reuse the same key and the same body; a new key creates another routine."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 100,
+            "default": ""
+          },
+          "categoryId": {
+            "type": "integer"
+          },
+          "importance": {
+            "$ref": "#/components/schemas/Importance"
+          },
+          "hardship": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "default": 1
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Inclusive. The range spans at most 36,600 days and must produce 1 to 1,000 occurrences."
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null,
+            "description": "HH:MM in five-minute steps."
+          },
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Seoul"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Recurrence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weekdays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 1,
+            "maxItems": 7,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "description": "Compatibility field for older clients. Sending it together with recurrence is a 422."
+          },
+          "x": {
+            "type": "number",
+            "format": "float",
+            "default": 0
+          },
+          "y": {
+            "type": "number",
+            "format": "float",
+            "default": 0
+          }
+        }
+      },
+      "RoutineScheduleRequest": {
+        "type": "object",
+        "required": [
+          "requestId",
+          "startDate",
+          "endDate"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Seoul"
+          },
+          "recurrence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Recurrence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weekdays": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 1,
+            "maxItems": 7,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "description": "Compatibility field for older clients. Sending it together with recurrence is a 422."
+          }
+        },
+        "description": "Turns an existing todo into a routine. Title and category come from the original todo."
+      },
+      "RoutineOccurrence": {
+        "type": "object",
+        "required": [
+          "todoId",
+          "dueDate"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "todoId": {
+            "type": "integer"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "RoutineCreateResponse": {
+        "type": "object",
+        "required": [
+          "routineId",
+          "createdCount",
+          "occurrences"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "routineId": {
+            "type": "integer"
+          },
+          "createdCount": {
+            "type": "integer",
+            "description": "Total occurrences, counting the reused original todo when converting."
+          },
+          "occurrences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoutineOccurrence"
+            }
+          }
+        }
+      },
+      "RoutineResponse": {
+        "type": "object",
+        "required": [
+          "routineId",
+          "definition"
+        ],
+        "properties": {
+          "routineId": {
+            "type": "integer"
+          },
+          "definition": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The immutable normalised request that created the routine. Later edits to individual occurrences do not change it."
+          }
+        }
+      },
+      "RoutineDeleteResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "routineId",
+          "deletedCount"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "routineId": {
+            "type": "integer"
+          },
+          "deletedCount": {
+            "type": "integer",
+            "description": "0 when the routine was already deleted."
+          }
+        }
+      },
       "TodoPatchRequest": {
         "type": "object",
+        "additionalProperties": false,
         "properties": {
           "title": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 100
           },
           "categoryId": {
             "type": [
@@ -2995,27 +4422,29 @@
             "minimum": 1,
             "maximum": 5
           },
+          "startDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
           "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "time": {
             "type": [
               "string",
               "null"
             ]
           },
-          "visibility": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Visibility"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "groupId": {
-            "type": [
-              "integer",
-              "null"
-            ]
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Seoul"
           },
           "x": {
             "type": [
@@ -3168,7 +4597,8 @@
           "GROUP",
           "PUBLIC"
         ],
-        "default": "PRIVATE"
+        "default": "PRIVATE",
+        "description": "Diary visibility only. PUBLIC is visible to fellow group members, PRIVATE only to the author, and GROUP (partial visibility) is on hold so it behaves like PRIVATE. Todos no longer carry a visibility."
       }
     }
   },
@@ -3177,12 +4607,17 @@
     "POST /api/v1/auth/google returns accessToken and refreshToken. Use accessToken in the Authorization header, and use refreshToken only in the JSON body of refresh/logout requests.",
     "The backend uses camelCase JSON field names in request/response bodies even though many Python model attributes are snake_case.",
     "Upload URLs are relative static paths served from /uploads.",
-    "GET /api/v1/todos with date={value} returns todos matching that dueDate and todos with dueDate=null.",
-    "GET /api/v1/categories and GET /api/v1/todos accept optional userId. Viewing another user's data also requires groupId, and both users must be members of that group. For another user's todos, only GROUP and PUBLIC visibility values are returned.",
     "GET /api/v1/groups/{groupId}/invite-code returns only groupId and inviteCode for lightweight invite-code display.",
     "The backend currently stores dueDate, createdAt, completedAt, expiresAt, refreshExpiresAt, and diary createdAt as strings rather than strict date-time schema values.",
     "PATCH /api/v1/users/me and POST /api/v1/diaries accept multiple content types; choose multipart/form-data only when uploading an image.",
-    "GET /api/v1/todos/daily-status counts only the authenticated user's todos and takes no userId, so another member's calendar has to be summarised from GET /api/v1/todos.",
-    "There is no PATCH /api/v1/groups/{groupId}: a group's name and description cannot be changed after creation."
+    "Todos no longer have a visibility. Any logged-in user can read another user's todos; editing, completing and deleting stay owner-only. Diary visibility is separate and unchanged.",
+    "A todo spans startDate..dueDate with both ends included, so GET /api/v1/todos?date= and GET /api/v1/todos/daily-status both report it on every day in the range. One completion state is shared across the range; routine occurrences complete independently.",
+    "TodoCreateRequest and TodoPatchRequest are additionalProperties: false. Sending the removed groupId, visibility or isRoutine keys is a 422.",
+    "Routines are created with a single POST /api/v1/todos/routines (or POST /api/v1/todos/{todoId}/routine). Do not loop one POST per date. Keep the requestId and the exact body for retries: a new UUID creates a second routine, a changed body is a 409, and a deleted routine's key is a 410.",
+    "Deleting a routine occurrence with DELETE /api/v1/todos/{todoId} deletes the whole routine, completed occurrences included. Warn the user first.",
+    "GET /api/v1/todos/daily-status accepts userId and groupId, so a group member's whole month can be marked on the calendar.",
+    "PATCH /api/v1/groups/{groupId} renames a group (leader only). POST /api/v1/groups/{groupId}/members/remove removes several members at once.",
+    "Signing up no longer creates a personal group, so GET /api/v1/groups can be an empty array. Todos and routines only need a categoryId from GET /api/v1/categories.",
+    "Files under /uploads require Authorization: Bearer. Fetch the bytes with the token and render an object URL instead of putting the path in an <img src>."
   ]
 }
