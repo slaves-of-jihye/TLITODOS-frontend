@@ -103,11 +103,18 @@ const TodoWorkspace = ({
   const categoriesQuery = useCategories(groupId, targetUserId);
   const { data: categoriesRaw = [] } = categoriesQuery;
   const categories = useMemo(() => sortCategories(categoriesRaw), [categoriesRaw]);
-  const todosQuery = useTodos(groupId, null, targetUserId);
-  const { data: allTodosRaw = [], refetch } = todosQuery;
+  /**
+   * 할 일은 고른 날짜만 받아 옵니다.
+   *
+   * 달력에 찍을 개수는 달별 요약이 따로 주므로, 목록까지 통째로 받을 이유가
+   * 없습니다. 날짜를 옮기면 그 날짜 몫만 새로 받고, 달을 옮기면 요약만 새로
+   * 받습니다. 마감일이 없는 할 일도 함께 오지만 `todosForDate`가 걸러냅니다.
+   */
+  const todosQuery = useTodos(groupId, selectedDate, targetUserId);
+  const { data: dateTodosRaw = [], refetch } = todosQuery;
   const ownerTodos = useMemo(
-    () => (ownerId === undefined ? allTodosRaw : allTodosRaw.filter(todo => todo.userId === ownerId)),
-    [allTodosRaw, ownerId],
+    () => (ownerId === undefined ? dateTodosRaw : dateTodosRaw.filter(todo => todo.userId === ownerId)),
+    [dateTodosRaw, ownerId],
   );
   // 내 달력에만 서버 요약을 씁니다. daily-status는 로그인한 사용자만 세기 때문입니다.
   const { data: serverStatuses = [] } = useDailyTodoStatuses(own ? monthKey(month) : null);
@@ -138,22 +145,17 @@ const TodoWorkspace = ({
   /**
    * 달력에 찍을 날짜별 요약입니다.
    *
-   * 손안의 목록으로 직접 셉니다. 목록은 날짜로 좁히지 않고 통째로 받아 두므로 모든
-   * 달을 덮고, 낙관적 완료 표시가 반영되며, `2026-05-13T12:30:00`처럼 시간이 붙은
-   * 마감일도 날짜만 떼어 제대로 셉니다.
+   * 내 달력은 서버의 달별 요약을 씁니다. 남의 달력은 그 요약에 `userId`가 없어
+   * 받아올 수 없으므로, 고른 날짜만 표시됩니다.
    *
-   * 서버 요약(daily-status)은 목록에 아직 없는 날짜만 채웁니다 — 목록이 오는 동안
-   * 달력이 비어 보이지 않게 하는 용도입니다. 서버는 `dueDate`를 날짜 문자열과
-   * 그대로 견주어 시간이 붙은 할 일을 세지 않으므로, 겹치는 날짜는 손안의 값을
-   * 씁니다.
+   * 고른 날짜는 어느 쪽이든 손안의 목록으로 덮습니다. 체크를 눌렀을 때 낙관적
+   * 표시가 달력에도 바로 반영되어야 하기 때문입니다.
    */
   const dailyStatuses = useMemo(() => {
-    const local = buildDailyStatuses(todos);
-    if (!own) return local;
-    const byDate = new Map(serverStatuses.map(status => [status.date, status]));
-    for (const status of local) byDate.set(status.date, status);
-    return [...byDate.values()];
-  }, [own, todos, serverStatuses]);
+    const base = own ? serverStatuses : [];
+    const local = buildDailyStatuses(selectedTodos).find(status => status.date === selectedDate);
+    return local ? [...base.filter(status => status.date !== selectedDate), local] : base;
+  }, [own, serverStatuses, selectedTodos, selectedDate]);
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );

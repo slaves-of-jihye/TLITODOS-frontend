@@ -16,8 +16,12 @@
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
 - A category's accent is the `color` the server returns for it, used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
 - A calendar day carries the number of that day's incomplete todos, or a check when nothing is left. The number and the check are white only when all four quadrants are filled, black otherwise — an empty quadrant is `gray/200` and white would not read on it.
-- Calendar dots and day counts are computed from the fetched todo list with `buildDailyStatuses`. `GET /api/v1/todos/daily-status?month=YYYY-MM` only fills dates the list has not produced yet, so the calendar is painted while the list is still loading; it also only counts the authenticated user's todos, so other members' calendars could not use it anyway.
-- The server summary cannot be the source of truth yet: `list_daily_todo_statuses` keys its buckets by plain `YYYY-MM-DD` and skips any todo whose `dueDate` carries a time (`2026-05-13T12:30:00`), which is what setting a deadline time writes. Comparing only the first ten characters of `dueDate` in the backend would make it authoritative.
+- Todos are fetched one day at a time: `GET /api/v1/todos?date={selectedDate}` (plus `groupId`/`userId` for another member). Moving the calendar to another month refetches only the month summary, not the todos.
+- Calendar dots and day counts come from `GET /api/v1/todos/daily-status?month=YYYY-MM`. The selected day is always recomputed from the day's own list with `buildDailyStatuses`, so an optimistic completion shows on the calendar immediately.
+- Two backend comparisons currently break this, both because `dueDate` may carry a time (`2026-05-13T12:30:00`) — which is exactly what setting a deadline time writes:
+  - `list_todos` filters with `Todo.due_date == date`, so a todo with a deadline time is missing from that day's board entirely. It needs `func.substr(Todo.due_date, 1, 10) == date`.
+  - `list_daily_todo_statuses` keys its buckets by plain `YYYY-MM-DD` and drops the same todos, so those days show no stash. It needs the same ten-character comparison.
+- `daily-status` takes no `userId`, so another member's calendar can only mark the selected day. Adding `userId` (with the existing shared-group check) would let it mark the whole month.
 - The daily-status cache lives under `["todos-daily-status", month]`, deliberately outside the `["todos", ...]` prefix that `writeBack.todos` rewrites as `Todo[]`. Everything that invalidates todos invalidates it too.
 - `strong` in `CATEGORY_PRESETS` is only the seed: it is stored when the four categories are created, and it is the fallback when the server value is missing or not a colour.
   - 해야할 일: `#ff5e9a`, custom 1: `#ff00a2`, custom 2: `#ff8cb6`, 취미: `#ff3959`
