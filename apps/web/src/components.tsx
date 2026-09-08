@@ -532,7 +532,8 @@ export const GroupInfoModal = ({
   const removeMembers = useRemoveGroupMembers(group?.groupId ?? null);
   const renameGroup = useRenameGroup(group?.groupId ?? null);
   const deleteGroup = useDeleteGroup();
-  const others = group?.members.filter(member => member.userId !== me?.userId) ?? [];
+  // 내가 누구인지 알기 전에는 목록을 비워 둡니다 — 나 자신이 강퇴 대상으로 보이면 안 됩니다.
+  const others = me ? (group?.members.filter(member => member.userId !== me.userId) ?? []) : [];
   const isLeader = group?.members.find(member => member.userId === me?.userId)?.role === "LEADER";
   const error = removeMembers.error ?? renameGroup.error ?? deleteGroup.error;
   return (
