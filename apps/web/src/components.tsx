@@ -2132,7 +2132,6 @@ export const CategorySection = ({
           todo.todoId === editingTitleId ? (
             <TodoDraftRow
               key={todo.todoId}
-              accent={accent}
               initial={todo.title}
               onCancel={onCancelAdd}
               onCommit={title => onRenameTitle(todo, title)}
@@ -2148,9 +2147,7 @@ export const CategorySection = ({
             />
           ),
         )}
-        {adding ? (
-          <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
-        ) : null}
+        {adding ? <TodoDraftRow onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} /> : null}
       </TodoList>
     </CategoryColumn>
   );
@@ -2166,12 +2163,10 @@ const TODO_TITLE_LIMIT = 40;
  * Esc로 접습니다. 내용 없이 포커스를 잃으면 그냥 닫힙니다.
  */
 const TodoDraftRow = ({
-  accent,
   initial = "",
   onCancel,
   onCommit,
 }: {
-  accent: string;
   initial?: string;
   onCancel: () => void;
   onCommit: (title: string) => Promise<void>;
@@ -2188,7 +2183,7 @@ const TodoDraftRow = ({
     }
   };
   return (
-    <DraftRow style={{ borderBottomColor: accent }}>
+    <DraftRow>
       <StatusCluster fills={[null, null, null, null]} />
       <input
         autoFocus
@@ -2216,8 +2211,6 @@ const DraftRow = styled.div`
   align-items: center;
   gap: 12px;
   padding: 6px 8px;
-  /* 디자인에서는 입력 중인 줄만 카테고리 색 밑줄을 답니다. */
-  border-bottom: 2px solid;
   input {
     flex: 1;
     min-width: 0;
@@ -2241,10 +2234,8 @@ const CategoryColumn = styled.section`
 `;
 const TodoList = styled.div`
   display: grid;
-  gap: 14px;
   margin-top: 20px;
   @media (max-width: 600px) {
-    gap: 8px;
     margin-top: 14px;
   }
 `;
