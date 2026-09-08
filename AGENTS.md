@@ -15,6 +15,7 @@
 
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
 - A category's accent is the `color` the server returns for it, used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
+- A calendar quadrant is filled with its category's accent only when that category is fully done for the day; a category with anything left stays `gray/200`.
 - A calendar day carries the number of that day's incomplete todos, or a check when nothing is left. The number and the check are white only when all four quadrants are filled, black otherwise — an empty quadrant is `gray/200` and white would not read on it.
 - Todos are fetched one day at a time: `GET /api/v1/todos?date={selectedDate}` (plus `groupId`/`userId` for another member). Moving the calendar to another month refetches only the month summary, not the todos.
 - A todo spans `startDate`..`dueDate` with both ends included, so it appears on every day in that range; `coversDate`/`todoDates` in `packages/core` are the single source of that rule. One completion state is shared across the range, and routine occurrences complete independently.

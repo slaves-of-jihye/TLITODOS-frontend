@@ -435,8 +435,9 @@ export const DayStash = ({
   date: number;
   onClick?: () => void;
 }) => {
-  // 점 색은 카테고리 색 그대로입니다. 80% 불투명도는 사분면 자체에 걸려 있습니다.
-  const fills = marks.slice(0, 4).map(mark => mark.accent);
+  // 다 끝낸 카테고리만 칩니다. 남은 카테고리는 빈 사분면으로 둡니다.
+  // 점 색은 카테고리 색 그대로이고, 80% 불투명도는 사분면 자체에 걸려 있습니다.
+  const fills = marks.slice(0, 4).map(mark => (mark.done ? mark.accent : null));
   return (
     <DayButton onClick={onClick}>
       <StatusCluster
