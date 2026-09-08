@@ -2,6 +2,7 @@ import styled from "@emotion/styled";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CATEGORY_SWATCHES,
+  buildDailyStatuses,
   categoryAccent,
   composeDiaryContent,
   composeTodoContent,
@@ -11,6 +12,7 @@ import {
   diaryDate,
   formatLongKoreanDate,
   isDiaryForDate,
+  monthKey,
   resolveFont,
   sortCategories,
   sortTodos,
@@ -24,6 +26,7 @@ import {
   useApi,
   useCategories,
   useCreateTodo,
+  useDailyTodoStatuses,
   useDiaries,
   useGroup,
   useMe,
@@ -106,6 +109,8 @@ const TodoWorkspace = ({
     () => (ownerId === undefined ? allTodosRaw : allTodosRaw.filter(todo => todo.userId === ownerId)),
     [allTodosRaw, ownerId],
   );
+  // 내 달력에만 서버 요약을 씁니다. daily-status는 로그인한 사용자만 세기 때문입니다.
+  const { data: serverStatuses = [] } = useDailyTodoStatuses(own ? monthKey(month) : null);
   const { data: diaries = [] } = useDiaries();
   const [blocked, setBlocked] = useState<Todo[]>([]);
   const { overrides: completionOverrides, toggle } = useTodoCompletion({
@@ -130,6 +135,18 @@ const TodoWorkspace = ({
     [ownerTodos, completionOverrides],
   );
   const selectedTodos = useMemo(() => todosForDate(todos, selectedDate), [todos, selectedDate]);
+  /**
+   * 달력에 찍을 날짜별 요약입니다.
+   *
+   * 남의 달력은 서버 요약을 받을 수 없어 이미 가진 목록을 같은 모양으로 접습니다.
+   * 내 달력은 서버 요약을 쓰지만, 고른 날짜만은 손안의 목록으로 다시 셉니다 —
+   * 그러지 않으면 체크를 눌렀을 때 숫자가 서버 왕복만큼 늦게 바뀝니다.
+   */
+  const dailyStatuses = useMemo(() => {
+    if (!own) return buildDailyStatuses(ownerTodos);
+    const local = buildDailyStatuses(selectedTodos).find(status => status.date === selectedDate);
+    return local ? [...serverStatuses.filter(status => status.date !== selectedDate), local] : serverStatuses;
+  }, [own, ownerTodos, selectedTodos, selectedDate, serverStatuses]);
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );
@@ -167,7 +184,7 @@ const TodoWorkspace = ({
           <CalendarPanel
             month={month}
             selectedDate={selectedDate}
-            todos={todos}
+            statuses={dailyStatuses}
             categories={categories}
             onMonthChange={setMonth}
             onDateChange={setSelectedDate}

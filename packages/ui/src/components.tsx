@@ -127,8 +127,8 @@ const AvatarFallback = styled.span`
  * 할 일 개수를 사분면 점으로 보여주는 표식.
  *
  * Figma의 `day/status5`입니다. 30px 안에 20px 원 네 개를 10px씩 어긋나게 겹쳐
- * 두고, 채워지지 않은 칸은 회색으로 남깁니다. 네 개를 넘으면 개수를 숫자로
- * 얹고, 그 날/그 할 일이 모두 끝났으면 가운데에 체크를 올립니다.
+ * 두고, 채워지지 않은 칸은 회색으로 남깁니다. 가운데에는 남은 개수를 숫자로
+ * 얹고, 남은 게 없으면 대신 체크를 올립니다.
  */
 export const StatusCluster = ({
   fills,
@@ -140,15 +140,24 @@ export const StatusCluster = ({
   checked?: boolean;
   count?: number;
   size?: number;
-}) => (
-  <Cluster style={{ width: size, height: size }}>
-    {[0, 1, 2, 3].map(index => (
-      <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
-    ))}
-    {checked ? <ClusterCheck src={icons.check} alt="" aria-hidden /> : null}
-    {!checked && count ? <ClusterCount>{count}</ClusterCount> : null}
-  </Cluster>
-);
+}) => {
+  /**
+   * 가운데 글자는 사분면 네 칸이 다 찼을 때만 흰색입니다.
+   *
+   * 빈 칸은 gray/200이라 그 위에 흰 글자를 얹으면 읽히지 않습니다. 한 칸이라도
+   * 비어 있으면 검은색으로 씁니다.
+   */
+  const onFilled = [0, 1, 2, 3].every(index => fills[index]);
+  return (
+    <Cluster style={{ width: size, height: size }}>
+      {[0, 1, 2, 3].map(index => (
+        <Quadrant key={index} data-slot={index} style={{ background: fills[index] ?? palette.gray200 }} />
+      ))}
+      {checked ? <ClusterCheck onFilled={onFilled} aria-hidden /> : null}
+      {!checked && count ? <ClusterCount onFilled={onFilled}>{count}</ClusterCount> : null}
+    </Cluster>
+  );
+};
 const Cluster = styled.span`
   position: relative;
   display: block;
@@ -177,20 +186,29 @@ const Quadrant = styled.i`
     bottom: 0;
   }
 `;
-const ClusterCheck = styled.img`
+/**
+ * 체크 표시.
+ *
+ * 내보낸 아이콘은 흰색으로 칠해져 있어 그대로는 색을 바꿀 수 없습니다. 같은
+ * 파일을 마스크로 쓰고 색은 배경으로 넣어, 한 장으로 흰색과 검은색을 다 냅니다.
+ */
+const ClusterCheck = styled.span<{ onFilled: boolean }>`
   position: absolute;
   left: 50%;
   top: 50%;
   width: 40%;
   height: 40%;
   transform: translate(-50%, -50%);
+  background: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
+  -webkit-mask: url(${icons.check}) center / contain no-repeat;
+  mask: url(${icons.check}) center / contain no-repeat;
 `;
-const ClusterCount = styled.span`
+const ClusterCount = styled.span<{ onFilled: boolean }>`
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  color: ${palette.white};
+  color: ${({ onFilled }) => (onFilled ? palette.white : palette.black)};
   font-size: ${theme.text.s};
   line-height: 1;
 `;
@@ -403,6 +421,7 @@ const DiaryButton = styled.button`
 
 export const DayStash = ({
   marks,
+  incompleteCount,
   selected,
   today,
   date,
@@ -410,18 +429,22 @@ export const DayStash = ({
 }: {
   /** 그 날 할 일이 있는 카테고리별 강조색과 완료 여부입니다. */
   marks: { accent: string; done: boolean }[];
+  /** 그 날 남은 할 일 수. 0이면 숫자 대신 체크를 올립니다. */
+  incompleteCount: number;
   selected?: boolean;
   today?: boolean;
   date: number;
   onClick?: () => void;
 }) => {
-  // 점 색은 카테고리 색 그대로입니다. 80% 불투명도는 사분면 자체에 걸려 있고,
-  // 완료 여부는 색이 아니라 가운데 체크로 나타냅니다.
+  // 점 색은 카테고리 색 그대로입니다. 80% 불투명도는 사분면 자체에 걸려 있습니다.
   const fills = marks.slice(0, 4).map(mark => mark.accent);
-  const allDone = marks.length > 0 && marks.every(mark => mark.done);
   return (
     <DayButton onClick={onClick}>
-      <StatusCluster fills={fills} checked={allDone} count={marks.length > 4 ? marks.length : undefined} />
+      <StatusCluster
+        fills={fills}
+        checked={incompleteCount === 0 && marks.length > 0}
+        count={incompleteCount || undefined}
+      />
       <DateLabel selected={Boolean(selected)} today={Boolean(today)}>
         {String(date).padStart(2, "0")}
       </DateLabel>

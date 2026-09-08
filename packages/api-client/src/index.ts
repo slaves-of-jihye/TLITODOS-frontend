@@ -2,6 +2,7 @@ import type {
   Category,
   CategoryRequest,
   CategoryUpdateResponse,
+  DailyTodoStatus,
   DependencyCreateRequest,
   Diary,
   DiaryCreateRequest,
@@ -144,6 +145,8 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
     todos: {
       list: (query?: { groupId?: number | null; userId?: number | null; date?: string | null }) =>
         request<Todo[]>("/api/v1/todos", { query }),
+      /** month는 `YYYY-MM`입니다. 다른 형식이면 서버가 422로 거절합니다. */
+      dailyStatus: (month: string) => request<DailyTodoStatus[]>("/api/v1/todos/daily-status", { query: { month } }),
       create: (body: TodoCreateRequest) => request<Todo>("/api/v1/todos", { method: "POST", body }),
       update: (id: number, body: TodoPatchRequest) => request<Todo>(`/api/v1/todos/${id}`, { method: "PATCH", body }),
       remove: (id: number) => request<MessageResponse>(`/api/v1/todos/${id}`, { method: "DELETE" }),

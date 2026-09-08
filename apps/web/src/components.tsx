@@ -33,7 +33,15 @@ import {
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, GroupDetail, GroupMember, Importance, Todo, TodoPatchRequest } from "@tlitodos/types";
+import type {
+  Category,
+  DailyTodoStatus,
+  GroupDetail,
+  GroupMember,
+  Importance,
+  Todo,
+  TodoPatchRequest,
+} from "@tlitodos/types";
 import {
   Button,
   CategoryPill,
@@ -48,7 +56,7 @@ import {
   TodoRow as SharedTodoRow,
   ViewChip,
 } from "@tlitodos/ui";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
@@ -713,14 +721,15 @@ const GROUP_BIO_LIMIT = 80;
 export const CalendarPanel = ({
   month,
   selectedDate,
-  todos,
+  statuses,
   categories,
   onMonthChange,
   onDateChange,
 }: {
   month: Date;
   selectedDate: string;
-  todos: Todo[];
+  /** 날짜별 요약. 서버의 daily-status이거나 목록으로 접어 만든 같은 모양입니다. */
+  statuses: DailyTodoStatus[];
   categories: Category[];
   onMonthChange: (date: Date) => void;
   onDateChange: (date: string) => void;
@@ -728,6 +737,7 @@ export const CalendarPanel = ({
   const sorted = sortCategories(categories);
   const days = getCalendarDays(month);
   const today = formatLocalDate(new Date());
+  const byDate = useMemo(() => new Map(statuses.map(status => [status.date, status])), [statuses]);
   return (
     <CalendarWrap>
       <MonthHeader>
@@ -758,22 +768,21 @@ export const CalendarPanel = ({
         {days.map((date, index) => {
           if (!date) return <span key={`empty-${index}`} />;
           const value = formatLocalDate(date);
-          const dayTodos = todos.filter(todo => sameLocalDate(todo.dueDate, value));
+          const status = byDate.get(value);
+          // 점은 카테고리 순서(해야할 일 -> 사용자 -> 취미)대로 찍습니다. 서버는
+          // categoryId 순으로 주므로 정렬된 카테고리를 훑어 맞춥니다.
           const marks = sorted.flatMap((category, catIndex) => {
-            const list = dayTodos.filter(todo => todo.categoryId === category.categoryId);
-            if (!list.length) return [];
-            return [
-              {
-                accent: categoryAccent(category.color, catIndex),
-                done: list.every(todo => todo.isCompleted),
-              },
-            ];
+            const categoryStatus = status?.categoryStatuses.find(item => item.categoryId === category.categoryId);
+            return categoryStatus
+              ? [{ accent: categoryAccent(category.color, catIndex), done: categoryStatus.isCompleted }]
+              : [];
           });
           return (
             <DayStash
               key={value}
               date={date.getDate()}
               marks={marks}
+              incompleteCount={status?.incompleteCount ?? 0}
               selected={value === selectedDate}
               today={value === today}
               onClick={() => onDateChange(value)}

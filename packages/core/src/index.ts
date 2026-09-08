@@ -1,4 +1,4 @@
-import type { Category, Diary, Importance, Todo } from "@tlitodos/types";
+import type { Category, DailyTodoStatus, Diary, Importance, Todo } from "@tlitodos/types";
 
 /**
  * 카테고리 색. Figma `component` 프레임의 category 배리언트에서 읽었습니다.
@@ -222,6 +222,37 @@ export const sortTodos = (todos: Todo[]) =>
 
 export const todosForDate = (todos: Todo[], selectedDate: string) =>
   todos.filter(todo => sameLocalDate(todo.dueDate, selectedDate));
+
+/** 달력에 쓰는 `YYYY-MM`. 서버의 daily-status가 이 형식만 받습니다. */
+export const monthKey = (viewDate: Date) =>
+  `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, "0")}`;
+
+/**
+ * 할 일 목록으로 서버의 daily-status와 같은 모양을 만듭니다.
+ *
+ * daily-status는 로그인한 사용자만 세므로 남의 달력에는 못 씁니다. 그쪽은 이미
+ * 받아 둔 목록이 있으니 여기서 같은 모양으로 접어 UI가 한 갈래로 돌게 합니다.
+ * 서버와 달리 할 일이 없는 날은 아예 담지 않습니다 — 찾지 못한 날은 빈 날로
+ * 보면 되기 때문입니다.
+ */
+export const buildDailyStatuses = (todos: Todo[]): DailyTodoStatus[] => {
+  const byDate = new Map<string, { incompleteCount: number; categories: Map<number, boolean> }>();
+  for (const todo of todos) {
+    const date = dateOnly(todo.dueDate);
+    if (!date) continue;
+    const day = byDate.get(date) ?? { incompleteCount: 0, categories: new Map<number, boolean>() };
+    if (!todo.isCompleted) day.incompleteCount += 1;
+    day.categories.set(todo.categoryId, (day.categories.get(todo.categoryId) ?? true) && todo.isCompleted);
+    byDate.set(date, day);
+  }
+  return [...byDate.entries()].map(([date, day]) => ({
+    date,
+    incompleteCount: day.incompleteCount,
+    categoryStatuses: [...day.categories.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([categoryId, isCompleted]) => ({ categoryId, isCompleted })),
+  }));
+};
 
 export const unresolvedDependencies = (todo: Todo, allTodos: Todo[]) =>
   todo.dependencies

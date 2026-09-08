@@ -15,6 +15,9 @@
 
 - Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
 - A category's accent is the `color` the server returns for it, used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
+- A calendar day carries the number of that day's incomplete todos, or a check when nothing is left. The number and the check are white only when all four quadrants are filled, black otherwise — an empty quadrant is `gray/200` and white would not read on it.
+- Day counts come from `GET /api/v1/todos/daily-status?month=YYYY-MM`, which only counts the authenticated user's todos. Other members' calendars fold the todo list they already hold into the same shape with `buildDailyStatuses`. The endpoint is missing from both `openapi.json` copies — the backend's `docs/openapi.json` needs regenerating.
+- The daily-status cache lives under `["todos-daily-status", month]`, deliberately outside the `["todos", ...]` prefix that `writeBack.todos` rewrites as `Todo[]`. Everything that invalidates todos invalidates it too.
 - `strong` in `CATEGORY_PRESETS` is only the seed: it is stored when the four categories are created, and it is the fallback when the server value is missing or not a colour.
   - 해야할 일: `#ff5e9a`, custom 1: `#ff00a2`, custom 2: `#ff8cb6`, 취미: `#ff3959`
 - Users pick a category's colour on the profile screen from `CATEGORY_SWATCHES` (24 colours from Figma).

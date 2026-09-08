@@ -33,6 +33,13 @@ export const queryKeys = {
   categoryList: (groupId: number | null, userId: number | null) => ["categories", groupId, userId] as const,
   todos: (groupId: number | null, userId: number | null, date: string | null) =>
     ["todos", groupId, userId, date] as const,
+  /**
+   * 달별 요약은 `["todos", ...]` 밑에 두지 않습니다.
+   *
+   * `writeBack.todos`가 `["todos"]` 접두사로 캐시를 훑어 `Todo[]`로 고치기 때문에,
+   * 모양이 다른 이 응답이 같은 접두사에 있으면 망가집니다.
+   */
+  dailyStatus: (month: string) => ["todos-daily-status", month] as const,
   diaries: ["diaries"] as const,
 };
 
@@ -108,6 +115,21 @@ export const useTodos = (groupId: number | null, date: string | null, userId: nu
     queryKey: queryKeys.todos(groupId, userId, date),
     queryFn: () => api.todos.list({ groupId, userId, date }),
     enabled,
+  });
+};
+
+/**
+ * 달력에 쓰는 달별 요약입니다. `month`는 `YYYY-MM`입니다.
+ *
+ * 서버가 로그인한 사용자의 할 일만 세므로 남의 달력에는 쓸 수 없습니다. 그쪽은
+ * 이미 받아 둔 목록으로 `buildDailyStatuses`가 같은 모양을 만들어 씁니다.
+ */
+export const useDailyTodoStatuses = (month: string | null, enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.dailyStatus(month ?? ""),
+    queryFn: () => api.todos.dailyStatus(month!),
+    enabled: enabled && month !== null,
   });
 };
 
@@ -200,7 +222,10 @@ export const useUpdateCategory = () => {
  */
 export const useInvalidateTodos = () => {
   const invalidate = useDetachedInvalidate();
-  return useCallback(() => invalidate(["todos"]), [invalidate]);
+  return useCallback(() => {
+    invalidate(["todos"]);
+    invalidate(["todos-daily-status"]);
+  }, [invalidate]);
 };
 
 type MutationOptions = { invalidate?: boolean };
@@ -236,6 +261,7 @@ export const useDeleteTodo = () => {
       // 재요청이 돌아오기 전까지 지운 할 일이 남아 보이지 않게 먼저 걷어냅니다.
       writeBack.todos(todos => todos.filter(todo => todo.todoId !== id));
       invalidate(["todos"]);
+      invalidate(["todos-daily-status"]);
     },
   });
 };
@@ -251,7 +277,11 @@ export const useCompleteTodo = () => {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.todos.complete(id),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey: ["todos"] }),
+        cache.invalidateQueries({ queryKey: ["todos-daily-status"] }),
+      ]),
   });
 };
 export const useUncompleteTodo = () => {
@@ -259,7 +289,11 @@ export const useUncompleteTodo = () => {
   const cache = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api.todos.uncomplete(id),
-    onSuccess: () => cache.invalidateQueries({ queryKey: ["todos"] }),
+    onSuccess: () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey: ["todos"] }),
+        cache.invalidateQueries({ queryKey: ["todos-daily-status"] }),
+      ]),
   });
 };
 export const useAddDependency = ({ invalidate = true }: MutationOptions = {}) => {

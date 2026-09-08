@@ -115,6 +115,15 @@ export interface Todo {
   completedAt: string | null;
 }
 
+/** `GET /api/v1/todos/daily-status`가 그 달의 날마다 하나씩 돌려주는 요약입니다. */
+export interface DailyTodoStatus {
+  date: string;
+  /** 그 날 아직 끝내지 않은 할 일 수. */
+  incompleteCount: number;
+  /** 그 날 할 일이 있는 카테고리만 담깁니다. `isCompleted`는 그 카테고리를 다 끝냈는지입니다. */
+  categoryStatuses: { categoryId: number; isCompleted: boolean }[];
+}
+
 export interface TodoCompleteResponse {
   success: boolean;
   todoId: number;
