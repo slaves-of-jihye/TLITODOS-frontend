@@ -73,7 +73,6 @@ import {
   GroupInviteModal,
   GroupTopBar,
   MemberTabs,
-  InstallAppAction,
   TodoDetailModal,
   WorkspaceHeader,
 } from "./components";
@@ -613,7 +612,7 @@ const EditableProfileRow = ({
             setEditing(true);
           }}
         >
-          <span data-empty={!value}>{value || placeholder}</span>
+          <FieldValue data-empty={!value}>{value || placeholder}</FieldValue>
           <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
         </FieldBox>
       )}
@@ -868,7 +867,7 @@ const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: Font
             setEditing(true);
           }}
         >
-          <span>{resolveFont(value).label}</span>
+          <FieldValue>{resolveFont(value).label}</FieldValue>
           <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
         </FieldBox>
       )}
@@ -1007,7 +1006,6 @@ export const ProfilePage = () => {
           />
           <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
           {error ? <ErrorText>{error}</ErrorText> : null}
-          <InstallAppAction />
           <LogoutButton
             onClick={async () => {
               try {
@@ -1400,11 +1398,13 @@ const FieldRow = styled.div`
   gap: 16px;
   flex-wrap: wrap;
 `;
+/** 닫힌 줄과 편집 중인 줄이 같은 너비여야 눌렀을 때 칸이 흔들리지 않습니다. */
+const FIELD_WIDTH = "min(340px, 100%)";
 const FieldBox = styled.button`
   display: flex;
   align-items: center;
   gap: 10px;
-  width: min(340px, 100%);
+  width: ${FIELD_WIDTH};
   border: 0;
   border-radius: ${theme.radius.sm};
   background: ${theme.colors.panel};
@@ -1412,15 +1412,6 @@ const FieldBox = styled.button`
   text-align: left;
   color: ${theme.colors.ink};
   font-size: ${theme.text.s};
-  > span {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  /* 아직 입력하지 않은 값은 자리표시자처럼 보이게 둡니다. */
-  > span[data-empty="true"] {
-    color: ${theme.colors.muted};
-  }
   input {
     flex: 1;
     min-width: 0;
@@ -1431,6 +1422,21 @@ const FieldBox = styled.button`
     &::placeholder {
       color: ${theme.colors.muted};
     }
+  }
+`;
+/**
+ * 칸을 채우는 값입니다.
+ *
+ * `FieldBox > span`으로 늘리면 글자 수 카운터까지 같이 늘어나 칸을 반씩 나눠
+ * 가집니다. 늘어나는 쪽만 따로 두고, 카운터는 글자 폭만 차지하게 둡니다.
+ */
+const FieldValue = styled.span`
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* 아직 입력하지 않은 값은 자리표시자처럼 보이게 둡니다. */
+  &[data-empty="true"] {
+    color: ${theme.colors.muted};
   }
 `;
 const FieldCounter = styled.span`
@@ -1479,7 +1485,7 @@ const PhotoRow = styled.div`
 `;
 const FontSelectRoot = styled.div`
   position: relative;
-  width: min(240px, 100%);
+  width: ${FIELD_WIDTH};
 `;
 const FontSelectTrigger = styled.button`
   width: 100%;

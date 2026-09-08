@@ -60,7 +60,7 @@ import {
   ViewChip,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
 import { useAssetObjectUrl } from "./app/assetUrl";
@@ -250,11 +250,8 @@ const iosInstallHint = "공유 버튼을 누르고 '홈 화면에 추가'를 선
 
 export const InstallPrompt = () => {
   const { canPrompt, installed, needsManualSteps, bannerDismissed } = usePwaInstall();
-  const { pathname } = useLocation();
   const [installing, setInstalling] = useState(false);
   if (installed || bannerDismissed || (!canPrompt && !needsManualSteps)) return null;
-  // 프로필에는 항상 노출되는 설치 항목이 있으므로 배너를 겹치지 않게 둡니다.
-  if (pathname === "/profile") return null;
   return (
     <InstallBanner aria-label="앱 설치 안내">
       <img src={`${import.meta.env.BASE_URL}icons/icon-192.png`} alt="" width={44} height={44} />
@@ -272,7 +269,7 @@ export const InstallPrompt = () => {
               setInstalling(true);
               const outcome = await promptInstall();
               setInstalling(false);
-              // 설치를 거절했다면 다시 권하지 않고, 프로필에서 언제든 설치할 수 있게 둡니다.
+              // 설치를 거절했다면 다시 권하지 않습니다. 브라우저 메뉴로는 언제든 설치할 수 있습니다.
               if (outcome === "dismissed") dismissInstallBanner();
             }}
           >
@@ -331,31 +328,6 @@ const InstallActions = styled.div`
   button {
     padding: 9px 18px;
   }
-`;
-
-export const InstallAppAction = () => {
-  const { canPrompt, installed, needsManualSteps } = usePwaInstall();
-  if (installed || (!canPrompt && !needsManualSteps)) return null;
-  if (!canPrompt) return <InstallHint>{iosInstallHint}</InstallHint>;
-  return (
-    <InstallAppButton type="button" onClick={() => void promptInstall()}>
-      앱으로 설치하기
-    </InstallAppButton>
-  );
-};
-const InstallAppButton = styled.button`
-  margin-top: 28px;
-  display: block;
-  border: 0;
-  background: transparent;
-  padding: 10px 0;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.blue};
-`;
-const InstallHint = styled.p`
-  margin: 28px 0 0;
-  color: ${theme.colors.muted};
-  font-size: ${theme.text.xs};
 `;
 
 export const WorkspaceHeader = ({
