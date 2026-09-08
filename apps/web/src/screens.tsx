@@ -183,7 +183,6 @@ const TodoWorkspace = ({
               <DiaryBadge
                 emotion={selectedDiary?.emotion}
                 nickname={selectedDiary ? "일기" : "일기쓰기"}
-                date={selectedDate.replaceAll("-", ".")}
                 onClick={() =>
                   own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
                 }

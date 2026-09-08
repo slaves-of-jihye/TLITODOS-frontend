@@ -386,13 +386,14 @@ export const DiaryBadge = ({
 }: {
   emotion?: string | null;
   nickname: string;
-  date: string;
+  /** 날짜를 보여줄 자리가 있는 곳(`modal / diary`)에서만 넘깁니다. */
+  date?: string;
   onClick?: () => void;
 }) => (
   <DiaryButton onClick={onClick}>
     <span aria-hidden>{emotion || "😀"}</span>
     <strong>{nickname}</strong>
-    <small>{date}</small>
+    {date ? <small>{date}</small> : null}
   </DiaryButton>
 );
 const DiaryButton = styled.button`
