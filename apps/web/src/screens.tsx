@@ -4,8 +4,6 @@ import {
   CATEGORY_SWATCHES,
   buildDailyStatuses,
   categoryAccent,
-  composeDiaryContent,
-  composeTodoContent,
   FONT_PRESETS,
   fontFamilyStack,
   formatLocalDate,
@@ -16,10 +14,7 @@ import {
   resolveFont,
   sortCategories,
   sortTodos,
-  splitDiaryContent,
-  splitTodoContent,
   todosForDate,
-  withOptionalTime,
   type FontKey,
 } from "@tlitodos/core";
 import {
@@ -29,7 +24,9 @@ import {
   useDailyTodoStatuses,
   useDiaries,
   useGroup,
+  useMarkNotificationRead,
   useMe,
+  useNotifications,
   useSaveDiary,
   useTodos,
   useUpdateCategory,
@@ -37,7 +34,16 @@ import {
   useUpdateProfile,
   useUpdateTodo,
 } from "@tlitodos/hooks";
-import type { Category, Diary, DiaryCreateRequest, DiaryPatchRequest, Todo, UiVisibility } from "@tlitodos/types";
+import type {
+  AppNotification,
+  Category,
+  Diary,
+  DiaryCreateRequest,
+  DiaryPatchRequest,
+  NotificationType,
+  Todo,
+  UiVisibility,
+} from "@tlitodos/types";
 import {
   AppShell,
   BottomNav,
@@ -53,7 +59,7 @@ import {
 } from "@tlitodos/ui";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { resolveAssetUrl } from "./app/assetUrl";
+import { useAssetObjectUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
 import { useTodoCompletion } from "./app/useTodoCompletion";
@@ -117,9 +123,9 @@ const TodoWorkspace = ({
     () => (ownerId === undefined ? dateTodosRaw : dateTodosRaw.filter(todo => todo.userId === ownerId)),
     [dateTodosRaw, ownerId],
   );
-  // 내 달력에만 서버 요약을 씁니다. daily-status는 로그인한 사용자만 세기 때문입니다.
-  const { data: serverStatuses = [] } = useDailyTodoStatuses(own ? monthKey(month) : null);
-  const { data: diaries = [] } = useDiaries();
+  // daily-status가 groupId/userId를 받으므로 남의 달력도 달 전체를 받아 옵니다.
+  const { data: serverStatuses = [] } = useDailyTodoStatuses(monthKey(month), { groupId, userId: targetUserId });
+  const { data: diaries = [] } = useDiaries({ date: selectedDate, groupId, userId: targetUserId });
   const [blocked, setBlocked] = useState<Todo[]>([]);
   const { overrides: completionOverrides, toggle } = useTodoCompletion({
     serverTodos: ownerTodos,
@@ -146,17 +152,13 @@ const TodoWorkspace = ({
   /**
    * 달력에 찍을 날짜별 요약입니다.
    *
-   * 내 달력은 서버의 달별 요약을 씁니다. 남의 달력은 그 요약에 `userId`가 없어
-   * 받아올 수 없으므로, 고른 날짜만 표시됩니다.
-   *
-   * 고른 날짜는 어느 쪽이든 손안의 목록으로 덮습니다. 체크를 눌렀을 때 낙관적
-   * 표시가 달력에도 바로 반영되어야 하기 때문입니다.
+   * 달 전체는 서버 요약을 씁니다. 고른 날짜만은 손안의 목록으로 덮습니다 —
+   * 체크를 눌렀을 때 낙관적 표시가 달력에도 바로 보여야 하기 때문입니다.
    */
   const dailyStatuses = useMemo(() => {
-    const base = own ? serverStatuses : [];
     const local = buildDailyStatuses(selectedTodos).find(status => status.date === selectedDate);
-    return local ? [...base.filter(status => status.date !== selectedDate), local] : base;
-  }, [own, serverStatuses, selectedTodos, selectedDate]);
+    return local ? [...serverStatuses.filter(status => status.date !== selectedDate), local] : serverStatuses;
+  }, [serverStatuses, selectedTodos, selectedDate]);
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );
@@ -167,7 +169,7 @@ const TodoWorkspace = ({
     toggle(todo.todoId);
   };
   // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
-  const ownerImage = own ? resolveAssetUrl(me?.profileImageUrl) : null;
+  const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : null);
   return (
     <>
       <WorkspaceGrid>
@@ -231,18 +233,14 @@ const TodoWorkspace = ({
                       categoryId: next.categoryId,
                       importance: "NONE",
                       hardship: 1,
-                      dueDate: withOptionalTime(selectedDate, "23:59"),
-                      visibility: "PRIVATE",
-                      groupId: null,
+                      // 하루짜리 할 일은 시작일과 마감일이 같습니다. 시간은 상세에서 붙입니다.
+                      startDate: selectedDate,
+                      dueDate: selectedDate,
                     });
                   }}
                   onRenameTitle={async (todo, title) => {
                     setEditingTitleId(null);
-                    const { detail } = splitTodoContent(todo.title);
-                    await updateTodo.mutateAsync({
-                      id: todo.todoId,
-                      body: { title: composeTodoContent(title, detail) },
-                    });
+                    await updateTodo.mutateAsync({ id: todo.todoId, body: { title } });
                   }}
                   onManage={setManage}
                   onToggle={handleToggle}
@@ -282,7 +280,7 @@ const TodoWorkspace = ({
             nickname={ownerName || "친구"}
             date={formatLongKoreanDate(diaryPreview ? (diaryDate(diaryPreview) ?? "") : "")}
           />
-          <p>{diaryPreview ? splitDiaryContent(diaryPreview.content).content : ""}</p>
+          <p>{diaryPreview?.content ?? ""}</p>
         </DiaryPreview>
       </Modal>
       {/* BetModal is intentionally kept out of the active MVP build. */}
@@ -341,8 +339,18 @@ export const GroupHome = () => {
         <TodoWorkspace own={false} ownerId={activeId ?? undefined} ownerName={active?.name} groupId={id} />
       )}
       <PageNav active="home" />
-      <GroupInfoModal open={settingsOpen} group={group ?? null} onClose={() => setSettingsOpen(false)} />
-      <GroupInviteModal open={inviteOpen} group={group ?? null} onClose={() => setInviteOpen(false)} />
+      <GroupInfoModal
+        key={`settings-${settingsOpen}-${group?.name ?? ""}`}
+        open={settingsOpen}
+        group={group ?? null}
+        onClose={() => setSettingsOpen(false)}
+      />
+      <GroupInviteModal
+        key={`invite-${inviteOpen}`}
+        open={inviteOpen}
+        group={group ?? null}
+        onClose={() => setInviteOpen(false)}
+      />
     </AppShell>
   );
 };
@@ -351,19 +359,30 @@ export const GroupHome = () => {
  * 알림 화면.
  *
  * Figma는 친구의 할 일 완료 / 친구의 일기 / 친구의 내기 요청 세 갈래를 pill로
- * 고르고 그 아래에 알림을 쌓아 보여줍니다. 서버에 알림 목록 엔드포인트가 없어
- * (`GET /api/v1/diaries`는 내 일기만, 친구 할 일은 그룹 안 오늘 목록만 줍니다)
- * 지금은 고르는 줄까지만 두고 목록은 비워 둡니다. 내기는 MVP 밖이라 갈래에서
- * 빼 두었습니다.
+ * 고르고 그 아래에 알림을 쌓아 보여줍니다. 서버의 `GET /api/v1/notifications`가
+ * 그 세 종류를 그대로 내려 주고 `nextCursor`로 이어 줍니다. 내기는 MVP 밖이라
+ * 갈래에서 빼 두었습니다.
  */
 const ALARM_FILTERS = [
-  { key: "todo", label: "친구의 할 일 완료" },
-  { key: "diary", label: "친구의 일기" },
-  // { key: "bet", label: "친구의 내기 요청" },
+  { key: "TODO_COMPLETED", label: "친구의 할 일 완료" },
+  { key: "DIARY_CREATED", label: "친구의 일기" },
+  // { key: "BET_REQUESTED", label: "친구의 내기 요청" },
 ] as const;
+
+/** 알림 한 줄에 쓰는 문구. 종류마다 다릅니다. */
+const alarmSentence = (item: AppNotification) => {
+  const who = item.actor.name || "친구";
+  if (item.type === "TODO_COMPLETED") return `${who}님이 "${item.todo?.title ?? "할 일"}"을 완료했어요.`;
+  if (item.type === "DIARY_CREATED") return `${who}님이 일기를 남겼어요.`;
+  return `${who}님이 내기를 요청했어요.`;
+};
+
 export const AlarmPage = () => {
-  const [filter, setFilter] = useState<(typeof ALARM_FILTERS)[number]["key"]>("todo");
+  const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
   const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
+  const markRead = useMarkNotificationRead();
+  const items = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
   return (
     <AppShell>
       <AlarmColumn>
@@ -384,12 +403,102 @@ export const AlarmPage = () => {
             ))}
           </AlarmFilters>
         </AlarmHead>
-        <AlarmEmpty>아직 도착한 {label} 알림이 없습니다.</AlarmEmpty>
+        {error ? (
+          <ErrorText>{message(error)}</ErrorText>
+        ) : isLoading ? (
+          <AlarmEmpty>알림을 불러오는 중...</AlarmEmpty>
+        ) : items.length ? (
+          <AlarmList>
+            {items.map(item => (
+              <AlarmRow
+                key={item.notificationId}
+                type="button"
+                unread={item.readAt === null}
+                // 누르면 읽음으로 넘깁니다. 서버가 목록을 다시 주면 표시가 사라집니다.
+                onClick={() => item.readAt === null && markRead.mutate(item.notificationId)}
+              >
+                <ActorAvatar url={item.actor.profileImageUrl} />
+                <div>
+                  <strong>{alarmSentence(item)}</strong>
+                  {item.todo?.description ? <small>{item.todo.description}</small> : null}
+                </div>
+                {item.readAt === null ? <AlarmDot aria-label="읽지 않음" /> : null}
+              </AlarmRow>
+            ))}
+          </AlarmList>
+        ) : (
+          <AlarmEmpty>아직 도착한 {label} 알림이 없습니다.</AlarmEmpty>
+        )}
+        {hasNextPage ? (
+          <Button type="button" disabled={isFetchingNextPage} onClick={() => void fetchNextPage()}>
+            {isFetchingNextPage ? "불러오는 중..." : "더 보기"}
+          </Button>
+        ) : null}
       </AlarmColumn>
       <PageNav active="alarm" />
     </AppShell>
   );
 };
+/** 사진은 인증이 필요해 한 줄씩 따로 받아 옵니다. */
+const ActorAvatar = ({ url }: { url: string | null }) => {
+  const src = useAssetObjectUrl(url);
+  return <AlarmAvatar>{src ? <img src={src} alt="" /> : <span aria-hidden>🐰</span>}</AlarmAvatar>;
+};
+const AlarmList = styled.div`
+  display: grid;
+  gap: 12px;
+  width: 100%;
+`;
+const AlarmRow = styled.button<{ unread: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid ${palette.gray200};
+  border-radius: ${theme.radius.sm};
+  background: ${({ unread }) => (unread ? palette.white : palette.gray100)};
+  padding: 12px 16px;
+  text-align: left;
+  color: ${theme.colors.ink};
+  > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  strong {
+    font-size: ${theme.text.s};
+    font-weight: 400;
+    overflow-wrap: anywhere;
+  }
+  small {
+    color: ${theme.colors.muted};
+    font-size: ${theme.text.xs};
+    overflow-wrap: anywhere;
+  }
+`;
+const AlarmAvatar = styled.span`
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: ${palette.gray100};
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+`;
+const AlarmDot = styled.i`
+  flex: none;
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${theme.colors.red};
+`;
 const AlarmColumn = styled.div`
   display: grid;
   gap: 32px;
@@ -850,7 +959,7 @@ export const ProfilePage = () => {
     }
   };
   const save = (body: { name?: string; bio?: string }) => guard(() => update.mutateAsync(body));
-  const profileImage = resolveAssetUrl(me?.profileImageUrl);
+  const profileImage = useAssetObjectUrl(me?.profileImageUrl);
   const uploadProfileImage = (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("이미지 파일만 올릴 수 있습니다.");
@@ -934,8 +1043,9 @@ const DiaryForm = ({
   const save = useSaveDiary();
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
   const [emotionOpen, setEmotionOpen] = useState(false);
-  const [content, setContent] = useState(existing ? splitDiaryContent(existing.content).content : "");
-  const [visibility, setVisibility] = useState<UiVisibility>(existing?.visibility === "PRIVATE" ? "PRIVATE" : "GROUP");
+  const [content, setContent] = useState(existing?.content ?? "");
+  // 서버에서 GROUP(일부 공개)은 보류라 작성자만 보게 됩니다. 화면은 공개/비밀 두 갈래만 씁니다.
+  const [visibility, setVisibility] = useState<UiVisibility>(existing?.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE");
   const [image, setImage] = useState<File | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -947,16 +1057,13 @@ const DiaryForm = ({
       let body: DiaryCreateRequest | DiaryPatchRequest | FormData;
       if (image && canAttach) {
         body = new FormData();
-        body.append("content", composeDiaryContent(selectedDate, content));
+        body.append("date", selectedDate);
+        body.append("content", content);
         body.append("visibility", visibility);
         if (emotion) body.append("emotion", emotion);
         body.append("image", image);
       } else {
-        body = {
-          content: composeDiaryContent(selectedDate, content),
-          emotion: emotion || null,
-          visibility,
-        };
+        body = { date: selectedDate, content, emotion: emotion || null, visibility };
       }
       await save.mutateAsync({ id: existing?.diaryId, body });
       navigate("/");
@@ -989,7 +1096,7 @@ const DiaryForm = ({
               그룹 안 공개 범위 설정하기 <b aria-hidden>*</b>
             </DiaryRailLabel>
             <DiaryPillRow>
-              <Button variant={visibility === "GROUP" ? "primary" : "soft"} onClick={() => setVisibility("GROUP")}>
+              <Button variant={visibility === "PUBLIC" ? "primary" : "soft"} onClick={() => setVisibility("PUBLIC")}>
                 전체 공개
               </Button>
               {/* 일부 공개는 MVP 범위 밖입니다. 자리만 두고 막아 둡니다. */}
@@ -1074,7 +1181,7 @@ export const DiaryPage = () => {
   const [search] = useSearchParams();
   const selectedDate = search.get("date") || formatLocalDate(new Date());
   const { data: me } = useMe();
-  const { data: diaries = [] } = useDiaries();
+  const { data: diaries = [] } = useDiaries({ date: selectedDate });
   const existing = diaries.find(diary => isDiaryForDate(diary, selectedDate));
   return (
     <DiaryForm

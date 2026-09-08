@@ -1,10 +1,9 @@
 import styled from "@emotion/styled";
 import {
   addMonths,
-  buildRoutineDates,
   CATEGORY_PRESETS,
   categoryAccent,
-  composeTodoContent,
+  coversDate,
   dateOnly,
   formatLocalDate,
   getCalendarDays,
@@ -12,25 +11,28 @@ import {
   isInviteCode,
   isTodoCategory,
   parseLocalDate,
-  sameLocalDate,
   sortCategories,
-  splitTodoContent,
-  withOptionalTime,
+  toRecurrence,
+  repeatUsesWeekdays,
+  weekdayOf,
   ROUTINE_REPEATS,
+  WEEKDAYS,
   type RoutineRepeat,
 } from "@tlitodos/core";
 import {
   useAddDependency,
   useApi,
+  useConvertToRoutine,
   useCreateGroup,
-  useCreateTodo,
   useDeleteGroup,
+  useDeleteRoutine,
   useDeleteTodo,
   useGroups,
   useInvalidateTodos,
   useJoinGroup,
   useMe,
-  useRemoveGroupMember,
+  useRemoveGroupMembers,
+  useRenameGroup,
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
@@ -57,11 +59,11 @@ import {
   TodoRow as SharedTodoRow,
   ViewChip,
 } from "@tlitodos/ui";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
-import { resolveAssetUrl } from "./app/assetUrl";
+import { useAssetObjectUrl } from "./app/assetUrl";
 import { useSessionStore } from "./app/sessionStore";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
@@ -460,14 +462,12 @@ export const MemberTabs = ({
   <MemberBar>
     <MemberRow>
       {members.map(member => (
-        <ViewChip
+        <MemberChip
           key={member.userId}
+          member={member}
           active={member.userId === activeUserId}
-          avatar={resolveAssetUrl(member.profileImageUrl)}
           onClick={() => onSelect(member.userId)}
-        >
-          {member.name}
-        </ViewChip>
+        />
       ))}
     </MemberRow>
     {/* 멤버가 넘쳐 줄이 옆으로 밀려도 같이 밀리지 않게, 스크롤되는 칩 줄 밖에 둡니다. */}
@@ -477,6 +477,12 @@ export const MemberTabs = ({
       </InviteShareButton>
     ) : null}
   </MemberBar>
+);
+/** 사진은 인증이 필요해 멤버마다 따로 받아 옵니다 — 훅을 목록 안에서 부를 수 없으니 한 칩씩 나눕니다. */
+const MemberChip = ({ member, active, onClick }: { member: GroupMember; active: boolean; onClick: () => void }) => (
+  <ViewChip active={active} avatar={useAssetObjectUrl(member.profileImageUrl)} onClick={onClick}>
+    {member.name}
+  </ViewChip>
 );
 const MemberBar = styled.div`
   display: flex;
@@ -505,9 +511,8 @@ const MemberRow = styled.div`
 /**
  * 그룹 설정 시트.
  *
- * 디자인의 `groupinfo`입니다. 그룹 삭제는 그룹장만 할 수 있고, 그룹장이 아니면
- * 눌리지 않습니다. 그룹 이름 변경은 서버에 `PATCH /api/v1/groups/{groupId}`가 없어
- * 아직 눌리지 않습니다.
+ * 디자인의 `groupinfo`입니다. 그룹장만 이름을 바꾸고, 멤버를 내보내고, 그룹을
+ * 지울 수 있습니다. 강퇴는 여러 명을 골라 한 번에 보냅니다.
  */
 export const GroupInfoModal = ({
   open,
@@ -520,17 +525,27 @@ export const GroupInfoModal = ({
 }) => {
   const navigate = useNavigate();
   const { data: me } = useMe();
-  const [selected, setSelected] = useState<number | null>(null);
-  const removeMember = useRemoveGroupMember(group?.groupId ?? null);
+  // 시트가 열릴 때마다 새로 마운트되므로(호출 쪽 `key`) 초깃값이 그때의 그룹 이름입니다.
+  const [selected, setSelected] = useState<number[]>([]);
+  const [renaming, setRenaming] = useState(false);
+  const [name, setName] = useState(group?.name ?? "");
+  const removeMembers = useRemoveGroupMembers(group?.groupId ?? null);
+  const renameGroup = useRenameGroup(group?.groupId ?? null);
   const deleteGroup = useDeleteGroup();
   const others = group?.members.filter(member => member.userId !== me?.userId) ?? [];
   const isLeader = group?.members.find(member => member.userId === me?.userId)?.role === "LEADER";
+  const error = removeMembers.error ?? renameGroup.error ?? deleteGroup.error;
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="그룹 설정">
       <SheetForm>
         <GroupInfoTitle>{group?.name ?? "그룹"}</GroupInfoTitle>
         <SheetActions>
-          <GroupInfoAction type="button" disabled title="서버에 그룹 수정 엔드포인트가 아직 없습니다.">
+          <GroupInfoAction
+            type="button"
+            disabled={!group || !isLeader}
+            title={isLeader ? undefined : "그룹장만 그룹 이름을 바꿀 수 있습니다."}
+            onClick={() => setRenaming(!renaming)}
+          >
             <img src={icons.edit} alt="" aria-hidden />
             그룹명 수정
           </GroupInfoAction>
@@ -554,16 +569,52 @@ export const GroupInfoModal = ({
             {deleteGroup.isPending ? "삭제 중..." : "그룹 삭제"}
           </GroupInfoAction>
         </SheetActions>
-        <MemberOptions role="radiogroup" aria-label="멤버 고르기">
+        {renaming ? (
+          <SheetField>
+            <SheetLabel htmlFor="group-rename">새 그룹 이름</SheetLabel>
+            <SheetBox>
+              <input
+                id="group-rename"
+                value={name}
+                maxLength={GROUP_NAME_LIMIT}
+                placeholder="그룹 이름을 입력하세요"
+                onChange={event => setName(event.target.value)}
+              />
+              <small>
+                {name.length}/{GROUP_NAME_LIMIT}
+              </small>
+            </SheetBox>
+            <SheetSubmit
+              type="button"
+              disabled={!name.trim() || name.trim() === group?.name || renameGroup.isPending}
+              onClick={async () => {
+                try {
+                  await renameGroup.mutateAsync(name.trim());
+                  setRenaming(false);
+                } catch {
+                  /* mutation.error를 표시합니다. */
+                }
+              }}
+            >
+              {renameGroup.isPending ? "저장 중..." : "그룹명 수정하기"}
+            </SheetSubmit>
+          </SheetField>
+        ) : null}
+        <MemberOptions role="group" aria-label="멤버 고르기">
           {others.length ? (
             others.map(member => (
               <MemberOption
                 key={member.userId}
                 type="button"
-                role="radio"
-                aria-checked={selected === member.userId}
-                selected={selected === member.userId}
-                onClick={() => setSelected(selected === member.userId ? null : member.userId)}
+                aria-pressed={selected.includes(member.userId)}
+                selected={selected.includes(member.userId)}
+                onClick={() =>
+                  setSelected(
+                    selected.includes(member.userId)
+                      ? selected.filter(id => id !== member.userId)
+                      : [...selected, member.userId],
+                  )
+                }
               >
                 <i aria-hidden />
                 {member.name}
@@ -573,25 +624,27 @@ export const GroupInfoModal = ({
             <DetailEmpty>아직 다른 멤버가 없습니다.</DetailEmpty>
           )}
         </MemberOptions>
-        {removeMember.error || deleteGroup.error ? (
-          <ErrorText>{errorMessage(removeMember.error ?? deleteGroup.error)}</ErrorText>
-        ) : null}
+        {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
         <SheetCancel
           type="button"
-          disabled={selected === null || removeMember.isPending}
+          disabled={selected.length === 0 || removeMembers.isPending || !isLeader}
+          title={isLeader ? undefined : "그룹장만 멤버를 내보낼 수 있습니다."}
           onClick={async () => {
-            if (selected === null) return;
-            const name = others.find(member => member.userId === selected)?.name ?? "";
-            if (!window.confirm(`${name}님을 그룹에서 내보낼까요?`)) return;
+            if (!selected.length) return;
+            const names = others
+              .filter(member => selected.includes(member.userId))
+              .map(member => member.name)
+              .join(", ");
+            if (!window.confirm(`${names}님을 그룹에서 내보낼까요?`)) return;
             try {
-              await removeMember.mutateAsync(selected);
-              setSelected(null);
+              await removeMembers.mutateAsync(selected);
+              setSelected([]);
             } catch {
               /* mutation.error를 표시합니다. */
             }
           }}
         >
-          {removeMember.isPending ? "내보내는 중..." : "선택한 멤버 강퇴"}
+          {removeMembers.isPending ? "내보내는 중..." : "선택한 멤버 강퇴"}
         </SheetCancel>
       </SheetForm>
     </Modal>
@@ -668,14 +721,9 @@ export const GroupInviteModal = ({
   onClose: () => void;
 }) => {
   const code = group?.inviteCode ?? "";
+  // 시트가 열릴 때마다 새로 마운트되므로(호출 쪽 `key`) 안내 문구가 남지 않습니다.
   const [copied, setCopied] = useState(false);
   const [failed, setFailed] = useState(false);
-  // 시트를 다시 열면 안내 문구가 남아 있지 않게 되돌립니다.
-  useEffect(() => {
-    if (!open) return;
-    setCopied(false);
-    setFailed(false);
-  }, [open]);
   useEffect(() => {
     if (!copied) return;
     const timer = window.setTimeout(() => setCopied(false), 2000);
@@ -1010,7 +1058,8 @@ const DaysGrid = styled.div`
   }
 `;
 
-type DeadlineValue = { date: string; time: string };
+/** 기간 할 일이라 시작/마감을 함께 고릅니다. `time`이 빈 문자열이면 미설정입니다. */
+type DeadlineValue = { start: string; date: string; time: string };
 const formatSheetDate = (value: string) => value.replaceAll("-", ".");
 const formatSheetTime = (value: string) => {
   if (!value) return "설정하지 않음";
@@ -1387,7 +1436,7 @@ export const DependencyBlockModal = ({
       <SheetRows>
         {todos.map(todo => (
           <SheetRow as="div" key={todo.todoId}>
-            <span>{splitTodoContent(todo.title).title}</span>
+            <span>{todo.title}</span>
           </SheetRow>
         ))}
       </SheetRows>
@@ -1428,16 +1477,16 @@ export const TodoDetailModal = ({
   const updateTodo = useUpdateTodo();
   const addDependency = useAddDependency();
   const deleteTodo = useDeleteTodo();
-  // 루틴은 날짜마다 한 건씩 만들므로 무효화는 끝난 뒤 한 번만 합니다.
-  const createTodo = useCreateTodo({ invalidate: false });
+  const convertToRoutine = useConvertToRoutine();
+  const deleteRoutine = useDeleteRoutine();
   const invalidateTodos = useInvalidateTodos();
-  const content = splitTodoContent(todo?.title ?? "");
-  const [detail, setDetail] = useState(content.detail);
+  const [detail, setDetail] = useState(todo?.description ?? "");
   const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
   const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
   const [deadline, setDeadline] = useState<DeadlineValue>({
-    date: dateOnly(todo?.dueDate) ?? selectedDate,
-    time: todo?.dueDate?.includes("T") ? todo.dueDate.slice(11, 16) : "23:59",
+    start: dateOnly(todo?.startDate) ?? selectedDate,
+    date: dateOnly(todo?.dueDate) ?? dateOnly(todo?.startDate) ?? selectedDate,
+    time: todo?.time ?? "",
   });
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
@@ -1447,7 +1496,7 @@ export const TodoDetailModal = ({
   const candidates = todos.filter(
     candidate =>
       candidate.todoId !== todo?.todoId &&
-      sameLocalDate(candidate.dueDate, selectedDate) &&
+      coversDate(candidate, selectedDate) &&
       !isHobbyCategory(ordered.find(category => category.categoryId === candidate.categoryId) ?? { name: "취미" }),
   );
   const patch = async (body: TodoPatchRequest) => {
@@ -1467,7 +1516,7 @@ export const TodoDetailModal = ({
       <Modal open={open} sheet onClose={onClose} aria-label="할 일 상세">
         {todo ? (
           <DetailSheet>
-            <DetailTitle>{content.title}</DetailTitle>
+            <DetailTitle>{todo.title}</DetailTitle>
             <DetailBody>
               <div>
                 <DetailActions>
@@ -1477,7 +1526,11 @@ export const TodoDetailModal = ({
                   <DetailAction
                     disabled={deleteTodo.isPending}
                     onClick={async () => {
-                      if (!window.confirm("이 할 일을 삭제할까요?")) return;
+                      // 회차 하나를 지워도 서버는 루틴 전체를 지웁니다. 먼저 알립니다.
+                      const question = todo.routineId
+                        ? "이 할 일은 루틴입니다. 지우면 완료한 회차까지 루틴 전체가 사라집니다. 삭제할까요?"
+                        : "이 할 일을 삭제할까요?";
+                      if (!window.confirm(question)) return;
                       setError("");
                       try {
                         await deleteTodo.mutateAsync(todo.todoId);
@@ -1500,9 +1553,7 @@ export const TodoDetailModal = ({
                       disabled={busy}
                       onChange={event => setDetail(event.target.value)}
                       onBlur={() => {
-                        if (detail !== content.detail) {
-                          void patch({ title: composeTodoContent(content.title, detail) });
-                        }
+                        if (detail !== todo.description) void patch({ description: detail });
                       }}
                     />
                     <small>
@@ -1542,7 +1593,7 @@ export const TodoDetailModal = ({
                               fills={chosen ? [accent, accent, accent, accent] : [null, null, null, null]}
                               checked={chosen}
                             />
-                            <span>{splitTodoContent(candidate.title).title}</span>
+                            <span>{candidate.title}</span>
                           </DependencyRow>
                         );
                       })}
@@ -1582,10 +1633,30 @@ export const TodoDetailModal = ({
                     <img src={icons.calendar} alt="" aria-hidden />
                     마감기한 설정하기
                   </DetailAction>
-                  <DetailAction onClick={() => setRoutineOpen(true)}>
-                    <img src={icons.routine} alt="" aria-hidden />
-                    루틴으로 등록하기
-                  </DetailAction>
+                  {todo.routineId ? (
+                    <DetailAction
+                      disabled={deleteRoutine.isPending}
+                      onClick={async () => {
+                        if (!todo.routineId) return;
+                        if (!window.confirm("이 루틴의 모든 회차를 삭제할까요? 완료한 회차도 함께 사라집니다.")) return;
+                        setError("");
+                        try {
+                          await deleteRoutine.mutateAsync(todo.routineId);
+                          onClose();
+                        } catch (reason) {
+                          setError(errorMessage(reason));
+                        }
+                      }}
+                    >
+                      <img src={icons.routine} alt="" aria-hidden />
+                      {deleteRoutine.isPending ? "삭제 중..." : "루틴 전체 삭제하기"}
+                    </DetailAction>
+                  ) : (
+                    <DetailAction onClick={() => setRoutineOpen(true)}>
+                      <img src={icons.routine} alt="" aria-hidden />
+                      루틴으로 등록하기
+                    </DetailAction>
+                  )}
                 </DetailBlock>
               </div>
             </DetailBody>
@@ -1598,31 +1669,31 @@ export const TodoDetailModal = ({
         value={deadline}
         onChange={next => {
           setDeadline(next);
-          void patch({ dueDate: withOptionalTime(next.date, next.time) });
+          void patch({ startDate: next.start, dueDate: next.date, time: next.time || null });
         }}
         onClose={() => setDeadlineOpen(false)}
       />
       <RoutineModal
         key={`${routineOpen}-${selectedDate}`}
         open={routineOpen}
-        initialDate={dateOnly(todo?.dueDate) ?? selectedDate}
+        initialDate={dateOnly(todo?.startDate) ?? selectedDate}
+        initialTime={todo?.time ?? ""}
         onClose={() => setRoutineOpen(false)}
-        onRegister={async value => {
+        onRegister={async (value, requestId) => {
           if (!todo) return;
           setError("");
           try {
-            for (const date of buildRoutineDates(value.start, value.end, value.repeat)) {
-              await createTodo.mutateAsync({
-                title: todo.title,
-                categoryId: todo.categoryId,
-                importance: todo.importance,
-                hardship: todo.hardship,
-                dueDate: withOptionalTime(date, value.time),
-                visibility: todo.visibility === "GROUP" ? "GROUP" : "PRIVATE",
-                groupId: todo.groupId,
-                isRoutine: true,
-              });
-            }
+            // 원본이 첫 회차가 되므로 새로 만들지 않고 이 할 일을 루틴으로 돌립니다.
+            await convertToRoutine.mutateAsync({
+              id: todo.todoId,
+              body: {
+                requestId,
+                startDate: value.start,
+                endDate: value.end,
+                time: value.time || null,
+                recurrence: toRecurrence(value.repeat, value.weekdays),
+              },
+            });
             invalidateTodos();
             setRoutineOpen(false);
             onClose();
@@ -1761,8 +1832,12 @@ const DetailPills = styled.div`
 /**
  * 마감기한 시트.
  *
- * 회색 줄 두 개(마감 날짜, 시간 설정)를 누르면 그 아래에 달력과 시간 판이 열립니다.
- * 디자인에 취소 버튼이 없어, 뒤 배경을 눌러 닫습니다.
+ * 회색 줄을 누르면 그 아래에 달력과 시간 판이 열립니다. 디자인에 취소 버튼이 없어,
+ * 뒤 배경을 눌러 닫습니다.
+ *
+ * 서버가 기간 할 일을 받으므로 시작 날짜 줄이 함께 있습니다 — 시작일부터 마감일까지
+ * 양끝을 포함한 모든 날에 같은 할 일이 나타납니다. 마감일을 시작일보다 앞으로
+ * 당기면 시작일도 같이 당겨 잘못된 기간을 서버에 보내지 않습니다.
  */
 export const DeadlineModal = ({
   open,
@@ -1775,7 +1850,7 @@ export const DeadlineModal = ({
   onChange: (next: DeadlineValue) => void;
   onClose: () => void;
 }) => {
-  const [panel, setPanel] = useState<"date" | "time" | null>("date");
+  const [panel, setPanel] = useState<"start" | "date" | "time" | null>("date");
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="마감기한 설정하기">
       <SheetForm>
@@ -1785,6 +1860,20 @@ export const DeadlineModal = ({
         <SheetRows>
           <SheetRow
             type="button"
+            aria-expanded={panel === "start"}
+            onClick={() => setPanel(panel === "start" ? null : "start")}
+          >
+            <span>시작 날짜</span>
+            <span>{formatSheetDate(value.start)}</span>
+          </SheetRow>
+          {panel === "start" ? (
+            <SheetCalendar
+              value={value.start}
+              onChange={start => onChange({ ...value, start, date: start > value.date ? start : value.date })}
+            />
+          ) : null}
+          <SheetRow
+            type="button"
             aria-expanded={panel === "date"}
             onClick={() => setPanel(panel === "date" ? null : "date")}
           >
@@ -1792,7 +1881,10 @@ export const DeadlineModal = ({
             <span>{formatSheetDate(value.date)}</span>
           </SheetRow>
           {panel === "date" ? (
-            <SheetCalendar value={value.date} onChange={date => onChange({ ...value, date })} />
+            <SheetCalendar
+              value={value.date}
+              onChange={date => onChange({ ...value, date, start: date < value.start ? date : value.start })}
+            />
           ) : null}
           <SheetRow
             type="button"
@@ -1817,28 +1909,47 @@ export interface RoutineValue {
   end: string;
   time: string;
   repeat: RoutineRepeat;
+  /** 월=1 ~ 일=7. 매주/격주에서만 씁니다. */
+  weekdays: number[];
 }
 /**
  * 루틴 시트.
  *
- * 서버에 루틴이 없어 반복 날짜를 펼쳐 할 일을 한 건씩 만듭니다. 등록은 `onRegister`가
- * 맡습니다.
+ * 서버가 반복 날짜를 한 요청으로 펼치므로, 여기서는 규칙만 모아 `onRegister`에
+ * 넘깁니다. 매주/격주를 고르면 요일 줄이 열립니다.
+ *
+ * `requestId`는 시트가 한 번 뽑아 들고 있다가 등록마다 같은 값을 넘깁니다 —
+ * 실패하고 다시 눌렀을 때 새 키를 쓰면 서버가 루틴을 하나 더 만들기 때문입니다.
  */
 export const RoutineModal = ({
   open,
   initialDate,
+  initialTime = "",
   onRegister,
   onClose,
 }: {
   open: boolean;
   initialDate: string;
-  onRegister: (value: RoutineValue) => Promise<void>;
+  initialTime?: string;
+  onRegister: (value: RoutineValue, requestId: string) => Promise<void>;
   onClose: () => void;
 }) => {
-  const [value, setValue] = useState<RoutineValue>({ start: initialDate, end: initialDate, time: "", repeat: "DAILY" });
-  const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | null>("repeat");
+  const [value, setValue] = useState<RoutineValue>({
+    start: initialDate,
+    end: initialDate,
+    time: initialTime,
+    repeat: "DAILY",
+    weekdays: [weekdayOf(initialDate)],
+  });
+  const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | "weekdays" | null>("repeat");
   const [busy, setBusy] = useState(false);
-  const toggle = (next: "start" | "end" | "time" | "repeat") => () => setPanel(panel === next ? null : next);
+  // 같은 시트가 열려 있는 동안은 재시도해도 같은 키를 씁니다.
+  const requestId = useRef(crypto.randomUUID());
+  const toggle = (next: "start" | "end" | "time" | "repeat" | "weekdays") => () =>
+    setPanel(panel === next ? null : next);
+  const showWeekdays = repeatUsesWeekdays(value.repeat);
+  const invalidRange = value.end < value.start;
+  const missingWeekday = showWeekdays && value.weekdays.length === 0;
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="루틴으로 등록하기">
       <SheetForm>
@@ -1851,7 +1962,10 @@ export const RoutineModal = ({
             <span>{formatSheetDate(value.start)}</span>
           </SheetRow>
           {panel === "start" ? (
-            <SheetCalendar value={value.start} onChange={start => setValue({ ...value, start })} />
+            <SheetCalendar
+              value={value.start}
+              onChange={start => setValue({ ...value, start, end: start > value.end ? start : value.end })}
+            />
           ) : null}
           <SheetRow type="button" aria-expanded={panel === "end"} onClick={toggle("end")}>
             <span>종료 날짜</span>
@@ -1876,7 +1990,14 @@ export const RoutineModal = ({
                   role="radio"
                   aria-checked={value.repeat === item.key}
                   selected={value.repeat === item.key}
-                  onClick={() => setValue({ ...value, repeat: item.key })}
+                  onClick={() =>
+                    setValue({
+                      ...value,
+                      repeat: item.key,
+                      // 요일을 지운 채로 매주를 다시 고르면 시작일 요일로 되돌립니다.
+                      weekdays: value.weekdays.length ? value.weekdays : [weekdayOf(value.start)],
+                    })
+                  }
                 >
                   <i aria-hidden />
                   {item.label}
@@ -1884,15 +2005,55 @@ export const RoutineModal = ({
               ))}
             </RepeatList>
           ) : null}
+          {showWeekdays ? (
+            <>
+              <SheetRow type="button" aria-expanded={panel === "weekdays"} onClick={toggle("weekdays")}>
+                <span>반복 요일</span>
+                <span>
+                  {value.weekdays.length
+                    ? WEEKDAYS.filter(day => value.weekdays.includes(day.value))
+                        .map(day => day.label)
+                        .join(" ")
+                    : "고르지 않음"}
+                </span>
+              </SheetRow>
+              {panel === "weekdays" ? (
+                <WeekdayRow role="group" aria-label="반복 요일">
+                  {WEEKDAYS.map(day => {
+                    const chosen = value.weekdays.includes(day.value);
+                    return (
+                      <WeekdayButton
+                        key={day.value}
+                        type="button"
+                        aria-pressed={chosen}
+                        selected={chosen}
+                        onClick={() =>
+                          setValue({
+                            ...value,
+                            weekdays: chosen
+                              ? value.weekdays.filter(item => item !== day.value)
+                              : [...value.weekdays, day.value],
+                          })
+                        }
+                      >
+                        {day.label}
+                      </WeekdayButton>
+                    );
+                  })}
+                </WeekdayRow>
+              ) : null}
+            </>
+          ) : null}
         </SheetRows>
-        {value.end < value.start ? <ErrorText>종료 날짜가 시작 날짜보다 앞설 수 없습니다.</ErrorText> : null}
+        {invalidRange ? <ErrorText>종료 날짜가 시작 날짜보다 앞설 수 없습니다.</ErrorText> : null}
+        {missingWeekday ? <ErrorText>반복할 요일을 하나 이상 고르세요.</ErrorText> : null}
         <SheetSubmit
           type="button"
-          disabled={busy || value.end < value.start}
+          disabled={busy || invalidRange || missingWeekday}
           onClick={async () => {
             setBusy(true);
             try {
-              await onRegister(value);
+              await onRegister(value, requestId.current);
             } finally {
               setBusy(false);
             }
@@ -1904,6 +2065,21 @@ export const RoutineModal = ({
     </Modal>
   );
 };
+const WeekdayRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 20px;
+`;
+const WeekdayButton = styled.button<{ selected: boolean }>`
+  width: 36px;
+  height: 36px;
+  border: 1px solid ${palette.gray200};
+  border-radius: 50%;
+  background: ${({ selected }) => (selected ? palette.black : palette.white)};
+  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
+  font-size: ${theme.text.s};
+`;
 const RepeatList = styled.div`
   display: grid;
   justify-items: start;
@@ -1975,7 +2151,7 @@ export const CategorySection = ({
             <TodoDraftRow
               key={todo.todoId}
               accent={accent}
-              initial={splitTodoContent(todo.title).title}
+              initial={todo.title}
               onCancel={onCancelAdd}
               onCommit={title => onRenameTitle(todo, title)}
             />

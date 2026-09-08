@@ -1,6 +1,5 @@
 import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { splitTodoContent } from "@tlitodos/core";
 import type { Todo } from "@tlitodos/types";
 import { icons } from "./icons";
 import { palette, theme, uiGlyphFont } from "./theme";
@@ -295,8 +294,7 @@ export const TodoRow = ({
   onToggle?: () => void;
   onEdit?: () => void;
 }) => {
-  const content = splitTodoContent(todo.title);
-  const detail = content.detail || todo.subtasks.map(item => item.content).join(" · ");
+  const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
   const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
@@ -305,7 +303,7 @@ export const TodoRow = ({
         <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
       <TodoTextButton disabled={!own} onClick={onEdit}>
-        <strong>{content.title}</strong>
+        <strong>{todo.title}</strong>
         {detail ? <small>{detail}</small> : null}
       </TodoTextButton>
       {!own && !todo.isCompleted ? (

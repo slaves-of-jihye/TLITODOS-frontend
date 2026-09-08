@@ -1,4 +1,4 @@
-import type { Category, DailyTodoStatus, Diary, Importance, Todo } from "@tlitodos/types";
+import type { Category, DailyTodoStatus, Diary, Importance, Recurrence, Todo } from "@tlitodos/types";
 
 /**
  * 카테고리 색. Figma `component` 프레임의 category 배리언트에서 읽었습니다.
@@ -220,8 +220,34 @@ const importanceRank: Record<Importance, number> = { HIGH: 0, LOW: 1, NONE: 2 };
 export const sortTodos = (todos: Todo[]) =>
   [...todos].sort((a, b) => importanceRank[a.importance] - importanceRank[b.importance] || a.todoId - b.todoId);
 
+/**
+ * 기간 할 일은 시작일부터 마감일까지 모든 날에 나타납니다. 양끝을 포함하고,
+ * 마감일이 없으면 시작일 하루만 차지합니다.
+ */
+export const coversDate = (todo: Pick<Todo, "startDate" | "dueDate">, date: string) => {
+  const start = dateOnly(todo.startDate);
+  if (!start) return false;
+  const end = dateOnly(todo.dueDate) ?? start;
+  return start <= date && date <= end;
+};
+
+export const todoDates = (todo: Pick<Todo, "startDate" | "dueDate">) => {
+  const start = dateOnly(todo.startDate);
+  if (!start) return [];
+  const end = dateOnly(todo.dueDate) ?? start;
+  if (end < start) return [start];
+  const dates: string[] = [];
+  const cursor = parseLocalDate(start);
+  const last = parseLocalDate(end);
+  while (cursor <= last) {
+    dates.push(formatLocalDate(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+};
+
 export const todosForDate = (todos: Todo[], selectedDate: string) =>
-  todos.filter(todo => sameLocalDate(todo.dueDate, selectedDate));
+  todos.filter(todo => coversDate(todo, selectedDate));
 
 /** 달력에 쓰는 `YYYY-MM`. 서버의 daily-status가 이 형식만 받습니다. */
 export const monthKey = (viewDate: Date) =>
@@ -238,12 +264,13 @@ export const monthKey = (viewDate: Date) =>
 export const buildDailyStatuses = (todos: Todo[]): DailyTodoStatus[] => {
   const byDate = new Map<string, { incompleteCount: number; categories: Map<number, boolean> }>();
   for (const todo of todos) {
-    const date = dateOnly(todo.dueDate);
-    if (!date) continue;
-    const day = byDate.get(date) ?? { incompleteCount: 0, categories: new Map<number, boolean>() };
-    if (!todo.isCompleted) day.incompleteCount += 1;
-    day.categories.set(todo.categoryId, (day.categories.get(todo.categoryId) ?? true) && todo.isCompleted);
-    byDate.set(date, day);
+    // 기간 할 일은 걸친 날마다 한 번씩 셉니다. 완료 상태는 기간 전체가 하나입니다.
+    for (const date of todoDates(todo)) {
+      const day = byDate.get(date) ?? { incompleteCount: 0, categories: new Map<number, boolean>() };
+      if (!todo.isCompleted) day.incompleteCount += 1;
+      day.categories.set(todo.categoryId, (day.categories.get(todo.categoryId) ?? true) && todo.isCompleted);
+      byDate.set(date, day);
+    }
   }
   return [...byDate.entries()].map(([date, day]) => ({
     date,
@@ -262,8 +289,9 @@ export const unresolvedDependencies = (todo: Todo, allTodos: Todo[]) =>
 /**
  * 루틴 반복 주기. Figma의 `modal / insert / routine`이 고르게 하는 다섯 가지입니다.
  *
- * 서버에 루틴 개념이 없어(할 일 생성 엔드포인트만 있습니다) 날짜를 여기서 펼친 뒤
- * 한 건씩 만듭니다.
+ * 서버는 `frequency` + `interval` + `weekdays`로 받으므로, 화면의 다섯 갈래를
+ * `toRecurrence`가 그 모양으로 옮깁니다. 격주는 `WEEKLY` + `interval: 2`입니다.
+ * 반복 날짜는 서버가 펼치므로 프런트에서 날짜를 세지 않습니다.
  */
 export type RoutineRepeat = "DAILY" | "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "YEARLY";
 export const ROUTINE_REPEATS: { key: RoutineRepeat; label: string }[] = [
@@ -273,55 +301,37 @@ export const ROUTINE_REPEATS: { key: RoutineRepeat; label: string }[] = [
   { key: "MONTHLY", label: "매월" },
   { key: "YEARLY", label: "매년" },
 ];
-export const buildRoutineDates = (start: string, end: string, repeat: RoutineRepeat) => {
-  const first = parseLocalDate(start);
-  const last = parseLocalDate(end);
-  const dates: string[] = [];
-  const dayStep = repeat === "DAILY" ? 1 : repeat === "WEEKLY" ? 7 : repeat === "BIWEEKLY" ? 14 : 0;
-  if (dayStep) {
-    const cursor = parseLocalDate(start);
-    while (cursor <= last) {
-      dates.push(formatLocalDate(cursor));
-      cursor.setDate(cursor.getDate() + dayStep);
-    }
-    return dates;
-  }
-  // 매월/매년은 같은 날짜를 세어 나갑니다. 31일처럼 그 달에 없는 날짜는 다음 달로
-  // 넘어가 버리므로(2월 31일 -> 3월 3일) 날짜가 어긋난 회차는 건너뜁니다.
-  for (let index = 0; ; index += 1) {
-    const cursor =
-      repeat === "MONTHLY"
-        ? new Date(first.getFullYear(), first.getMonth() + index, first.getDate())
-        : new Date(first.getFullYear() + index, first.getMonth(), first.getDate());
-    if (cursor > last) break;
-    if (cursor.getDate() === first.getDate()) dates.push(formatLocalDate(cursor));
-  }
-  return dates;
+
+/** 서버의 요일 번호. 월=1 ~ 일=7이고, JS의 일요일 0은 7로 옮깁니다. */
+export const WEEKDAYS: { value: number; label: string }[] = [
+  { value: 1, label: "월" },
+  { value: 2, label: "화" },
+  { value: 3, label: "수" },
+  { value: 4, label: "목" },
+  { value: 5, label: "금" },
+  { value: 6, label: "토" },
+  { value: 7, label: "일" },
+];
+export const weekdayOf = (date: string) => parseLocalDate(date).getDay() || 7;
+
+/** 요일을 고를 수 있는 주기만 요일 줄을 보여 줍니다. */
+export const repeatUsesWeekdays = (repeat: RoutineRepeat) => repeat === "WEEKLY" || repeat === "BIWEEKLY";
+
+export const toRecurrence = (repeat: RoutineRepeat, weekdays: number[]): Recurrence => {
+  if (!repeatUsesWeekdays(repeat)) return { frequency: repeat === "DAILY" ? "DAILY" : repeat };
+  return {
+    frequency: "WEEKLY",
+    interval: repeat === "BIWEEKLY" ? 2 : 1,
+    // 서버가 중복을 걷어내고 정렬하지만, 재시도 본문이 같아야 하므로 여기서 맞춥니다.
+    weekdays: [...new Set(weekdays)].sort((left, right) => left - right),
+  };
 };
 
-export const withOptionalTime = (date: string, time?: string) => (time ? `${date}T${time}:00` : date);
 export const isInviteCode = (value: string) => /^[a-z0-9]{8}$/.test(value);
 
-const TODO_DETAIL_SEPARATOR = "\n";
-export const splitTodoContent = (value: string) => {
-  const [title = "", ...detail] = value.split(TODO_DETAIL_SEPARATOR);
-  return { title, detail: detail.join(TODO_DETAIL_SEPARATOR) };
-};
-export const composeTodoContent = (title: string, detail?: string) =>
-  detail?.trim() ? `${title.trim()}${TODO_DETAIL_SEPARATOR}${detail.trim()}` : title.trim();
+/** 일기는 서버가 `date`를 들고 있습니다. 예전처럼 본문에 날짜를 심지 않습니다. */
+export const diaryDate = (diary: Pick<Diary, "date" | "createdAt">) =>
+  dateOnly(diary.date) ?? dateOnly(diary.createdAt);
 
-const DIARY_DATE_PREFIX = "__TLITODOS_DATE__:";
-export const composeDiaryContent = (date: string, content: string) => `${DIARY_DATE_PREFIX}${date}\n${content.trim()}`;
-export const splitDiaryContent = (content: string) =>
-  content.startsWith(DIARY_DATE_PREFIX)
-    ? {
-        date: content.slice(DIARY_DATE_PREFIX.length, DIARY_DATE_PREFIX.length + 10),
-        content: content.slice(DIARY_DATE_PREFIX.length + 11),
-      }
-    : { date: null, content };
-
-export const diaryDate = (diary: Pick<Diary, "content" | "createdAt">) =>
-  splitDiaryContent(diary.content).date ?? dateOnly(diary.createdAt);
-
-export const isDiaryForDate = (diary: Pick<Diary, "content" | "createdAt">, selectedDate: string) =>
+export const isDiaryForDate = (diary: Pick<Diary, "date" | "createdAt">, selectedDate: string) =>
   diaryDate(diary) === selectedDate;
