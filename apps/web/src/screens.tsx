@@ -138,15 +138,22 @@ const TodoWorkspace = ({
   /**
    * 달력에 찍을 날짜별 요약입니다.
    *
-   * 남의 달력은 서버 요약을 받을 수 없어 이미 가진 목록을 같은 모양으로 접습니다.
-   * 내 달력은 서버 요약을 쓰지만, 고른 날짜만은 손안의 목록으로 다시 셉니다 —
-   * 그러지 않으면 체크를 눌렀을 때 숫자가 서버 왕복만큼 늦게 바뀝니다.
+   * 손안의 목록으로 직접 셉니다. 목록은 날짜로 좁히지 않고 통째로 받아 두므로 모든
+   * 달을 덮고, 낙관적 완료 표시가 반영되며, `2026-05-13T12:30:00`처럼 시간이 붙은
+   * 마감일도 날짜만 떼어 제대로 셉니다.
+   *
+   * 서버 요약(daily-status)은 목록에 아직 없는 날짜만 채웁니다 — 목록이 오는 동안
+   * 달력이 비어 보이지 않게 하는 용도입니다. 서버는 `dueDate`를 날짜 문자열과
+   * 그대로 견주어 시간이 붙은 할 일을 세지 않으므로, 겹치는 날짜는 손안의 값을
+   * 씁니다.
    */
   const dailyStatuses = useMemo(() => {
-    if (!own) return buildDailyStatuses(ownerTodos);
-    const local = buildDailyStatuses(selectedTodos).find(status => status.date === selectedDate);
-    return local ? [...serverStatuses.filter(status => status.date !== selectedDate), local] : serverStatuses;
-  }, [own, ownerTodos, selectedTodos, selectedDate, serverStatuses]);
+    const local = buildDailyStatuses(todos);
+    if (!own) return local;
+    const byDate = new Map(serverStatuses.map(status => [status.date, status]));
+    for (const status of local) byDate.set(status.date, status);
+    return [...byDate.values()];
+  }, [own, todos, serverStatuses]);
   const selectedDiary = diaries.find(
     diary => diary.userId === (ownerId ?? diary.userId) && isDiaryForDate(diary, selectedDate),
   );
