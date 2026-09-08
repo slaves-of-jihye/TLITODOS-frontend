@@ -9,6 +9,7 @@ import {
   formatLocalDate,
   getCalendarDays,
   isHobbyCategory,
+  isInviteCode,
   isTodoCategory,
   parseLocalDate,
   sameLocalDate,
@@ -35,11 +36,9 @@ import {
 import type { Category, GroupDetail, GroupMember, Importance, Todo, TodoPatchRequest } from "@tlitodos/types";
 import {
   Button,
-  ButtonStack,
   CategoryPill,
   DayStash,
   ErrorText,
-  Field,
   HeaderRow,
   icons,
   Modal,
@@ -210,7 +209,6 @@ const LoginCopy = styled.p`
   color: ${theme.colors.muted};
   @media (max-width: 600px) {
     margin: -8px 0 24px;
-    line-height: 1.55;
   }
 `;
 const GoogleButton = styled.button`
@@ -219,20 +217,22 @@ const GoogleButton = styled.button`
   align-items: center;
   justify-content: center;
   gap: 12px;
-  border: 1px solid ${theme.colors.line};
-  border-radius: 14px;
-  background: white;
-  padding: 15px;
-  font-weight: 700;
-  &:hover {
-    background: #f8fafb;
+  border: 0;
+  border-radius: 12px;
+  background: ${palette.gray200};
+  padding: 10px 20px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  &:disabled {
+    opacity: 0.45;
+    cursor: progress;
   }
 `;
+/* 구글 마크는 브랜드 색과 서체를 그대로 씁니다. */
 const GoogleMark = styled.span`
   font-family: Arial, sans-serif;
-  font-size: 22px;
+  font-size: 20px;
   color: #4285f4;
-  font-weight: 800;
 `;
 
 const iosInstallHint = "공유 버튼을 누르고 '홈 화면에 추가'를 선택해 주세요.";
@@ -285,8 +285,8 @@ const InstallBanner = styled.aside`
   grid-template-columns: auto 1fr;
   gap: 10px 14px;
   align-items: center;
-  border: 1px solid ${theme.colors.line};
-  border-radius: 22px;
+  border: 1px solid ${palette.gray200};
+  border-radius: ${theme.radius.md};
   background: white;
   padding: 16px 18px;
   box-shadow: ${theme.shadow};
@@ -305,12 +305,11 @@ const InstallCopy = styled.div`
   display: grid;
   gap: 4px;
   strong {
-    font-size: 15px;
+    font-size: ${theme.text.s};
   }
   span {
     color: ${theme.colors.muted};
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: ${theme.text.xs};
   }
 `;
 const InstallActions = styled.div`
@@ -338,15 +337,14 @@ const InstallAppButton = styled.button`
   display: block;
   border: 0;
   background: transparent;
-  color: ${theme.colors.blue};
-  font-weight: 800;
   padding: 10px 0;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.blue};
 `;
 const InstallHint = styled.p`
   margin: 28px 0 0;
   color: ${theme.colors.muted};
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: ${theme.text.xs};
 `;
 
 export const WorkspaceHeader = ({
@@ -604,6 +602,12 @@ const MemberOption = styled.button<{ selected: boolean }>`
   }
 `;
 
+/**
+ * 그룹 만들기 / 초대코드로 참여하기.
+ *
+ * Figma에 없는 화면이라, 같은 파일의 `modal / category`가 세운 꼴을 따릅니다 —
+ * 제목, 라벨 붙은 회색 입력칸, 취소/완료 두 버튼.
+ */
 export const GroupActionModals = ({ mode, onClose }: { mode: "create" | "join" | null; onClose: () => void }) => {
   const createGroup = useCreateGroup();
   const joinGroup = useJoinGroup();
@@ -618,69 +622,93 @@ export const GroupActionModals = ({ mode, onClose }: { mode: "create" | "join" |
     onClose();
   };
   const error = createGroup.error ?? joinGroup.error;
+  const busy = createGroup.isPending || joinGroup.isPending;
   return (
-    <Modal open={mode !== null} title={mode === "create" ? "새 그룹 만들기" : "초대코드로 참여하기"} onClose={close}>
-      {mode === "create" ? (
-        <>
-          <Field>
-            그룹 이름
-            <input
-              value={name}
-              maxLength={20}
-              onChange={e => setName(e.target.value)}
-              placeholder="그룹 이름을 입력하세요"
-            />
-          </Field>
-          <Field>
-            그룹 소개
-            <textarea
-              value={description}
-              maxLength={80}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="우리 그룹을 소개해 주세요"
-            />
-            <small>{description.length}/80</small>
-          </Field>
-        </>
-      ) : (
-        <Field>
-          초대코드
-          <input
-            value={code}
-            maxLength={8}
-            onChange={e => setCode(e.target.value.toLowerCase())}
-            placeholder="영문 소문자와 숫자 8자리"
-          />
-        </Field>
-      )}
-      {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
-      <ButtonStack>
-        <Button
-          variant="primary"
-          disabled={mode === "create" ? !name.trim() : !/^[a-z0-9]{8}$/.test(code)}
-          onClick={async () => {
-            try {
-              if (mode === "create") {
-                const group = await createGroup.mutateAsync({ name: name.trim(), description: description.trim() });
+    <Modal
+      open={mode !== null}
+      sheet
+      onClose={close}
+      aria-label={mode === "create" ? "새 그룹 만들기" : "초대코드로 참여하기"}
+    >
+      <SheetForm>
+        <SheetHeading>{mode === "create" ? "새 그룹 만들기" : "초대코드로 참여하기"}</SheetHeading>
+        {mode === "create" ? (
+          <>
+            <SheetField>
+              <SheetLabel htmlFor="group-name">그룹 이름</SheetLabel>
+              <SheetBox>
+                <input
+                  id="group-name"
+                  value={name}
+                  maxLength={GROUP_NAME_LIMIT}
+                  placeholder="그룹 이름을 입력하세요"
+                  onChange={e => setName(e.target.value)}
+                />
+                <small>
+                  {name.length}/{GROUP_NAME_LIMIT}
+                </small>
+              </SheetBox>
+            </SheetField>
+            <SheetField>
+              <SheetLabel htmlFor="group-description">그룹 소개</SheetLabel>
+              <SheetBox>
+                <textarea
+                  id="group-description"
+                  value={description}
+                  maxLength={GROUP_BIO_LIMIT}
+                  placeholder="우리 그룹을 소개해 주세요"
+                  onChange={e => setDescription(e.target.value)}
+                />
+                <small>
+                  {description.length}/{GROUP_BIO_LIMIT}
+                </small>
+              </SheetBox>
+            </SheetField>
+          </>
+        ) : (
+          <SheetField>
+            <SheetLabel htmlFor="group-code">초대코드</SheetLabel>
+            <SheetBox>
+              <input
+                id="group-code"
+                value={code}
+                maxLength={8}
+                placeholder="영문 소문자와 숫자 8자리"
+                onChange={e => setCode(e.target.value.toLowerCase())}
+              />
+            </SheetBox>
+          </SheetField>
+        )}
+        {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
+        <SheetActions>
+          <SheetCancel type="button" onClick={close}>
+            취소
+          </SheetCancel>
+          <SheetSubmit
+            type="button"
+            disabled={busy || (mode === "create" ? !name.trim() : !isInviteCode(code))}
+            onClick={async () => {
+              try {
+                const group =
+                  mode === "create"
+                    ? await createGroup.mutateAsync({ name: name.trim(), description: description.trim() })
+                    : await joinGroup.mutateAsync({ inviteCode: code });
                 close();
                 navigate(`/groups/${group.groupId}`);
-              } else {
-                const group = await joinGroup.mutateAsync({ inviteCode: code });
-                close();
-                navigate(`/groups/${group.groupId}`);
+              } catch {
+                /* mutation.error를 시트에 표시합니다. */
               }
-            } catch {
-              /* mutation.error를 모달에 표시합니다. */
-            }
-          }}
-        >
-          {mode === "create" ? "그룹 만들기" : "참여하기"}
-        </Button>
-        <Button onClick={close}>취소</Button>
-      </ButtonStack>
+            }}
+          >
+            완료
+          </SheetSubmit>
+        </SheetActions>
+      </SheetForm>
     </Modal>
   );
 };
+const GROUP_NAME_LIMIT = 20;
+const GROUP_BIO_LIMIT = 80;
 
 export const CalendarPanel = ({
   month,
@@ -1107,14 +1135,37 @@ const SheetLabel = styled.label`
   font-size: ${theme.text.s};
   color: ${theme.colors.ink};
 `;
-const SheetInput = styled.input`
+/** 라벨 아래 회색 입력 상자. 글자 수는 상자 안 오른쪽에 붙습니다. */
+const SheetBox = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
   width: 100%;
-  border: 0;
   border-radius: ${theme.radius.sm};
   background: ${theme.colors.panel};
   padding: 12px 20px;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
+  input,
+  textarea {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+  textarea {
+    min-height: 72px;
+    resize: vertical;
+  }
+  small {
+    flex: none;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.muted};
+  }
 `;
 const SheetActions = styled.div`
   display: flex;
@@ -1144,7 +1195,9 @@ export const CategoryManageModal = ({
         <SheetHeading>카테고리 이름 변경</SheetHeading>
         <SheetField>
           <SheetLabel htmlFor="category-name">이름</SheetLabel>
-          <SheetInput id="category-name" value={name} maxLength={16} onChange={e => setName(e.target.value)} />
+          <SheetBox>
+            <input id="category-name" value={name} maxLength={16} onChange={e => setName(e.target.value)} />
+          </SheetBox>
         </SheetField>
         {update.error ? <ErrorText>{errorMessage(update.error)}</ErrorText> : null}
         <SheetActions>

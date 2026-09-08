@@ -1,7 +1,7 @@
 import styled from "@emotion/styled";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { splitTodoContent } from "@tlitodos/core";
-import type { GroupMember, Todo } from "@tlitodos/types";
+import type { Todo } from "@tlitodos/types";
 import { icons } from "./icons";
 import { palette, theme, uiGlyphFont } from "./theme";
 
@@ -58,22 +58,6 @@ export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "g
   @media (max-width: 600px) {
     min-height: 40px;
     padding: 6px 14px;
-  }
-`;
-
-export const IconButton = styled.button`
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: ${theme.colors.panel};
-  font-family: ${uiGlyphFont};
-  font-size: 22px;
-  @media (max-width: 600px) {
-    width: 44px;
-    height: 44px;
   }
 `;
 
@@ -376,101 +360,6 @@ const BetOverlay = styled.button`
   }
 `;
 
-export const Selection = ({ label, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) => (
-  <RadioLabel>
-    <input type="radio" {...props} />
-    <span>{label}</span>
-  </RadioLabel>
-);
-export const Option = Selection;
-const RadioLabel = styled.label`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  input {
-    position: absolute;
-    opacity: 0;
-  }
-  span {
-    padding: 8px 13px;
-    border: 1px solid ${theme.colors.line};
-    border-radius: ${theme.radius.pill};
-    background: #f8f9fb;
-  }
-  input:checked + span {
-    background: #effad9;
-    border-color: #d2eb9e;
-  }
-  @media (max-width: 600px) {
-    span {
-      min-height: 42px;
-      display: inline-flex;
-      align-items: center;
-      padding: 9px 13px;
-    }
-  }
-`;
-
-export const ProfileCard = ({ member, onClick }: { member: GroupMember; onClick?: () => void }) => (
-  <ProfileButton onClick={onClick}>
-    {member.profileImageUrl ? <ProfileImage src={member.profileImageUrl} alt="" /> : <ProfileAvatar>🐰</ProfileAvatar>}
-    <span>
-      <strong>{member.name}</strong>
-      {member.bio?.trim() ? <small>{member.bio}</small> : null}
-    </span>
-  </ProfileButton>
-);
-const ProfileButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  width: 100%;
-  padding: 12px;
-  border: 0;
-  border-radius: 12px;
-  background: white;
-  text-align: left;
-  transition: background 0.15s;
-  &:hover {
-    background: #f6f8fa;
-  }
-  strong,
-  small {
-    display: block;
-  }
-  strong {
-    font-size: 20px;
-  }
-  small {
-    color: ${theme.colors.muted};
-    margin-top: 7px;
-  }
-  @media (max-width: 600px) {
-    gap: 14px;
-    min-height: 76px;
-    padding: 10px 8px;
-    strong {
-      font-size: 18px;
-    }
-  }
-`;
-const ProfileImage = styled.img`
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  object-fit: cover;
-`;
-const ProfileAvatar = styled.span`
-  width: 62px;
-  height: 62px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #fff3f7;
-  font-size: 33px;
-`;
-
 export const DiaryBadge = ({
   emotion,
   nickname,
@@ -690,43 +579,6 @@ const Dialog = styled.div<{ login: boolean; sheet: boolean }>`
   }
 `;
 
-export const Field = styled.label`
-  display: grid;
-  gap: 9px;
-  font-weight: 700;
-  input,
-  textarea,
-  select {
-    width: 100%;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    background: #f7f9fb;
-    padding: 14px 16px;
-    color: ${theme.colors.ink};
-  }
-  textarea {
-    min-height: 96px;
-    resize: vertical;
-  }
-  small {
-    justify-self: end;
-    color: ${theme.colors.muted};
-    font-weight: 500;
-  }
-`;
-export const FormGrid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 28px 60px;
-  @media (max-width: 700px) {
-    grid-template-columns: 1fr;
-  }
-`;
-export const ButtonStack = styled.div`
-  display: grid;
-  gap: 10px;
-  margin-top: 28px;
-`;
 export const ErrorText = styled.p`
   color: ${theme.colors.red};
   font-size: 13px;

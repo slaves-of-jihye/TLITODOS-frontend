@@ -1166,10 +1166,7 @@ const EmptyState = styled.div`
 `;
 const PageTitle = styled.h1`
   margin: 0;
-  font-size: 30px;
-  @media (max-width: 600px) {
-    font-size: 26px;
-  }
+  font-size: ${theme.text.h1};
 `;
 const ProfileTitle = styled.h1`
   margin: 0 0 40px;
