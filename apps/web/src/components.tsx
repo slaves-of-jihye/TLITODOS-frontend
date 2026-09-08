@@ -450,28 +450,48 @@ export const MemberTabs = ({
   members,
   activeUserId,
   onSelect,
+  onShareInvite,
 }: {
   members: GroupMember[];
   activeUserId: number | null;
   onSelect: (userId: number) => void;
+  onShareInvite?: () => void;
 }) => (
-  <MemberRow>
-    {members.map(member => (
-      <ViewChip
-        key={member.userId}
-        active={member.userId === activeUserId}
-        avatar={resolveAssetUrl(member.profileImageUrl)}
-        onClick={() => onSelect(member.userId)}
-      >
-        {member.name}
-      </ViewChip>
-    ))}
-  </MemberRow>
+  <MemberBar>
+    <MemberRow>
+      {members.map(member => (
+        <ViewChip
+          key={member.userId}
+          active={member.userId === activeUserId}
+          avatar={resolveAssetUrl(member.profileImageUrl)}
+          onClick={() => onSelect(member.userId)}
+        >
+          {member.name}
+        </ViewChip>
+      ))}
+    </MemberRow>
+    {/* 멤버가 넘쳐 줄이 옆으로 밀려도 같이 밀리지 않게, 스크롤되는 칩 줄 밖에 둡니다. */}
+    {onShareInvite ? (
+      <InviteShareButton type="button" variant="ghost" onClick={onShareInvite}>
+        초대코드 공유하기
+      </InviteShareButton>
+    ) : null}
+  </MemberBar>
 );
+const MemberBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 36px;
+  min-width: 0;
+`;
+const InviteShareButton = styled(Button)`
+  flex: none;
+`;
 const MemberRow = styled.div`
   display: flex;
   gap: 16px;
-  margin-bottom: 36px;
+  min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -630,6 +650,99 @@ const MemberOption = styled.button<{ selected: boolean }>`
     background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
   }
 `;
+
+/**
+ * 초대코드 공유 시트.
+ *
+ * Figma에 없는 화면이라 `초대코드로 참여하기` 시트를 뒤집은 꼴로 세웠습니다 —
+ * 같은 제목 줄과 같은 회색 상자에, 입력칸 대신 그룹의 실제 코드를 보여줍니다.
+ * 코드는 `GET /api/v1/groups/{groupId}` 응답에 이미 들어 있어 따로 부르지 않습니다.
+ */
+export const GroupInviteModal = ({
+  open,
+  group,
+  onClose,
+}: {
+  open: boolean;
+  group: GroupDetail | null;
+  onClose: () => void;
+}) => {
+  const code = group?.inviteCode ?? "";
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // 시트를 다시 열면 안내 문구가 남아 있지 않게 되돌립니다.
+  useEffect(() => {
+    if (!open) return;
+    setCopied(false);
+    setFailed(false);
+  }, [open]);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  const copy = async () => {
+    if (!code) return;
+    setFailed(false);
+    try {
+      await copyText(code);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setFailed(true);
+    }
+  };
+  return (
+    <Modal open={open} sheet onClose={onClose} aria-label="초대코드 공유하기">
+      <SheetForm>
+        <SheetHeading>초대코드 공유하기</SheetHeading>
+        <SheetField>
+          <SheetLabel htmlFor="group-invite-code">초대코드</SheetLabel>
+          <SheetBox>
+            {/* 읽기 전용 입력칸이라 손으로 고를 수도 있습니다. */}
+            <InviteCodeInput id="group-invite-code" value={code} readOnly onFocus={e => e.target.select()} />
+          </SheetBox>
+        </SheetField>
+        {failed ? <ErrorText>복사할 수 없었습니다. 코드를 직접 골라 복사해 주세요.</ErrorText> : null}
+        <SheetActions>
+          <SheetCancel type="button" onClick={onClose}>
+            닫기
+          </SheetCancel>
+          <SheetSubmit type="button" disabled={!code} onClick={copy}>
+            {copied ? "복사했습니다" : "복사하기"}
+          </SheetSubmit>
+        </SheetActions>
+      </SheetForm>
+    </Modal>
+  );
+};
+const InviteCodeInput = styled.input`
+  letter-spacing: 0.12em;
+`;
+/**
+ * 클립보드 API는 안전한 컨텍스트에서만 있고, 있어도 창이 포커스를 잃었거나 권한이
+ * 없으면 거절합니다. 그래서 없을 때뿐 아니라 거절할 때도 옛 방식으로 물러납니다.
+ */
+const copyText = async (text: string) => {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    /* 아래 execCommand로 다시 시도합니다. */
+  }
+  const holder = document.createElement("textarea");
+  holder.value = text;
+  holder.setAttribute("readonly", "");
+  holder.style.position = "fixed";
+  holder.style.opacity = "0";
+  document.body.append(holder);
+  holder.select();
+  const done = document.execCommand("copy");
+  holder.remove();
+  if (!done) throw new Error("copy failed");
+};
 
 /**
  * 그룹 만들기 / 초대코드로 참여하기.

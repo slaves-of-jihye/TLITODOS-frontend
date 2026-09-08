@@ -64,6 +64,7 @@ import {
   DependencyBlockModal,
   GroupActionModals,
   GroupInfoModal,
+  GroupInviteModal,
   GroupTopBar,
   MemberTabs,
   InstallAppAction,
@@ -316,6 +317,7 @@ export const GroupHome = () => {
   const { data: me } = useMe();
   const { data: group } = useGroup(Number.isFinite(id) ? id : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const members = useMemo(() => {
     const list = group?.members ?? [];
     const mine = list.find(member => member.userId === me?.userId);
@@ -331,6 +333,7 @@ export const GroupHome = () => {
         members={members}
         activeUserId={activeId}
         onSelect={next => navigate(next === me?.userId ? `/groups/${id}` : `/groups/${id}/members/${next}`)}
+        onShareInvite={() => setInviteOpen(true)}
       />
       {own ? (
         <TodoWorkspace own groupId={null} />
@@ -339,6 +342,7 @@ export const GroupHome = () => {
       )}
       <PageNav active="home" />
       <GroupInfoModal open={settingsOpen} group={group ?? null} onClose={() => setSettingsOpen(false)} />
+      <GroupInviteModal open={inviteOpen} group={group ?? null} onClose={() => setInviteOpen(false)} />
     </AppShell>
   );
 };
