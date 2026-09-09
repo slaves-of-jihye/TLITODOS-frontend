@@ -134,4 +134,17 @@ export const globalStyles = css`
     outline: 3px solid rgba(0, 81, 255, 0.22);
     outline-offset: 2px;
   }
+  /*
+   * 입력칸에는 초점 링을 두지 않습니다.
+   *
+   * 회색 칸과 깜박이는 커서가 이미 어디에 쓰고 있는지 보여 주고, 칸 안에 딱 맞게
+   * 들어앉은 input 위로 링이 뜨면 칸 밖으로 삐져나옵니다. 키보드로 옮겨 다닐 때
+   * 표시가 필요한 버튼·링크에는 위 규칙을 그대로 둡니다.
+   */
+  input:focus,
+  input:focus-visible,
+  textarea:focus,
+  textarea:focus-visible {
+    outline: none;
+  }
 `;
