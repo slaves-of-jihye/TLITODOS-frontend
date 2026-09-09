@@ -46,7 +46,7 @@
 - Profile edits save only through the explicit completion button. Enter never saves, and route changes cancel drafts.
 - Login blocks every route and uses an overlay 1.5 times darker than ordinary modal overlays.
 - Files under `/uploads` require `Authorization: Bearer`, so an `<img src>` with the raw path 401s. `useAssetObjectUrl` fetches the bytes through the API client and renders an object URL; avatars in lists need one small component per row because it is a hook.
-- The bottom navigation is fixed to the bottom of the viewport, and the chip row at the top of a page (`HeaderRow` on home, `MemberBar` in a group) is sticky at `top: 0`. Both need an opaque background; `AppShell`'s bottom padding is what keeps content clear of the nav. Its icons are drawn as CSS masks so the colour comes from code, not from the exported file: the selected tab is `ink`, the rest `gray/400`. Exported SVGs carry mismatched fills, so anywhere an icon needs a colour of its own, mask it rather than trusting the file.
+- The bottom navigation is fixed to the bottom of the viewport, and the chip row at the top of a page (`HeaderRow` on home, `MemberBar` in a group, `AlarmFilters` on alerts) is sticky at `top: 0`, with the page title above it left to scroll away. Both need an opaque background; `AppShell`'s bottom padding is what keeps content clear of the nav. Its icons are drawn as CSS masks so the colour comes from code, not from the exported file: the selected tab is `ink`, the rest `gray/400`. Exported SVGs carry mismatched fills, so anywhere an icon needs a colour of its own, mask it rather than trusting the file.
 
 ## Engineering conventions
 

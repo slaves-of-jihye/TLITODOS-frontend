@@ -391,23 +391,21 @@ export const AlarmPage = () => {
   return (
     <AppShell>
       <AlarmColumn>
-        <AlarmHead>
-          <PageTitle>알림</PageTitle>
-          <AlarmFilters role="tablist">
-            {ALARM_FILTERS.map(item => (
-              <AlarmFilter
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={filter === item.key}
-                selected={filter === item.key}
-                onClick={() => setFilter(item.key)}
-              >
-                {item.label}
-              </AlarmFilter>
-            ))}
-          </AlarmFilters>
-        </AlarmHead>
+        <PageTitle>알림</PageTitle>
+        <AlarmFilters role="tablist">
+          {ALARM_FILTERS.map(item => (
+            <AlarmFilter
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={filter === item.key}
+              selected={filter === item.key}
+              onClick={() => setFilter(item.key)}
+            >
+              {item.label}
+            </AlarmFilter>
+          ))}
+        </AlarmFilters>
         {error ? (
           <ErrorText>{message(error)}</ErrorText>
         ) : isLoading ? (
@@ -510,13 +508,15 @@ const AlarmColumn = styled.div`
   width: min(485px, 100%);
   justify-items: start;
 `;
-const AlarmHead = styled.div`
-  display: grid;
-  gap: 20px;
-  justify-items: start;
-  width: 100%;
-`;
+/** 홈의 `HeaderRow`, 그룹의 `MemberBar`와 같은 자리에서 같은 방식으로 화면 위에 붙습니다. */
 const AlarmFilters = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: ${palette.white};
+  padding-top: 12px;
+  /* 목록보다 좁으면 옆으로 내용이 비쳐 보입니다. */
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
