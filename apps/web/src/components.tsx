@@ -1463,6 +1463,14 @@ export const TodoDetailModal = ({
   const deleteRoutine = useDeleteRoutine();
   const invalidateTodos = useInvalidateTodos();
   const [detail, setDetail] = useState(todo?.description ?? "");
+  /**
+   * 마지막으로 저장한 세부사항입니다.
+   *
+   * 엔터로 저장한 뒤 포커스가 빠질 때 같은 값을 또 보내지 않으려고 들고 있습니다.
+   * `todo.description`과 비교하면 안 됩니다 — 상세 시트가 들고 있는 할 일은 저장
+   * 뒤에도 갱신되지 않아 방금 보낸 값을 모릅니다.
+   */
+  const savedDetail = useRef(todo?.description ?? "");
   const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
   const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
   const [deadline, setDeadline] = useState<DeadlineValue>({
@@ -1481,6 +1489,11 @@ export const TodoDetailModal = ({
       coversDate(candidate, selectedDate) &&
       !isHobbyCategory(ordered.find(category => category.categoryId === candidate.categoryId) ?? { name: "취미" }),
   );
+  const saveDetail = () => {
+    if (detail === savedDetail.current) return;
+    savedDetail.current = detail;
+    void patch({ description: detail });
+  };
   const patch = async (body: TodoPatchRequest) => {
     if (!todo) return;
     setBusy(true);
@@ -1534,9 +1547,13 @@ export const TodoDetailModal = ({
                       placeholder="세부사항을 작성하세요..."
                       disabled={busy}
                       onChange={event => setDetail(event.target.value)}
-                      onBlur={() => {
-                        if (detail !== todo.description) void patch({ description: detail });
+                      // 엔터로 바로 저장합니다. 계속 고칠 수 있게 포커스는 두고 갑니다.
+                      onKeyDown={event => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        saveDetail();
                       }}
+                      onBlur={saveDetail}
                     />
                     <small>
                       {detail.length}/{TODO_DETAIL_LIMIT}
