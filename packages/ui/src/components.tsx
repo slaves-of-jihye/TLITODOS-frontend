@@ -2,6 +2,7 @@ import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Todo } from "@tlitodos/types";
+import { stashFills } from "@tlitodos/core";
 import { icons } from "./icons";
 import { palette, theme, uiGlyphFont } from "./theme";
 
@@ -436,6 +437,7 @@ const DiaryButton = styled.button`
 export const DayStash = ({
   marks,
   incompleteCount,
+  seed,
   selected,
   today,
   date,
@@ -445,14 +447,16 @@ export const DayStash = ({
   marks: { accent: string; done: boolean }[];
   /** 그 날 남은 할 일 수. 0이면 숫자 대신 체크를 올립니다. */
   incompleteCount: number;
+  /** 남는 사분면을 누가 가져갈지 정하는 씨앗. 보통 그 날짜입니다. */
+  seed: string;
   selected?: boolean;
   today?: boolean;
   date: number;
   onClick?: () => void;
 }) => {
-  // 다 끝낸 카테고리만 칩니다. 남은 카테고리는 빈 사분면으로 둡니다.
-  // 점 색은 카테고리 색 그대로이고, 80% 불투명도는 사분면 자체에 걸려 있습니다.
-  const fills = marks.slice(0, 4).map(mark => (mark.done ? mark.accent : null));
+  // 나누는 규칙은 `stashFills`에 있습니다. 점 색은 카테고리 색 그대로이고,
+  // 80% 불투명도는 사분면 자체에 걸려 있습니다.
+  const fills = stashFills(marks, seed);
   return (
     <DayButton onClick={onClick}>
       <StatusCluster

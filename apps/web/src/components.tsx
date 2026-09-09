@@ -955,6 +955,8 @@ export const CalendarPanel = ({
               date={date.getDate()}
               marks={marks}
               incompleteCount={status?.incompleteCount ?? 0}
+              // 같은 날 같은 완료 상태면 사분면 배치가 늘 같도록 씨앗을 고정합니다.
+              seed={`${value}:${status?.incompleteCount ?? 0}`}
               selected={value === selectedDate}
               today={value === today}
               onClick={() => onDateChange(value)}

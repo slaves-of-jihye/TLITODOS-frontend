@@ -281,6 +281,73 @@ export const buildDailyStatuses = (todos: Todo[]): DailyTodoStatus[] => {
   }));
 };
 
+/** 달력 한 칸의 사분면 수. 카테고리도 최대 이만큼입니다. */
+const STASH_SLOTS = 4;
+
+/**
+ * 문자열에서 뽑은 32비트 씨앗입니다. FNV-1a를 씁니다.
+ *
+ * 같은 날짜·같은 완료 상태면 늘 같은 값이 나와야 합니다. `Math.random()`을 쓰면
+ * 리렌더마다 색이 바뀌어 깜박입니다.
+ */
+const seedFrom = (value: string) => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+};
+
+/** 씨앗 하나로 굴러가는 난수입니다(mulberry32). 같은 씨앗이면 같은 수열입니다. */
+const randomFrom = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) >>> 0;
+  let t = seed;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+/**
+ * 달력 한 칸의 사분면 색을 정합니다. 언제나 네 칸을 돌려줍니다.
+ *
+ * 그 날 쓴 카테고리를 **모두** 끝냈으면 네 칸을 그 카테고리들에 남김없이 나눠
+ * 줍니다. 몫(`4 / N`)만큼 고루 주고, 남는 칸은 서로 다른 카테고리에 하나씩
+ * 얹습니다. 카테고리를 넷 다 쓰지 않은 날에도 회색이 남지 않게 하려는 것입니다.
+ *
+ * - N=4: 하나씩 (지금까지와 같음)
+ * - N=3: 하나씩 준 뒤 남는 하나를 무작위 한 곳에 → (2,1,1)
+ * - N=2: 둘씩 → (2,2)
+ * - N=1: 그 색으로 네 칸 전부
+ *
+ * 하나라도 남아 있으면 예전대로 끝낸 카테고리만 칠하고 나머지는 빈 칸입니다.
+ * 남는 칸을 누가 가져갈지는 `seed`로 정해, 같은 날 같은 상태면 늘 같습니다.
+ */
+export const stashFills = (marks: { accent: string; done: boolean }[], seed: string): (string | null)[] => {
+  const slots = Array.from({ length: STASH_SLOTS }, () => null as string | null);
+  if (!marks.length) return slots;
+
+  const used = marks.slice(0, STASH_SLOTS);
+  if (!used.every(mark => mark.done)) {
+    return slots.map((_, index) => (used[index]?.done ? used[index]!.accent : null));
+  }
+
+  const count = used.length;
+  const share = Math.floor(STASH_SLOTS / count);
+  const spare = STASH_SLOTS % count;
+
+  // 남는 칸을 받을 카테고리를 씨앗에 따라 고릅니다. 한 곳이 두 번 받지는 않습니다.
+  const order = used.map((_, index) => index);
+  const random = randomFrom(seedFrom(seed));
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [order[index], order[swap]] = [order[swap]!, order[index]!];
+  }
+  const extra = new Set(order.slice(0, spare));
+
+  return used.flatMap((mark, index) => Array<string>(share + (extra.has(index) ? 1 : 0)).fill(mark.accent));
+};
+
 export const unresolvedDependencies = (todo: Todo, allTodos: Todo[]) =>
   todo.dependencies
     .map(id => allTodos.find(candidate => candidate.todoId === id))
