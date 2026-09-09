@@ -514,7 +514,13 @@ const AlarmFilters = styled.div`
   top: 0;
   z-index: 40;
   background: ${palette.white};
+  /*
+   * 붙었을 때 화면 끝에 닿지 않도록 12px을 두되, 제목과의 간격은 원래 20px
+   * 그대로 보이게 합니다. 칸 사이 32px에서 24px을 당기면 8px이 남고, 여기에
+   * 안쪽 여백 12px이 더해져 20px이 됩니다.
+   */
   padding-top: 12px;
+  margin-top: -24px;
   /* 목록보다 좁으면 옆으로 내용이 비쳐 보입니다. */
   width: 100%;
   display: flex;

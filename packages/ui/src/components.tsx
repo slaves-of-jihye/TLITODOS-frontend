@@ -10,18 +10,24 @@ export const Glyph = styled.span`
   font-family: ${uiGlyphFont};
 `;
 
+/** 붙었을 때 화면 끝과 띄울 거리. 평소에는 같은 값만큼 당겨 상쇄합니다. */
+const STICKY_TOP_PAD = "12px";
+
 /**
  * 화면 위에 붙는 줄의 공통 규칙입니다.
  *
  * 흰 배경이 있어야 아래 내용이 비쳐 보이지 않고, 붙었을 때 화면 끝에 딱 닿지
- * 않도록 위쪽 여백을 둡니다. 아래 네비게이션(z-index 60)보다는 낮게 둡니다.
+ * 않도록 안쪽 위 여백을 둡니다. 아래 네비게이션(z-index 60)보다는 낮게 둡니다.
+ *
+ * 그 여백만큼 위로 당겨, 붙지 않은 평소에는 원래 간격 그대로 보이게 합니다.
  */
 const stickyTopRow = css`
   position: sticky;
   top: 0;
   z-index: 40;
   background: ${palette.white};
-  padding-top: 12px;
+  padding-top: ${STICKY_TOP_PAD};
+  margin-top: -${STICKY_TOP_PAD};
 `;
 
 export const AppShell = styled.div`
@@ -85,7 +91,7 @@ export const HeaderRow = styled.header`
   @media (max-width: 800px) {
     flex-wrap: nowrap;
     gap: 10px;
-    margin: 0 -18px 34px;
+    margin: -12px -18px 34px;
     padding: 12px 18px 10px;
     overflow-x: auto;
     overscroll-behavior-inline: contain;

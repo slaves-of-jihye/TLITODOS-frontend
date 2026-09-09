@@ -471,7 +471,9 @@ const MemberBar = styled.div`
   top: 0;
   z-index: 40;
   background: ${palette.white};
+  /* 붙었을 때만 여백이 되도록, 같은 값만큼 위로 당겨 평소 간격을 지킵니다. */
   padding-top: 12px;
+  margin-top: -12px;
   display: flex;
   align-items: center;
   gap: 16px;
