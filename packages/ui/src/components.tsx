@@ -481,8 +481,12 @@ export const BottomNav = ({
         ["profile", icons.profile, "프로필"],
       ] as const
     ).map(([key, src, label]) => (
-      <NavButton key={key} active={active === key} onClick={() => onNavigate(key)} aria-label={label}>
-        <img src={src} alt="" aria-hidden />
+      <NavButton key={key} onClick={() => onNavigate(key)} aria-label={label}>
+        <NavIcon
+          active={active === key}
+          style={{ maskImage: `url(${src})`, WebkitMaskImage: `url(${src})` }}
+          aria-hidden
+        />
       </NavButton>
     ))}
   </Nav>
@@ -508,7 +512,7 @@ const Nav = styled.nav`
     box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.05);
   }
 `;
-const NavButton = styled.button<{ active: boolean }>`
+const NavButton = styled.button`
   display: grid;
   place-items: center;
   width: 44px;
@@ -516,13 +520,25 @@ const NavButton = styled.button<{ active: boolean }>`
   border: 0;
   border-radius: 50%;
   background: transparent;
-  /* 아이콘 색이 파일에 박혀 있어, 선택 여부는 불투명도로 나타냅니다. */
-  opacity: ${({ active }) => (active ? 1 : 0.3)};
-  transition: opacity 0.16s ease;
-  img {
-    width: 32px;
-    height: 32px;
-  }
+`;
+/**
+ * 아이콘을 마스크로 얹어 색을 코드에서 정합니다.
+ *
+ * 내보낸 SVG마다 색이 박혀 있어 그대로 쓰면 파일끼리 어긋납니다. 모양만 마스크로
+ * 가져오고 색은 여기서 주면, 고른 탭은 ink로 진하게 나머지는 gray/400으로 옅게
+ * 갈라집니다.
+ */
+const NavIcon = styled.span<{ active: boolean }>`
+  width: 32px;
+  height: 32px;
+  background: ${({ active }) => (active ? theme.colors.ink : palette.gray400)};
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  transition: background 0.16s ease;
 `;
 
 export const Modal = ({
