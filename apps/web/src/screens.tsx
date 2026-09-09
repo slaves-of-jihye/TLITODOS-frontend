@@ -391,23 +391,21 @@ export const AlarmPage = () => {
   return (
     <AppShell>
       <AlarmColumn>
-        <AlarmHead>
-          <PageTitle>알림</PageTitle>
-          <AlarmFilters role="tablist">
-            {ALARM_FILTERS.map(item => (
-              <AlarmFilter
-                key={item.key}
-                type="button"
-                role="tab"
-                aria-selected={filter === item.key}
-                selected={filter === item.key}
-                onClick={() => setFilter(item.key)}
-              >
-                {item.label}
-              </AlarmFilter>
-            ))}
-          </AlarmFilters>
-        </AlarmHead>
+        <PageTitle>알림</PageTitle>
+        <AlarmFilters role="tablist">
+          {ALARM_FILTERS.map(item => (
+            <AlarmFilter
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={filter === item.key}
+              selected={filter === item.key}
+              onClick={() => setFilter(item.key)}
+            >
+              {item.label}
+            </AlarmFilter>
+          ))}
+        </AlarmFilters>
         {error ? (
           <ErrorText>{message(error)}</ErrorText>
         ) : isLoading ? (
@@ -510,13 +508,21 @@ const AlarmColumn = styled.div`
   width: min(485px, 100%);
   justify-items: start;
 `;
-const AlarmHead = styled.div`
-  display: grid;
-  gap: 20px;
-  justify-items: start;
-  width: 100%;
-`;
+/** 홈의 `HeaderRow`, 그룹의 `MemberBar`와 같은 자리에서 같은 방식으로 화면 위에 붙습니다. */
 const AlarmFilters = styled.div`
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: ${palette.white};
+  /*
+   * 붙었을 때 화면 끝에 닿지 않도록 12px을 두되, 제목과의 간격은 원래 20px
+   * 그대로 보이게 합니다. 칸 사이 32px에서 24px을 당기면 8px이 남고, 여기에
+   * 안쪽 여백 12px이 더해져 20px이 됩니다.
+   */
+  padding-top: 12px;
+  margin-top: -24px;
+  /* 목록보다 좁으면 옆으로 내용이 비쳐 보입니다. */
+  width: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 20px;

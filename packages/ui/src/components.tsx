@@ -1,3 +1,4 @@
+import { css } from "@emotion/react";
 import styled from "@emotion/styled";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Todo } from "@tlitodos/types";
@@ -7,6 +8,26 @@ import { palette, theme, uiGlyphFont } from "./theme";
 /** 아이콘으로 쓰는 문장부호를 감쌉니다. 이유는 `uiGlyphFont` 주석에 있습니다. */
 export const Glyph = styled.span`
   font-family: ${uiGlyphFont};
+`;
+
+/** 붙었을 때 화면 끝과 띄울 거리. 평소에는 같은 값만큼 당겨 상쇄합니다. */
+const STICKY_TOP_PAD = "12px";
+
+/**
+ * 화면 위에 붙는 줄의 공통 규칙입니다.
+ *
+ * 흰 배경이 있어야 아래 내용이 비쳐 보이지 않고, 붙었을 때 화면 끝에 딱 닿지
+ * 않도록 안쪽 위 여백을 둡니다. 아래 네비게이션(z-index 60)보다는 낮게 둡니다.
+ *
+ * 그 여백만큼 위로 당겨, 붙지 않은 평소에는 원래 간격 그대로 보이게 합니다.
+ */
+const stickyTopRow = css`
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: ${palette.white};
+  padding-top: ${STICKY_TOP_PAD};
+  margin-top: -${STICKY_TOP_PAD};
 `;
 
 export const AppShell = styled.div`
@@ -61,6 +82,7 @@ export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "g
 `;
 
 export const HeaderRow = styled.header`
+  ${stickyTopRow}
   display: flex;
   align-items: center;
   gap: 14px;
@@ -69,8 +91,8 @@ export const HeaderRow = styled.header`
   @media (max-width: 800px) {
     flex-wrap: nowrap;
     gap: 10px;
-    margin: 0 -18px 34px;
-    padding: 0 18px 10px;
+    margin: -12px -18px 34px;
+    padding: 12px 18px 10px;
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-width: none;
@@ -491,8 +513,16 @@ export const BottomNav = ({
     ))}
   </Nav>
 );
+/*
+ * 뷰포트 아래에 붙습니다.
+ *
+ * 예전에는 `absolute`라 페이지 끝에 붙어 있었고, 내용이 길면 스크롤과 함께
+ * 사라졌습니다. `AppShell`의 아래 여백이 이 높이만큼 잡혀 있어 내용이 가려지지
+ * 않습니다.
+ */
 const Nav = styled.nav`
-  position: absolute;
+  position: fixed;
+  z-index: 60;
   left: 0;
   right: 0;
   bottom: 0;
@@ -502,14 +532,12 @@ const Nav = styled.nav`
   gap: 140px;
   align-items: center;
   background: ${palette.white};
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.05);
   @media (max-width: 600px) {
-    position: fixed;
-    z-index: 60;
     height: calc(72px + env(safe-area-inset-bottom));
     padding: 0 max(18px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(18px, env(safe-area-inset-right));
     justify-content: space-around;
     gap: 0;
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.05);
   }
 `;
 const NavButton = styled.button`
