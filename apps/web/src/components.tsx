@@ -51,6 +51,7 @@ import {
   DayStash,
   ErrorText,
   HeaderRow,
+  hoverScrollbarX,
   icons,
   Modal,
   palette,
@@ -484,17 +485,10 @@ const InviteShareButton = styled(Button)`
   flex: none;
 `;
 const MemberRow = styled.div`
+  ${hoverScrollbarX}
   display: flex;
   gap: 16px;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  > * {
-    flex: 0 0 auto;
-  }
 `;
 
 /**
