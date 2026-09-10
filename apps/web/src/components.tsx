@@ -18,7 +18,6 @@ import {
   type RoutineRepeat,
 } from "@tlitodos/core";
 import {
-  useAddDependency,
   useApi,
   useConvertToRoutine,
   useCreateGroup,
@@ -31,6 +30,7 @@ import {
   useMe,
   useRemoveGroupMembers,
   useRenameGroup,
+  useSetDependencies,
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
@@ -1550,7 +1550,7 @@ export const TodoDetailModal = ({
   onEditTitle: (todo: Todo) => void;
 }) => {
   const updateTodo = useUpdateTodo();
-  const addDependency = useAddDependency();
+  const setDependencies = useSetDependencies();
   const deleteTodo = useDeleteTodo();
   const convertToRoutine = useConvertToRoutine();
   const deleteRoutine = useDeleteRoutine();
@@ -1703,16 +1703,23 @@ export const TodoDetailModal = ({
                             aria-pressed={chosen}
                             disabled={busy}
                             onClick={async () => {
-                              setDependency(chosen ? null : candidate.todoId);
-                              if (chosen) return;
+                              /*
+                               * 목록 전체를 한 번에 보냅니다(PUT). 고른 것을 다시 누르면 빈
+                               * 배열이 되어 서버에서도 풀립니다 — 예전에는 화면에서만 풀려
+                               * 서버에는 남았고, 다른 것을 고르면 앞의 것이 남아 둘이 됐습니다.
+                               */
+                              const previous = dependency;
+                              const next = chosen ? null : candidate.todoId;
+                              setDependency(next);
                               setError("");
                               try {
-                                await addDependency.mutateAsync({
+                                await setDependencies.mutateAsync({
                                   id: todo.todoId,
-                                  dependencyTodoId: candidate.todoId,
+                                  dependencyTodoIds: next === null ? [] : [next],
                                 });
-                                invalidateTodos();
                               } catch (reason) {
+                                // 서버가 받지 않았으면 화면도 되돌립니다.
+                                setDependency(previous);
                                 setError(errorMessage(reason));
                               }
                             }}
