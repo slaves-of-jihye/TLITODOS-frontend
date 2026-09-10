@@ -51,6 +51,7 @@ import {
   DayStash,
   ErrorText,
   HeaderRow,
+  hoverScrollbarPull,
   hoverScrollbarX,
   icons,
   Modal,
@@ -489,6 +490,7 @@ const MemberRow = styled.div`
   display: flex;
   gap: 16px;
   min-width: 0;
+  ${hoverScrollbarPull}
 `;
 
 /**

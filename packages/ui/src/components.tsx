@@ -31,26 +31,66 @@ const stickyTopRow = css`
   margin-top: -${STICKY_TOP_PAD};
 `;
 
+/** 손을 올릴 수 있는 기기에서 칩 줄 스크롤바가 차지하는 높이. */
+export const SCROLLBAR_GUTTER = "6px";
+
+/** 스크롤바를 그리는 조건. 손을 올릴 수 없는 기기에는 애초에 필요가 없습니다. */
+const hoverable = "@media (hover: hover) and (pointer: fine)";
+
 /**
  * 옆으로 넘치는 칩 줄의 스크롤바입니다.
  *
- * 평소에는 막대가 투명해서 보이지 않고, 줄에 손을 올리거나 안으로 초점이
- * 들어오면 옅게 나타납니다. 나타날 때 줄이 밀리지 않도록 폭은 늘 `thin`으로
- * 잡아 두고 색만 바꿉니다. `::-webkit-scrollbar`를 손대면 macOS/iOS가 내용
- * 위에 겹쳐 그리던 스크롤바가 자리를 차지하는 옛 방식으로 바뀌므로, 여기서는
- * 표준 속성만 씁니다.
+ * 평소에는 투명해 보이지 않다가, 줄에 손을 올리거나 안으로 초점이 들어오면
+ * 막대가 옅게 나타납니다.
+ *
+ * macOS와 iOS가 기본으로 쓰는, 내용 위에 겹쳐 그리는 스크롤바는 스크롤하는
+ * 동안에만 나타납니다 — `scrollbar-color`만 주면 손을 올려도 한 번 굴리기
+ * 전에는 아무것도 보이지 않습니다. 그래서 `::-webkit-scrollbar`로 늘 자리를
+ * 차지하는 막대를 두고 색만 바꿉니다. 크롬은 `scrollbar-width`/`scrollbar-color`가
+ * `auto`가 아니면 이 의사 요소를 무시하므로, 표준 속성은 그 둘을 지원하지 않는
+ * 파이어폭스 쪽에만 둡니다.
+ *
+ * 막대가 자리를 차지하는 만큼 줄이 두꺼워지므로, 쓰는 쪽에서 `hoverScrollbarPull`
+ * 이나 그와 같은 값으로 아래 여백에서 덜어 내 평소 간격을 지킵니다. 손을 올릴 수
+ * 없는 기기에서는 이 규칙을 아예 두지 않아, 자리를 차지하지 않는 기본 스크롤바가
+ * 그대로 남고 덜어 낼 것도 없습니다.
  */
 export const hoverScrollbarX = css`
   overflow-x: auto;
   overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
-  &:hover,
-  &:focus-within {
-    scrollbar-color: rgba(29, 29, 29, 0.22) transparent;
-  }
   > * {
     flex: 0 0 auto;
+  }
+  ${hoverable} {
+    &::-webkit-scrollbar {
+      height: ${SCROLLBAR_GUTTER};
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      border-radius: ${SCROLLBAR_GUTTER};
+      background: transparent;
+    }
+    &:hover::-webkit-scrollbar-thumb,
+    &:focus-within::-webkit-scrollbar-thumb {
+      background: rgba(29, 29, 29, 0.22);
+    }
+    @supports not selector(::-webkit-scrollbar) {
+      scrollbar-width: thin;
+      scrollbar-color: transparent transparent;
+      &:hover,
+      &:focus-within {
+        scrollbar-color: rgba(29, 29, 29, 0.22) transparent;
+      }
+    }
+  }
+`;
+
+/** 막대가 줄 아래에 매달리도록 그만큼 당깁니다 — 아래 내용은 있던 자리에 그대로 있습니다. */
+export const hoverScrollbarPull = css`
+  ${hoverable} {
+    margin-bottom: -${SCROLLBAR_GUTTER};
   }
 `;
 
@@ -118,6 +158,10 @@ export const HeaderRow = styled.header`
     gap: 10px;
     margin: -12px -18px 34px;
     padding: 12px 18px 10px;
+    /* 칩은 위 여백이 잡아 주므로, 스크롤바 몫은 아래 여백에서만 덜어 냅니다. */
+    ${hoverable} {
+      margin-bottom: calc(34px - ${SCROLLBAR_GUTTER});
+    }
   }
 `;
 
