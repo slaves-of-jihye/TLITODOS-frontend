@@ -302,7 +302,13 @@ export const CategoryPill = ({
 }) => {
   const hasAddAction = own && Boolean(onAdd);
   return (
-    <Pill accent={accent} hasAddAction={hasAddAction} onClick={onManage} role={onManage ? "button" : undefined}>
+    <Pill
+      accent={accent}
+      hasAddAction={hasAddAction}
+      interactive={Boolean(onManage)}
+      onClick={onManage}
+      role={onManage ? "button" : undefined}
+    >
       <span>{name}</span>
       {own && onAdd ? (
         <PlusButton
@@ -318,7 +324,7 @@ export const CategoryPill = ({
     </Pill>
   );
 };
-const Pill = styled.div<{ accent: string; hasAddAction: boolean }>`
+const Pill = styled.div<{ accent: string; hasAddAction: boolean; interactive: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 16px;
@@ -328,6 +334,24 @@ const Pill = styled.div<{ accent: string; hasAddAction: boolean }>`
   background: ${palette.gray200};
   color: ${({ accent }) => accent};
   font-size: 18px;
+  transition: background 0.16s ease;
+  /*
+   * 디자인의 category 배리언트에 있는 hover 상태입니다: gray/200 -> gray/300.
+   *
+   * 이름을 눌러 고칠 수 있는 이름표에만 줍니다 — 프로필의 이름표처럼 누를 일이
+   * 없는 곳까지 색이 바뀌면 누를 수 있다고 잘못 알려 줍니다. 손을 올릴 수 없는
+   * 기기에서는 두지 않습니다: 한 번 누르면 손을 뗀 뒤에도 hover가 남습니다.
+   */
+  ${({ interactive }) =>
+    interactive &&
+    css`
+      cursor: pointer;
+      ${hoverable} {
+        &:hover {
+          background: ${palette.gray300};
+        }
+      }
+    `}
   > span {
     min-width: 0;
     overflow-wrap: anywhere;

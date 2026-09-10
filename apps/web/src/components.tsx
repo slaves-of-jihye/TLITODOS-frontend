@@ -7,9 +7,8 @@ import {
   dateOnly,
   formatLocalDate,
   getCalendarDays,
-  isHobbyCategory,
+  hobbyCategoryId,
   isInviteCode,
-  isTodoCategory,
   parseLocalDate,
   sortCategories,
   toRecurrence,
@@ -125,18 +124,22 @@ export const LoginModal = () => {
           if (current.length === 0) {
             await Promise.all(desired.map(category => api.categories.create(category)));
           } else {
-            const todoCategory = current.find(isTodoCategory);
-            const hobbyCategory = current.find(isHobbyCategory);
+            /*
+             * 어느 칸이 비었는지는 이름이 아니라 자리로 셉니다. 서버가 잠근
+             * 카테고리가 취미 자리이고, 앞칸들은 만든 순서대로입니다. 취미가
+             * 없으면 마지막에 만들어 그 자리에 놓습니다.
+             */
+            const sorted = sortCategories(current);
+            const hobbyCategory = sorted.find(category => !category.isDeletable);
+            const front = hobbyCategory ? sorted.slice(0, -1) : sorted;
+            const todoCategory = front[0];
             let total = current.length;
             if (todoCategory) await api.categories.update(todoCategory.categoryId, desired[0]!);
             else if (total < 5) {
               await api.categories.create(desired[0]!);
               total += 1;
             }
-            const customCount = current.filter(
-              category => !isTodoCategory(category) && !isHobbyCategory(category),
-            ).length;
-            for (let index = customCount; index < 2 && total < 5; index += 1) {
+            for (let index = Math.max(front.length - 1, 0); index < 2 && total < 5; index += 1) {
               await api.categories.create(desired[index + 1]!);
               total += 1;
             }
@@ -1578,11 +1581,10 @@ export const TodoDetailModal = ({
   const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
+  const hobbyId = hobbyCategoryId(ordered);
   const candidates = todos.filter(
     candidate =>
-      candidate.todoId !== todo?.todoId &&
-      coversDate(candidate, selectedDate) &&
-      !isHobbyCategory(ordered.find(category => category.categoryId === candidate.categoryId) ?? { name: "취미" }),
+      candidate.todoId !== todo?.todoId && coversDate(candidate, selectedDate) && candidate.categoryId !== hobbyId,
   );
   const saveDetail = () => {
     if (detail === savedDetail.current) return;
@@ -2322,7 +2324,7 @@ export const CategorySection = ({
         accent={accent}
         own={own}
         onAdd={own ? () => onAdd(category) : undefined}
-        onManage={own && index > 0 && index < 3 ? () => onManage(category) : undefined}
+        onManage={own ? () => onManage(category) : undefined}
       />
       <TodoList>
         {todos.map(todo =>
