@@ -217,8 +217,55 @@ export const sortCategories = (categories: Category[]) => {
 export const hobbyCategoryId = (categories: Category[]) => sortCategories(categories).at(-1)?.categoryId ?? null;
 
 const importanceRank: Record<Importance, number> = { HIGH: 0, LOW: 1, NONE: 2 };
-export const sortTodos = (todos: Todo[]) =>
-  [...todos].sort((a, b) => importanceRank[a.importance] - importanceRank[b.importance] || a.todoId - b.todoId);
+
+/**
+ * 선행 할 일에서 몇 다리 건너에 있는지. 선행이 없으면 0입니다.
+ *
+ * `dependencies`는 이 할 일보다 먼저 끝내야 하는 할 일들이므로, 깊이가 얕은
+ * 것부터 놓으면 위에서 아래로 순서대로 해 나갈 수 있습니다. 여러 선행이 있으면
+ * 가장 깊은 쪽을 따릅니다.
+ *
+ * 서버가 순환을 막지만, 막지 못한 값이 와도 멈추도록 지나온 자리를 기억합니다.
+ */
+const dependencyDepths = (todos: Todo[]) => {
+  const byId = new Map(todos.map(todo => [todo.todoId, todo]));
+  const depths = new Map<number, number>();
+  const depthOf = (todo: Todo, walked: Set<number>): number => {
+    const known = depths.get(todo.todoId);
+    if (known !== undefined) return known;
+    if (walked.has(todo.todoId)) return 0;
+    walked.add(todo.todoId);
+    const depth = todo.dependencies.reduce((deepest, id) => {
+      const prerequisite = byId.get(id);
+      return prerequisite ? Math.max(deepest, depthOf(prerequisite, walked) + 1) : deepest;
+    }, 0);
+    walked.delete(todo.todoId);
+    depths.set(todo.todoId, depth);
+    return depth;
+  };
+  todos.forEach(todo => depthOf(todo, new Set()));
+  return depths;
+};
+
+/**
+ * 목록 순서: 선행 할 일 -> 중요도 -> 만든 순서.
+ *
+ * 선행이 중요도보다 앞섭니다. 선행이 남아 있으면 완료 자체가 막히므로
+ * (`DependencyBlockModal`), 지금 할 수 있는 것이 위에 있어야 합니다.
+ *
+ * `graph`는 선행 관계를 어디까지 보고 셀지입니다. 카테고리 칸마다 나눠 부르지만
+ * 선행은 다른 칸의 할 일일 수도 있어, 그 날 목록 전체를 넘겨야 다른 칸에 막힌
+ * 할 일도 아래로 내려갑니다.
+ */
+export const sortTodos = (todos: Todo[], graph: Todo[] = todos) => {
+  const depths = dependencyDepths(graph);
+  return [...todos].sort(
+    (left, right) =>
+      (depths.get(left.todoId) ?? 0) - (depths.get(right.todoId) ?? 0) ||
+      importanceRank[left.importance] - importanceRank[right.importance] ||
+      left.todoId - right.todoId,
+  );
+};
 
 /**
  * 기간 할 일은 시작일부터 마감일까지 모든 날에 나타납니다. 양끝을 포함하고,

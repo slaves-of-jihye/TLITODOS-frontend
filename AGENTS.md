@@ -35,6 +35,7 @@
 - Own todo pages allow adding, editing, and completing todos for any selected date.
 - Friend todo pages are read-only. Bet UI is intentionally present only as commented/non-MVP code.
 - A todo dependency can only be a todo outside the `취미` slot (`hobbyCategoryId`) on the todo's selected date. Incomplete dependencies block completion and must be named in the feedback modal.
+- `sortTodos` orders a list by dependency depth, then importance, then `todoId`. Depth comes first on purpose: an incomplete dependency blocks completion outright, so whatever can be worked on now belongs at the top, and a `HIGH` todo sinks below the prerequisite it waits on. Depth is counted over the whole day's list, not the one column being sorted, so a todo blocked by another category's todo also sinks — pass the day's todos as the second argument.
 - Partial visibility and active bet flows are non-MVP and stay commented out.
 - Alerts read `GET /api/v1/notifications` with the design's filter pills (`친구의 할 일 완료` -> `TODO_COMPLETED`, `친구의 일기` -> `DIARY_CREATED`); the bet pill stays commented out. Tapping a row marks it read, and `nextCursor` drives a `더 보기` button.
 - The group screen is one page: a top bar (`뒤로가기` / group name / `그룹 설정`, the last shown only to the leader since every action in that sheet is leader-only), a member row, then the same two-column workspace. Selecting yourself shows your own full todo list; selecting anyone else shows that member's group-visible todos, read-only.
