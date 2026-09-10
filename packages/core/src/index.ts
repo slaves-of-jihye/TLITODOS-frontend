@@ -374,7 +374,8 @@ export const buildDailyStatuses = (todos: Todo[]): DailyTodoStatus[] => {
     for (const date of todoDates(todo)) {
       const day = byDate.get(date) ?? { incompleteCount: 0, categories: new Map<number, boolean>() };
       if (!todo.isCompleted) day.incompleteCount += 1;
-      day.categories.set(todo.categoryId, (day.categories.get(todo.categoryId) ?? true) && todo.isCompleted);
+      // 그 카테고리에 끝낸 할 일이 하나라도 있으면 채워진 것으로 봅니다.
+      day.categories.set(todo.categoryId, (day.categories.get(todo.categoryId) ?? false) || todo.isCompleted);
       byDate.set(date, day);
     }
   }
@@ -417,7 +418,10 @@ const randomFrom = (seed: number) => () => {
 /**
  * 달력 한 칸의 사분면 색을 정합니다. 언제나 네 칸을 돌려줍니다.
  *
- * 그 날 쓴 카테고리를 **모두** 끝냈으면 네 칸을 그 카테고리들에 남김없이 나눠
+ * `done`은 그 카테고리에 끝낸 할 일이 하나라도 있는지입니다 — 다 끝냈는지가
+ * 아닙니다.
+ *
+ * 그 날 쓴 카테고리가 **모두** 채워졌으면 네 칸을 그 카테고리들에 남김없이 나눠
  * 줍니다. 몫(`4 / N`)만큼 고루 주고, 남는 칸은 서로 다른 카테고리에 하나씩
  * 얹습니다. 카테고리를 넷 다 쓰지 않은 날에도 회색이 남지 않게 하려는 것입니다.
  *
@@ -426,8 +430,9 @@ const randomFrom = (seed: number) => () => {
  * - N=2: 둘씩 → (2,2)
  * - N=1: 그 색으로 네 칸 전부
  *
- * 하나라도 남아 있으면 예전대로 끝낸 카테고리만 칠하고 나머지는 빈 칸입니다.
- * 남는 칸을 누가 가져갈지는 `seed`로 정해, 같은 날 같은 상태면 늘 같습니다.
+ * 아직 아무것도 끝내지 않은 카테고리가 있으면 나누지 않고, 채워진 카테고리만
+ * 자기 칸을 칠하고 나머지는 빈 칸입니다. 남는 칸을 누가 가져갈지는 `seed`로
+ * 정해, 채워진 카테고리가 그대로면 늘 같은 자리에 있습니다.
  */
 export const stashFills = (marks: { accent: string; done: boolean }[], seed: string): (string | null)[] => {
   const slots = Array.from({ length: STASH_SLOTS }, () => null as string | null);

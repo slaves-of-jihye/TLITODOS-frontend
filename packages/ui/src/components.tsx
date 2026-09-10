@@ -526,11 +526,11 @@ export const DayStash = ({
   date,
   onClick,
 }: {
-  /** 그 날 할 일이 있는 카테고리별 강조색과 완료 여부입니다. */
+  /** 그 날 할 일이 있는 카테고리별 강조색과, 끝낸 할 일이 하나라도 있는지입니다. */
   marks: { accent: string; done: boolean }[];
   /** 그 날 남은 할 일 수. 0이면 숫자 대신 체크를 올립니다. */
   incompleteCount: number;
-  /** 남는 사분면을 누가 가져갈지 정하는 씨앗. 보통 그 날짜입니다. */
+  /** 남는 사분면을 누가 가져갈지 정하는 씨앗. 그 날짜와 채워진 카테고리로 만듭니다. */
   seed: string;
   selected?: boolean;
   today?: boolean;

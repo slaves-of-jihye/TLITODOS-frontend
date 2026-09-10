@@ -1038,8 +1038,13 @@ export const CalendarPanel = ({
               date={date.getDate()}
               marks={marks}
               incompleteCount={status?.incompleteCount ?? 0}
-              // 같은 날 같은 완료 상태면 사분면 배치가 늘 같도록 씨앗을 고정합니다.
-              seed={`${value}:${status?.incompleteCount ?? 0}`}
+              /*
+               * 사분면 배치가 흔들리지 않도록 씨앗은 배치를 정하는 것만 담습니다 —
+               * 그 날짜와, 쓰인 카테고리가 채워졌는지 여부(0/1)입니다. 남은 할 일
+               * 수를 넣으면 관계없는 할 일을 하나 체크할 때마다 남는 칸이 다른
+               * 카테고리로 옮겨 다닙니다.
+               */
+              seed={`${value}:${marks.map(mark => (mark.done ? 1 : 0)).join("")}`}
               selected={value === selectedDate}
               today={value === today}
               onClick={() => onDateChange(value)}
