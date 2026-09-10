@@ -216,7 +216,10 @@ const TodoWorkspace = ({
                   key={category.categoryId}
                   category={category}
                   index={index}
-                  todos={sortTodos(selectedTodos.filter(todo => todo.categoryId === category.categoryId))}
+                  todos={sortTodos(
+                    selectedTodos.filter(todo => todo.categoryId === category.categoryId),
+                    selectedTodos,
+                  )}
                   own={own}
                   adding={addingCategoryId === category.categoryId}
                   editingTitleId={editingTitleId}
