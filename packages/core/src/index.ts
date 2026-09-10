@@ -213,9 +213,6 @@ export const sortCategories = (categories: Category[]) => {
   return [...byId.filter(category => category.isDeletable), ...byId.filter(category => !category.isDeletable)];
 };
 
-/** 취미 자리. 선행 할 일로 걸 수 없다는 규칙이 이 칸에 걸립니다. */
-export const hobbyCategoryId = (categories: Category[]) => sortCategories(categories).at(-1)?.categoryId ?? null;
-
 const importanceRank: Record<Importance, number> = { HIGH: 0, LOW: 1, NONE: 2 };
 
 /**
@@ -295,6 +292,68 @@ export const todoDates = (todo: Pick<Todo, "startDate" | "dueDate">) => {
 
 export const todosForDate = (todos: Todo[], selectedDate: string) =>
   todos.filter(todo => coversDate(todo, selectedDate));
+
+/** 씨앗에서 여러 다리 건너까지 따라가 모읍니다. 순환이 와도 한 번 담은 자리는 다시 밟지 않습니다. */
+const reachableFrom = (seeds: Iterable<number>, step: (id: number) => Iterable<number>) => {
+  const found = new Set<number>();
+  const queue = [...seeds];
+  while (queue.length) {
+    const id = queue.pop()!;
+    if (found.has(id)) continue;
+    found.add(id);
+    for (const next of step(id)) queue.push(next);
+  }
+  return found;
+};
+
+/** 이 할 일들이 여러 다리 건너서라도 선행으로 필요로 하는 할 일. 자기 자신은 담지 않습니다. */
+export const prerequisiteIds = (todos: Todo[], ids: number[]) => {
+  const byId = new Map(todos.map(todo => [todo.todoId, todo]));
+  const dependenciesOf = (id: number) => byId.get(id)?.dependencies ?? [];
+  return reachableFrom(ids.flatMap(dependenciesOf), dependenciesOf);
+};
+
+/** 이 할 일을 여러 다리 건너서라도 선행으로 필요로 하는 할 일 — 후행입니다. */
+export const dependentIds = (todos: Todo[], todoId: number) => {
+  const followers = new Map<number, number[]>();
+  todos.forEach(todo =>
+    todo.dependencies.forEach(id => followers.set(id, [...(followers.get(id) ?? []), todo.todoId])),
+  );
+  const followersOf = (id: number) => followers.get(id) ?? [];
+  return reachableFrom(followersOf(todoId), followersOf);
+};
+
+/**
+ * 선행 할 일로 고를 수 있는 후보.
+ *
+ * 그 날에 걸쳐 있는 할 일이면 카테고리는 가리지 않습니다 — 취미 할 일도 고를 수
+ * 있습니다. 다음 두 가지만 빼놓습니다.
+ *
+ * 1. 이 할 일의 후행 — 저쪽이 이미 이 할 일을 기다리고 있으므로, 반대로 걸면
+ *    서로를 기다리는 고리가 됩니다.
+ * 2. 이미 고른 선행이 다시 기다리는 할 일 — 여러 다리 건너서라도 이미 앞에
+ *    놓이므로 또 고를 필요가 없습니다. `chosen`은 화면이 지금 고른 것을 넘기니
+ *    고르는 즉시 목록에서 빠지고, 고른 것 자체는 눌린 채로 남습니다.
+ */
+export const dependencyCandidates = (
+  todos: Todo[],
+  todo: Pick<Todo, "todoId"> | null,
+  date: string,
+  chosen: number[],
+) => {
+  if (!todo) return [];
+  const followers = dependentIds(todos, todo.todoId);
+  const covered = prerequisiteIds(todos, chosen);
+  // 고른 것은 눌린 채로 목록에 남아야 합니다 — 고리가 섞여 들어와 자기 조상이 되어도 그렇습니다.
+  chosen.forEach(id => covered.delete(id));
+  return todos.filter(
+    candidate =>
+      candidate.todoId !== todo.todoId &&
+      coversDate(candidate, date) &&
+      !followers.has(candidate.todoId) &&
+      !covered.has(candidate.todoId),
+  );
+};
 
 /** 달력에 쓰는 `YYYY-MM`. 서버의 daily-status가 이 형식만 받습니다. */
 export const monthKey = (viewDate: Date) =>

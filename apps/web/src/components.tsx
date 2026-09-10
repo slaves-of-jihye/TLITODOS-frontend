@@ -3,11 +3,10 @@ import {
   addMonths,
   CATEGORY_PRESETS,
   categoryAccent,
-  coversDate,
   dateOnly,
   formatLocalDate,
   getCalendarDays,
-  hobbyCategoryId,
+  dependencyCandidates,
   isInviteCode,
   parseLocalDate,
   sortCategories,
@@ -1581,11 +1580,7 @@ export const TodoDetailModal = ({
   const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
-  const hobbyId = hobbyCategoryId(ordered);
-  const candidates = todos.filter(
-    candidate =>
-      candidate.todoId !== todo?.todoId && coversDate(candidate, selectedDate) && candidate.categoryId !== hobbyId,
-  );
+  const candidates = dependencyCandidates(todos, todo, selectedDate, dependency === null ? [] : [dependency]);
   const saveDetail = () => {
     if (detail === savedDetail.current) return;
     savedDetail.current = detail;
