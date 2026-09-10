@@ -62,6 +62,7 @@ import {
   ViewChip,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
@@ -494,6 +495,59 @@ const MemberRow = styled.div`
 `;
 
 /**
+ * 지우기 전에 한 번 묻는 드롭다운.
+ *
+ * `window.confirm`은 화면 밖의 브라우저 창을 띄우고, 확인/취소 두 갈래밖에
+ * 없습니다. 루틴 회차는 "이것만"과 "루틴 전체"를 골라야 하므로 누른 버튼 바로
+ * 아래에 붙여 고르게 합니다. 바깥을 누르거나 Esc를 누르는 것도 취소입니다 —
+ * 여는 버튼까지 감싼 자리 안쪽만 "안"으로 봅니다. 그래야 같은 버튼을 다시 눌러
+ * 닫을 때 바깥 클릭으로 먼저 닫히고 다시 열리는 일이 없습니다.
+ */
+const ConfirmMenu = ({
+  open,
+  label,
+  above = false,
+  trigger,
+  onDismiss,
+  children,
+}: {
+  open: boolean;
+  label: string;
+  /** 시트 아래쪽 버튼은 위로 펼칩니다. */
+  above?: boolean;
+  trigger: ReactNode;
+  onDismiss: () => void;
+  children: ReactNode;
+}) => {
+  const anchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!anchor.current?.contains(event.target as Node)) onDismiss();
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [open, onDismiss]);
+  return (
+    <ConfirmAnchor ref={anchor}>
+      {trigger}
+      {open ? (
+        <ConfirmBox above={above} role="dialog" aria-label={label}>
+          {children}
+        </ConfirmBox>
+      ) : null}
+    </ConfirmAnchor>
+  );
+};
+
+/**
  * 그룹 설정 시트.
  *
  * 디자인의 `groupinfo`입니다. 그룹장만 이름을 바꾸고, 멤버를 내보내고, 그룹을
@@ -514,6 +568,9 @@ export const GroupInfoModal = ({
   const [selected, setSelected] = useState<number[]>([]);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(group?.name ?? "");
+  /** 열려 있는 확인 드롭다운. 한 번에 하나만 엽니다. */
+  const [confirming, setConfirming] = useState<"delete" | "kick" | null>(null);
+  const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removeMembers = useRemoveGroupMembers(group?.groupId ?? null);
   const renameGroup = useRenameGroup(group?.groupId ?? null);
   const deleteGroup = useDeleteGroup();
@@ -521,6 +578,30 @@ export const GroupInfoModal = ({
   const others = me ? (group?.members.filter(member => member.userId !== me.userId) ?? []) : [];
   const isLeader = group?.members.find(member => member.userId === me?.userId)?.role === "LEADER";
   const error = removeMembers.error ?? renameGroup.error ?? deleteGroup.error;
+  const kicked = others.filter(member => selected.includes(member.userId)).map(member => member.name);
+  const removeGroup = async () => {
+    if (!group) return;
+    try {
+      await deleteGroup.mutateAsync(group.groupId);
+      onClose();
+      navigate("/");
+    } catch {
+      /* mutation.error를 시트에 표시합니다. */
+    } finally {
+      setConfirming(null);
+    }
+  };
+  const kickSelected = async () => {
+    if (!selected.length) return;
+    try {
+      await removeMembers.mutateAsync(selected);
+      setSelected([]);
+    } catch {
+      /* mutation.error를 표시합니다. */
+    } finally {
+      setConfirming(null);
+    }
+  };
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="그룹 설정">
       <SheetForm>
@@ -535,25 +616,28 @@ export const GroupInfoModal = ({
             <img src={icons.edit} alt="" aria-hidden />
             그룹명 수정
           </GroupInfoAction>
-          <GroupInfoAction
-            type="button"
-            disabled={!group || !isLeader || deleteGroup.isPending}
-            title={isLeader ? undefined : "그룹장만 그룹을 삭제할 수 있습니다."}
-            onClick={async () => {
-              if (!group) return;
-              if (!window.confirm(`${group.name} 그룹을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-              try {
-                await deleteGroup.mutateAsync(group.groupId);
-                onClose();
-                navigate("/");
-              } catch {
-                /* mutation.error를 시트에 표시합니다. */
-              }
-            }}
+          <ConfirmMenu
+            open={confirming === "delete"}
+            label="그룹 삭제"
+            onDismiss={dismissConfirm}
+            trigger={
+              <GroupInfoAction
+                type="button"
+                disabled={!group || !isLeader || deleteGroup.isPending}
+                title={isLeader ? undefined : "그룹장만 그룹을 삭제할 수 있습니다."}
+                onClick={() => setConfirming(current => (current === "delete" ? null : "delete"))}
+              >
+                <img src={icons.trash} alt="" aria-hidden />
+                {deleteGroup.isPending ? "삭제 중..." : "그룹 삭제"}
+              </GroupInfoAction>
+            }
           >
-            <img src={icons.trash} alt="" aria-hidden />
-            {deleteGroup.isPending ? "삭제 중..." : "그룹 삭제"}
-          </GroupInfoAction>
+            <ConfirmNote>{group?.name ?? "그룹"}을 지우면 되돌릴 수 없습니다.</ConfirmNote>
+            <ConfirmChoice tone="danger" disabled={deleteGroup.isPending} onClick={removeGroup}>
+              그룹 삭제
+            </ConfirmChoice>
+            <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+          </ConfirmMenu>
         </SheetActions>
         {renaming ? (
           <SheetField>
@@ -611,27 +695,28 @@ export const GroupInfoModal = ({
           )}
         </MemberOptions>
         {error ? <ErrorText>{errorMessage(error)}</ErrorText> : null}
-        <SheetCancel
-          type="button"
-          disabled={selected.length === 0 || removeMembers.isPending || !isLeader}
-          title={isLeader ? undefined : "그룹장만 멤버를 내보낼 수 있습니다."}
-          onClick={async () => {
-            if (!selected.length) return;
-            const names = others
-              .filter(member => selected.includes(member.userId))
-              .map(member => member.name)
-              .join(", ");
-            if (!window.confirm(`${names}님을 그룹에서 내보낼까요?`)) return;
-            try {
-              await removeMembers.mutateAsync(selected);
-              setSelected([]);
-            } catch {
-              /* mutation.error를 표시합니다. */
-            }
-          }}
+        <ConfirmMenu
+          open={confirming === "kick"}
+          label="선택한 멤버 강퇴"
+          above
+          onDismiss={dismissConfirm}
+          trigger={
+            <SheetCancel
+              type="button"
+              disabled={selected.length === 0 || removeMembers.isPending || !isLeader}
+              title={isLeader ? undefined : "그룹장만 멤버를 내보낼 수 있습니다."}
+              onClick={() => setConfirming(current => (current === "kick" ? null : "kick"))}
+            >
+              {removeMembers.isPending ? "내보내는 중..." : "선택한 멤버 강퇴"}
+            </SheetCancel>
+          }
         >
-          {removeMembers.isPending ? "내보내는 중..." : "선택한 멤버 강퇴"}
-        </SheetCancel>
+          <ConfirmNote>{kicked.join(", ")}님을 그룹에서 내보냅니다.</ConfirmNote>
+          <ConfirmChoice tone="danger" disabled={removeMembers.isPending} onClick={kickSelected}>
+            내보내기
+          </ConfirmChoice>
+          <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+        </ConfirmMenu>
       </SheetForm>
     </Modal>
   );
@@ -1488,6 +1573,10 @@ export const TodoDetailModal = ({
   const [routineOpen, setRoutineOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** 열려 있는 삭제 확인 드롭다운. 한 번에 하나만 엽니다. */
+  const [confirming, setConfirming] = useState<"todo" | "routine" | null>(null);
+  const dismissConfirm = useCallback(() => setConfirming(null), []);
+  const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
   const candidates = todos.filter(
     candidate =>
@@ -1512,6 +1601,32 @@ export const TodoDetailModal = ({
       setBusy(false);
     }
   };
+  /** 이 회차 하나만 지웁니다 — 루틴 정의와 다른 날짜의 회차는 그대로 남습니다. */
+  const removeTodo = async () => {
+    if (!todo) return;
+    setError("");
+    try {
+      await deleteTodo.mutateAsync(todo.todoId);
+      onClose();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setConfirming(null);
+    }
+  };
+  /** 남은 회차와 완료한 회차까지 루틴을 통째로 지웁니다. */
+  const removeRoutine = async () => {
+    if (!todo?.routineId) return;
+    setError("");
+    try {
+      await deleteRoutine.mutateAsync(todo.routineId);
+      onClose();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setConfirming(null);
+    }
+  };
   return (
     <>
       <Modal open={open} sheet onClose={onClose} aria-label="할 일 상세">
@@ -1524,25 +1639,36 @@ export const TodoDetailModal = ({
                   <DetailAction onClick={() => onEditTitle(todo)}>
                     <img src={icons.edit} alt="" aria-hidden />할 일 수정하기
                   </DetailAction>
-                  <DetailAction
-                    disabled={deleteTodo.isPending}
-                    onClick={async () => {
-                      // 회차 하나를 지워도 서버는 루틴 전체를 지웁니다. 먼저 알립니다.
-                      const question = todo.routineId
-                        ? "이 할 일은 루틴입니다. 지우면 완료한 회차까지 루틴 전체가 사라집니다. 삭제할까요?"
-                        : "이 할 일을 삭제할까요?";
-                      if (!window.confirm(question)) return;
-                      setError("");
-                      try {
-                        await deleteTodo.mutateAsync(todo.todoId);
-                        onClose();
-                      } catch (reason) {
-                        setError(errorMessage(reason));
-                      }
-                    }}
+                  <ConfirmMenu
+                    open={confirming === "todo"}
+                    label="할 일 삭제"
+                    onDismiss={dismissConfirm}
+                    trigger={
+                      <DetailAction
+                        disabled={removing}
+                        onClick={() => setConfirming(current => (current === "todo" ? null : "todo"))}
+                      >
+                        <img src={icons.trash} alt="" aria-hidden />할 일 삭제하기
+                      </DetailAction>
+                    }
                   >
-                    <img src={icons.trash} alt="" aria-hidden />할 일 삭제하기
-                  </DetailAction>
+                    {todo.routineId ? (
+                      <>
+                        <ConfirmNote>루틴의 한 회차입니다. 전체를 지우면 완료한 회차까지 사라집니다.</ConfirmNote>
+                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
+                          이 할 일만 삭제
+                        </ConfirmChoice>
+                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeRoutine}>
+                          루틴 전체 삭제
+                        </ConfirmChoice>
+                      </>
+                    ) : (
+                      <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
+                        삭제
+                      </ConfirmChoice>
+                    )}
+                    <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+                  </ConfirmMenu>
                 </DetailActions>
                 <DetailBlock>
                   <DetailLabel>할 일에 대한 세부사항 입력하기</DetailLabel>
@@ -1639,23 +1765,27 @@ export const TodoDetailModal = ({
                     마감기한 설정하기
                   </DetailAction>
                   {todo.routineId ? (
-                    <DetailAction
-                      disabled={deleteRoutine.isPending}
-                      onClick={async () => {
-                        if (!todo.routineId) return;
-                        if (!window.confirm("이 루틴의 모든 회차를 삭제할까요? 완료한 회차도 함께 사라집니다.")) return;
-                        setError("");
-                        try {
-                          await deleteRoutine.mutateAsync(todo.routineId);
-                          onClose();
-                        } catch (reason) {
-                          setError(errorMessage(reason));
-                        }
-                      }}
+                    <ConfirmMenu
+                      open={confirming === "routine"}
+                      label="루틴 전체 삭제"
+                      above
+                      onDismiss={dismissConfirm}
+                      trigger={
+                        <DetailAction
+                          disabled={removing}
+                          onClick={() => setConfirming(current => (current === "routine" ? null : "routine"))}
+                        >
+                          <img src={icons.routine} alt="" aria-hidden />
+                          {deleteRoutine.isPending ? "삭제 중..." : "루틴 전체 삭제하기"}
+                        </DetailAction>
+                      }
                     >
-                      <img src={icons.routine} alt="" aria-hidden />
-                      {deleteRoutine.isPending ? "삭제 중..." : "루틴 전체 삭제하기"}
-                    </DetailAction>
+                      <ConfirmNote>남은 회차와 완료한 회차가 모두 사라집니다.</ConfirmNote>
+                      <ConfirmChoice tone="danger" disabled={removing} onClick={removeRoutine}>
+                        루틴 전체 삭제
+                      </ConfirmChoice>
+                      <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+                    </ConfirmMenu>
                   ) : (
                     <DetailAction onClick={() => setRoutineOpen(true)}>
                       <img src={icons.routine} alt="" aria-hidden />
@@ -1760,6 +1890,50 @@ const DetailAction = styled.button`
   img {
     width: 18px;
     height: 18px;
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+`;
+const ConfirmAnchor = styled.div`
+  position: relative;
+  display: flex;
+  flex: 1;
+  > button {
+    flex: 1;
+  }
+`;
+const ConfirmBox = styled.div<{ above: boolean }>`
+  position: absolute;
+  ${({ above }) => (above ? "bottom: calc(100% + 8px);" : "top: calc(100% + 8px);")}
+  left: 0;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: max(100%, 232px);
+  border: 1px solid ${palette.gray200};
+  border-radius: 12px;
+  background: ${palette.white};
+  padding: 8px;
+  box-shadow: ${theme.shadow};
+`;
+const ConfirmNote = styled.p`
+  margin: 0;
+  padding: 6px 12px;
+  font-size: ${theme.text.xs};
+  color: ${theme.colors.muted};
+`;
+const ConfirmChoice = styled.button<{ tone?: "danger" }>`
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: ${theme.text.s};
+  color: ${({ tone }) => (tone === "danger" ? theme.colors.red : theme.colors.ink)};
+  &:hover:not(:disabled) {
+    background: ${palette.gray100};
   }
   &:disabled {
     opacity: 0.45;
