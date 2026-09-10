@@ -13,7 +13,7 @@
 
 ## Product invariants
 
-- Category order is `해야할 일` -> custom category 1 -> custom category 2 -> `취미`.
+- Category order is the `해야할 일` slot -> custom category 1 -> custom category 2 -> the `취미` slot, and `sortCategories` is the single source of it. A slot is never decided by a name, because all four can be renamed: the category the server locked (`isDeletable: false`) takes the last slot and the rest fill the front in `categoryId` order. An account with nothing locked is already in creation order, since the bootstrap creates 취미 last. Anything that depends on the 취미 slot asks `hobbyCategoryId`, not the name.
 - A category's accent is the `color` the server returns for it, used for the label, the completion mark and the calendar dots; dots and completion marks render it at 80% opacity. Figma draws the calendar dots in other colours — that is deliberately ignored.
 - A calendar quadrant is filled with its category's accent only when that category is fully done for the day; a category with anything left stays `gray/200`.
 - Once every category *used* that day is done, `stashFills` shares the four quadrants out among them so no grey is left: `floor(4 / N)` each, and the remainder goes one apiece to distinct categories picked from a seed. N=4 is one each as before, N=3 gives (2,1,1), N=2 gives (2,2), N=1 fills all four. A category with no todo that day is not used and takes no share. The seed is the date plus the day's incomplete count, so the arrangement never shifts between renders.
@@ -26,15 +26,15 @@
   - 해야할 일: `#ff5e9a`, custom 1: `#ff00a2`, custom 2: `#ff8cb6`, 취미: `#ff3959`
 - Users pick a category's colour on the profile screen from `CATEGORY_SWATCHES` (24 colours from Figma).
 - The category label sits on a neutral `#eef1f6` pill; there is no per-category background any more.
-- `해야할 일` and `취미` are locked. Custom categories can be renamed but cannot be deleted in the UI.
-- Create exactly four categories for a newly created user in the order above. The backend seeds only `할일` and `취미`, so the login bootstrap renames those two and adds the two custom ones.
+- Every category can be renamed — tapping its pill on the board opens `카테고리 이름 변경`. None can be deleted in the UI, and the server refuses to delete the locked one anyway.
+- Create exactly four categories for a newly created user in the order above. The backend seeds `취미` (locked) and `할일`, so the login bootstrap renames the front slot to `해야할 일`, adds the two custom ones and leaves the locked one last. It counts the slots it has to fill by position, not by name, so a returning user who renamed everything is never given duplicates.
 - Todos have no visibility. Any logged-in user can read another user's todos; editing, completing and deleting stay owner-only, which is what keeps friend pages read-only. Diary visibility is separate: 전체 공개 sends `PUBLIC` (fellow group members), 비밀 sends `PRIVATE`, and `GROUP` (일부 공개) is on hold server-side so the pill stays disabled.
 - A todo's title is capped at 40 characters and `description` at 100. `description` is a real field — nothing is packed into the title any more.
 - `time` is a separate `HH:MM` field in five-minute steps, with `timezone` defaulting to `Asia/Seoul`. `dueDate` is date-only.
 - `TodoCreateRequest`/`TodoPatchRequest` are `additionalProperties: false`. Sending the removed `groupId`, `visibility` or `isRoutine` keys is a 422.
 - Own todo pages allow adding, editing, and completing todos for any selected date.
 - Friend todo pages are read-only. Bet UI is intentionally present only as commented/non-MVP code.
-- A todo dependency can only be a non-hobby todo on the todo's selected date. Incomplete dependencies block completion and must be named in the feedback modal.
+- A todo dependency can only be a todo outside the `취미` slot (`hobbyCategoryId`) on the todo's selected date. Incomplete dependencies block completion and must be named in the feedback modal.
 - Partial visibility and active bet flows are non-MVP and stay commented out.
 - Alerts read `GET /api/v1/notifications` with the design's filter pills (`친구의 할 일 완료` -> `TODO_COMPLETED`, `친구의 일기` -> `DIARY_CREATED`); the bet pill stays commented out. Tapping a row marks it read, and `nextCursor` drives a `더 보기` button.
 - The group screen is one page: a top bar (`뒤로가기` / group name / `그룹 설정`, the last shown only to the leader since every action in that sheet is leader-only), a member row, then the same two-column workspace. Selecting yourself shows your own full todo list; selecting anyone else shows that member's group-visible todos, read-only.

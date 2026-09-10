@@ -15,25 +15,21 @@ export const CATEGORY_PRESETS = [
     key: "todo",
     name: "해야할 일",
     strong: "#ff5e9a",
-    locked: true,
   },
   {
     key: "custom1",
     name: "카테고리 추가 1",
     strong: "#ff00a2",
-    locked: false,
   },
   {
     key: "custom2",
     name: "카테고리 추가 2",
     strong: "#ff8cb6",
-    locked: false,
   },
   {
     key: "hobby",
     name: "취미",
     strong: "#ff3959",
-    locked: true,
   },
 ] as const;
 
@@ -200,21 +196,25 @@ export const getTodoTitle = (selectedDate: string, today = formatLocalDate(new D
   return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")} ${weekday}요일의 TODO!`;
 };
 
-const normalizeName = (value: string) => value.trim().replace(/\s+/g, "");
-export const isTodoCategory = (category: Pick<Category, "name">) =>
-  ["해야할일", "할일", "과제"].includes(normalizeName(category.name));
-export const isHobbyCategory = (category: Pick<Category, "name">) => normalizeName(category.name) === "취미";
-export const isLockedCategory = (category: Pick<Category, "name">) =>
-  isTodoCategory(category) || isHobbyCategory(category);
-
 export const categoryToneAt = (index: number): CategoryTone => CATEGORY_PRESETS[Math.min(index, 3)]?.key ?? "custom2";
 
+/**
+ * 표시 순서. 첫 칸이 `해야할 일`, 마지막 칸이 `취미` 자리입니다.
+ *
+ * 자리는 이름이 아니라 서버가 준 값으로 정합니다 — 네 카테고리 모두 이름을 바꿀
+ * 수 있어서, 이름으로 자리를 찾으면 `해야할 일`을 `숙제`로 고치는 순간 그 칸이
+ * 사라져 버립니다. 서버가 지우지 못하게 잠근 카테고리(`isDeletable: false`)가
+ * 취미 자리이고, 나머지는 만든 순서(`categoryId`)대로 앞에서 채웁니다. 잠긴
+ * 카테고리가 없는 계정은 만든 순서가 곧 표시 순서입니다 — 그때는 취미를 마지막에
+ * 만들었기 때문입니다.
+ */
 export const sortCategories = (categories: Category[]) => {
-  const customs = categories.filter(item => !isLockedCategory(item));
-  const todo = categories.find(isTodoCategory);
-  const hobby = categories.find(isHobbyCategory);
-  return [todo, ...customs.slice(0, 2), hobby].filter((item): item is Category => Boolean(item));
+  const byId = [...categories].sort((left, right) => left.categoryId - right.categoryId);
+  return [...byId.filter(category => category.isDeletable), ...byId.filter(category => !category.isDeletable)];
 };
+
+/** 취미 자리. 선행 할 일로 걸 수 없다는 규칙이 이 칸에 걸립니다. */
+export const hobbyCategoryId = (categories: Category[]) => sortCategories(categories).at(-1)?.categoryId ?? null;
 
 const importanceRank: Record<Importance, number> = { HIGH: 0, LOW: 1, NONE: 2 };
 export const sortTodos = (todos: Todo[]) =>
