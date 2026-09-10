@@ -31,6 +31,29 @@ const stickyTopRow = css`
   margin-top: -${STICKY_TOP_PAD};
 `;
 
+/**
+ * 옆으로 넘치는 칩 줄의 스크롤바입니다.
+ *
+ * 평소에는 막대가 투명해서 보이지 않고, 줄에 손을 올리거나 안으로 초점이
+ * 들어오면 옅게 나타납니다. 나타날 때 줄이 밀리지 않도록 폭은 늘 `thin`으로
+ * 잡아 두고 색만 바꿉니다. `::-webkit-scrollbar`를 손대면 macOS/iOS가 내용
+ * 위에 겹쳐 그리던 스크롤바가 자리를 차지하는 옛 방식으로 바뀌므로, 여기서는
+ * 표준 속성만 씁니다.
+ */
+export const hoverScrollbarX = css`
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  &:hover,
+  &:focus-within {
+    scrollbar-color: rgba(29, 29, 29, 0.22) transparent;
+  }
+  > * {
+    flex: 0 0 auto;
+  }
+`;
+
 export const AppShell = styled.div`
   width: min(1280px, 100%);
   min-height: 100vh;
@@ -90,19 +113,11 @@ export const HeaderRow = styled.header`
   flex-wrap: wrap;
   margin-bottom: 54px;
   @media (max-width: 800px) {
+    ${hoverScrollbarX}
     flex-wrap: nowrap;
     gap: 10px;
     margin: -12px -18px 34px;
     padding: 12px 18px 10px;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: none;
-    &::-webkit-scrollbar {
-      display: none;
-    }
-    > * {
-      flex: 0 0 auto;
-    }
   }
 `;
 
