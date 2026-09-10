@@ -1455,7 +1455,7 @@
         "tags": [
           "todos"
         ],
-        "summary": "Delete todo",
+        "summary": "Delete one todo or routine occurrence",
         "operationId": "deleteTodo",
         "security": [
           {
@@ -1488,7 +1488,7 @@
             "$ref": "#/components/responses/ValidationError"
           }
         },
-        "description": "Deletes the todo. For a routine occurrence this deletes the entire routine, including completed occurrences, so warn the user before calling it."
+        "description": "Deletes this todo only. For a routine occurrence just that occurrence goes: the routine definition and the todos on the other dates stay, and a completed occurrence can be deleted too. Bets, notifications and other todos' dependency references pointing at that occurrence are cleaned up. Only the owner may delete; another user's todo or an already deleted one is a 404. Deleting an occurrence never lets the same requestId recreate it — a create retry still returns the original 201 record, so read the current list from GET /api/v1/todos instead of its occurrences. Use DELETE /api/v1/todos/routines/{routineId} to delete a whole routine."
       }
     },
     "/api/v1/todos/{todoId}/subtasks": {
@@ -1879,7 +1879,7 @@
           "todos"
         ],
         "summary": "Delete a routine and every occurrence",
-        "description": "Deletes all occurrences including completed ones and the original todo, plus dependency references, bets and notifications attached to them. Calling it again succeeds with deletedCount 0.",
+        "description": "Deletes every remaining occurrence including completed ones and the original todo, plus dependency references, bets and notifications attached to them. Calling it again succeeds with deletedCount 0, and a create retry with that routine's requestId is a 410.",
         "operationId": "deleteRoutine",
         "security": [
           {
@@ -4613,8 +4613,8 @@
     "Todos no longer have a visibility. Any logged-in user can read another user's todos; editing, completing and deleting stay owner-only. Diary visibility is separate and unchanged.",
     "A todo spans startDate..dueDate with both ends included, so GET /api/v1/todos?date= and GET /api/v1/todos/daily-status both report it on every day in the range. One completion state is shared across the range; routine occurrences complete independently.",
     "TodoCreateRequest and TodoPatchRequest are additionalProperties: false. Sending the removed groupId, visibility or isRoutine keys is a 422.",
-    "Routines are created with a single POST /api/v1/todos/routines (or POST /api/v1/todos/{todoId}/routine). Do not loop one POST per date. Keep the requestId and the exact body for retries: a new UUID creates a second routine, a changed body is a 409, and a deleted routine's key is a 410.",
-    "Deleting a routine occurrence with DELETE /api/v1/todos/{todoId} deletes the whole routine, completed occurrences included. Warn the user first.",
+    "Routines are created with a single POST /api/v1/todos/routines (or POST /api/v1/todos/{todoId}/routine). Do not loop one POST per date. Keep the requestId and the exact body for retries: a new UUID creates a second routine, a changed body is a 409, and a deleted routine's key is a 410. Deleting single occurrences does not free the key either: the retry returns the original 201 record, whose occurrences are the creation history rather than the current list.",
+    "DELETE /api/v1/todos/{todoId} deletes only that todo — for a routine that is the one occurrence, completed ones included, and the other dates and the routine definition stay. DELETE /api/v1/todos/routines/{routineId} is what deletes a whole routine, so let the user pick between the two.",
     "GET /api/v1/todos/daily-status accepts userId and groupId, so a group member's whole month can be marked on the calendar.",
     "PATCH /api/v1/groups/{groupId} renames a group (leader only). POST /api/v1/groups/{groupId}/members/remove removes several members at once.",
     "Signing up no longer creates a personal group, so GET /api/v1/groups can be an empty array. Todos and routines only need a categoryId from GET /api/v1/categories.",
