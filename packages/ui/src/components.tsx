@@ -99,7 +99,8 @@ export const AppShell = styled.div`
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 76px 7% 116px;
+  /* 아래 여백은 네비게이션 높이에 16px을 더한 값입니다 — 마지막 내용이 가리지 않게. */
+  padding: 76px 7% calc(${theme.layout.nav} + 16px);
   position: relative;
   background: white;
   @media (max-width: 800px) {
@@ -619,7 +620,8 @@ const Nav = styled.nav`
   gap: 140px;
   align-items: center;
   background: ${palette.white};
-  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.05);
+  /* 그림자 대신 선 하나로 본문과 가릅니다. 높이를 먹지 않도록 border-box입니다. */
+  border-top: 1px solid ${theme.colors.line};
   @media (max-width: 600px) {
     height: calc(72px + env(safe-area-inset-bottom));
     padding: 0 max(18px, env(safe-area-inset-left)) env(safe-area-inset-bottom) max(18px, env(safe-area-inset-right));

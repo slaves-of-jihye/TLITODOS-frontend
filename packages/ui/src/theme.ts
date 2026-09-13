@@ -60,7 +60,7 @@ export const theme = {
   shadow: "0 18px 60px rgba(34, 54, 72, .13)",
   radius: { sm: "8px", md: "18px", lg: "36px", pill: "100px" },
   /** 화면 바깥 여백과 두 단 사이 간격. Figma main 화면 기준입니다. */
-  layout: { gutter: "90px", top: "80px", columnGap: "90px", calendar: "450px", board: "560px", nav: "100px" },
+  layout: { gutter: "90px", top: "80px", columnGap: "90px", calendar: "450px", board: "560px", nav: "76px" },
 } as const;
 
 /**
