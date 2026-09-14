@@ -23,6 +23,7 @@ import {
   useCreateTodo,
   useDailyTodoStatuses,
   useDiaries,
+  useDiary,
   useGroup,
   useMarkNotificationRead,
   useMe,
@@ -387,6 +388,8 @@ const alarmSentence = (item: AppNotification) => {
 
 export const AlarmPage = () => {
   const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
+  /** 열어 둔 일기. 알림에 딸려 온 작성자 이름은 일기 응답에 없어 함께 들고 있습니다. */
+  const [openDiary, setOpenDiary] = useState<{ diaryId: number; actor: string } | null>(null);
   const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
   const markRead = useMarkNotificationRead();
@@ -420,8 +423,14 @@ export const AlarmPage = () => {
                 key={item.notificationId}
                 type="button"
                 unread={item.readAt === null}
-                // 누르면 읽음으로 넘깁니다. 서버가 목록을 다시 주면 표시가 사라집니다.
-                onClick={() => item.readAt === null && markRead.mutate(item.notificationId)}
+                onClick={() => {
+                  // 누르면 읽음으로 넘깁니다. 서버가 목록을 다시 주면 표시가 사라집니다.
+                  if (item.readAt === null) markRead.mutate(item.notificationId);
+                  // 일기 알림은 그 자리에서 바로 펴 봅니다.
+                  if (item.type === "DIARY_CREATED" && item.diaryId !== null) {
+                    setOpenDiary({ diaryId: item.diaryId, actor: item.actor.name || "친구" });
+                  }
+                }}
               >
                 <ActorAvatar url={item.actor.profileImageUrl} />
                 <div>
@@ -441,10 +450,48 @@ export const AlarmPage = () => {
           </Button>
         ) : null}
       </AlarmColumn>
+      {openDiary ? (
+        <NotifiedDiary diaryId={openDiary.diaryId} actor={openDiary.actor} onClose={() => setOpenDiary(null)} />
+      ) : null}
       <PageNav active="alarm" />
     </AppShell>
   );
 };
+
+/**
+ * 알림에서 연 일기.
+ *
+ * 목록에는 `diaryId`만 오므로 내용은 그때 받아 옵니다. 볼 수 없는 일기면 서버가
+ * 막고 그 메시지를 그대로 보여 줍니다 — 화면에서 미리 가릴 방법이 없습니다.
+ * 열 때만 붙였다 닫으면 떼어, 다음에 열면 늘 새로 받습니다.
+ */
+const NotifiedDiary = ({ diaryId, actor, onClose }: { diaryId: number; actor: string; onClose: () => void }) => {
+  const { data: diary, isLoading, error } = useDiary(diaryId);
+  // 일기 사진도 `/uploads`라 토큰이 필요합니다.
+  const image = useAssetObjectUrl(diary?.imageUrl ?? null);
+  return (
+    <Modal open sheet onClose={onClose} aria-label="일기">
+      <DiaryPreview>
+        <DiaryPreviewTitle>{actor}님의 일기</DiaryPreviewTitle>
+        {error ? (
+          <ErrorText>{message(error)}</ErrorText>
+        ) : isLoading || !diary ? (
+          <AlarmEmpty>일기를 불러오는 중...</AlarmEmpty>
+        ) : (
+          <>
+            <DiaryBadge emotion={diary.emotion} nickname={actor} date={formatLongKoreanDate(diaryDate(diary) ?? "")} />
+            {image ? <DiaryPhoto src={image} alt="" /> : null}
+            <p>{diary.content}</p>
+          </>
+        )}
+      </DiaryPreview>
+    </Modal>
+  );
+};
+const DiaryPhoto = styled.img`
+  width: 100%;
+  border-radius: ${theme.radius.md};
+`;
 /** 사진은 인증이 필요해 한 줄씩 따로 받아 옵니다. */
 const ActorAvatar = ({ url }: { url: string | null }) => {
   const src = useAssetObjectUrl(url);

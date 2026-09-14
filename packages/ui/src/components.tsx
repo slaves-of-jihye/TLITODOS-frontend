@@ -666,6 +666,7 @@ export const Modal = ({
   nested = false,
   login = false,
   sheet = false,
+  "aria-label": ariaLabel,
 }: {
   open: boolean;
   title?: string;
@@ -675,6 +676,14 @@ export const Modal = ({
   login?: boolean;
   /** 디자인의 상세 시트처럼 넓은 화면에서도 아래에 붙는 형태입니다. */
   sheet?: boolean;
+  /**
+   * 제목을 보여주지 않는 시트에 이름을 붙입니다.
+   *
+   * 부르는 쪽은 처음부터 이 이름을 넘기고 있었지만 받는 자리가 없어 그냥
+   * 버려졌습니다 — 이름표가 붙은 대화상자가 하나도 없었던 셈입니다. TS는
+   * 붙임표가 든 JSX 속성을 남는 속성으로 보지 않아 조용히 지나갑니다.
+   */
+  "aria-label"?: string;
 }) =>
   open ? (
     <Overlay
@@ -684,7 +693,7 @@ export const Modal = ({
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog login={login} sheet={sheet} role="dialog" aria-modal="true" aria-label={title}>
+      <Dialog login={login} sheet={sheet} role="dialog" aria-modal="true" aria-label={title ?? ariaLabel}>
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>

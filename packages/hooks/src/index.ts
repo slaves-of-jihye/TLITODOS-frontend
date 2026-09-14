@@ -47,6 +47,8 @@ export const queryKeys = {
     ["todos-daily-status", month, groupId, userId] as const,
   diaries: (date: string | null, groupId: number | null, userId: number | null) =>
     ["diaries", date, groupId, userId] as const,
+  /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
+  diary: (id: number) => ["diary", id] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
 };
 
@@ -141,6 +143,16 @@ export const useDailyTodoStatuses = (
     queryKey: queryKeys.dailyStatus(month ?? "", groupId, userId),
     queryFn: () => api.todos.dailyStatus(month!, { groupId, userId }),
     enabled: enabled && month !== null,
+  });
+};
+
+/** 알림에서 받은 일기 한 건. 볼 수 없는 일기면 서버가 막고, 그 메시지를 그대로 보여 줍니다. */
+export const useDiary = (diaryId: number | null) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.diary(diaryId ?? -1),
+    queryFn: () => api.diaries.get(diaryId!),
+    enabled: diaryId !== null,
   });
 };
 
