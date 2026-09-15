@@ -1391,7 +1391,8 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           }
-        }
+        },
+        "x-ai-agent-notes": "A category's isCompleted is true as soon as one of its todos is completed that day, not when all of them are. The calendar fills a quadrant on the same bar, so a day summarised here and a day recomputed in the client agree."
       }
     },
     "/api/v1/todos/{todoId}": {
