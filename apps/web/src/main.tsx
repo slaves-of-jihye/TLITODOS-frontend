@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.tsx";
-import { AppProviders } from "@/app/AppProviders.tsx";
+import { App, AppProviders } from "./app";
 import { applyFont, readStoredFont, registerServiceWorker } from "@/shared/lib";
 
 // 서버 값을 기다리지 않고 마지막 선택을 먼저 적용해 폰트가 바뀌는 깜빡임을 없앱니다.
