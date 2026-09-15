@@ -267,6 +267,9 @@ export interface NotificationsPage {
   nextCursor: number | null;
 }
 
+/** 종류마다 안 읽은 알림이 하나라도 있는지. 목록과 같은 공개 범위로 셉니다. */
+export type NotificationUnreadStatus = Record<NotificationType, boolean>;
+
 export interface Diary {
   diaryId: number;
   userId: number;

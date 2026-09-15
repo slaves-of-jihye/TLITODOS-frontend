@@ -27,6 +27,7 @@ import {
   useGroup,
   useMarkNotificationRead,
   useMe,
+  useNotificationUnreadStatus,
   useNotifications,
   useDeleteDiary,
   useRefillTodos,
@@ -494,6 +495,13 @@ export const AlarmPage = () => {
   const [openBet, setOpenBet] = useState<{ bet: Bet; actor: string } | null>(null);
   const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
+  /*
+   * 갈래마다 안 읽은 알림이 남아 있는지.
+   *
+   * 목록은 고른 갈래만 받아 오므로, 다른 갈래에 새 알림이 왔는지는 목록으로 알 수
+   * 없습니다. 읽음으로 넘길 때 거는 무효화가 이 표시도 같이 다시 받아 옵니다.
+   */
+  const { data: unread } = useNotificationUnreadStatus();
   const markRead = useMarkNotificationRead();
   const items = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
   return (
@@ -511,6 +519,13 @@ export const AlarmPage = () => {
               onClick={() => setFilter(item.key)}
             >
               {item.label}
+              {/* 안 읽은 것이 남아 있는 갈래에만. 점은 모양일 뿐이라 읽어 줄 말은 따로 답니다. */}
+              {unread?.[item.key] ? (
+                <>
+                  <UnreadDot aria-hidden />
+                  <SrOnly>안 읽은 알림 있음</SrOnly>
+                </>
+              ) : null}
             </AlarmFilter>
           ))}
         </AlarmFilters>
@@ -727,13 +742,17 @@ const AlarmAvatar = styled.span`
     object-fit: cover;
   }
 `;
-const AlarmDot = styled.i`
+/** 안 읽은 것이 남아 있음을 알리는 빨간 점. 목록 줄과 갈래 칩이 같은 점을 씁니다. */
+const UnreadDot = styled.i`
   flex: none;
-  margin-left: auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: ${theme.colors.red};
+`;
+/** 목록 줄에서는 줄 오른쪽 끝으로 밀어 둡니다. */
+const AlarmDot = styled(UnreadDot)`
+  margin-left: auto;
 `;
 const AlarmColumn = styled.div`
   display: grid;
@@ -761,6 +780,10 @@ const AlarmFilters = styled.div`
   gap: 20px;
 `;
 const AlarmFilter = styled.button<{ selected: boolean }>`
+  /* 점이 붙어도 글자가 가운데를 지키도록 한 줄로 늘어놓습니다. */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 0;
   border-radius: ${theme.radius.pill};
   padding: 6px 20px;

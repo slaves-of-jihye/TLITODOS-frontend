@@ -432,6 +432,37 @@
         }
       }
     },
+    "/api/v1/notifications/unread-status": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Unread notifications by kind",
+        "description": "Whether any notification of each kind is still unread. Reading this does not mark anything read.",
+        "operationId": "notificationUnreadStatus",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One flag per notification kind.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationUnreadStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          }
+        },
+        "x-ai-agent-notes": "Counted with the same visibility rules as the list: only notifications addressed to the caller, only from peers unless the kind is BET_REQUESTED, and diary notifications only while that diary is PUBLIC."
+      }
+    },
     "/api/v1/notifications/{notificationId}/read": {
       "patch": {
         "tags": [
@@ -3775,6 +3806,29 @@
               "null"
             ],
             "description": "Pass back as cursor. null on the last page."
+          }
+        }
+      },
+      "NotificationUnreadStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "TODO_COMPLETED",
+          "DIARY_CREATED",
+          "BET_REQUESTED"
+        ],
+        "properties": {
+          "TODO_COMPLETED": {
+            "type": "boolean",
+            "description": "A friend's todo completion is unread."
+          },
+          "DIARY_CREATED": {
+            "type": "boolean",
+            "description": "A friend's diary is unread."
+          },
+          "BET_REQUESTED": {
+            "type": "boolean",
+            "description": "A bet request is unread."
           }
         }
       },

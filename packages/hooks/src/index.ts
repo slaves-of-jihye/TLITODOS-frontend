@@ -59,6 +59,15 @@ export const queryKeys = {
   /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
   diary: (id: number) => ["diary", id] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
+  /**
+   * 종류별 안 읽음 표시. 일부러 `["notifications"]` 밑에 둡니다.
+   *
+   * 알림 캐시는 접두사로 모양을 고쳐 쓰는 `writeBack`이 없어, 같은 접두사를 나눠
+   * 써도 안전합니다. 오히려 그래야 알림 하나를 읽었을 때 거는 무효화 한 번이
+   * 목록과 표시를 함께 다시 받아 옵니다. `"unread-status"`는 알림 종류가 아니라
+   * `notifications(type)`와 겹치지 않습니다.
+   */
+  notificationUnread: ["notifications", "unread-status"] as const,
 };
 
 /**
@@ -194,6 +203,22 @@ export const useNotifications = (type: NotificationType | null = null, enabled =
     queryFn: ({ pageParam }) => api.notifications.list({ type, cursor: pageParam }),
     initialPageParam: null as number | null,
     getNextPageParam: page => page.nextCursor,
+    enabled,
+  });
+};
+
+/**
+ * 종류마다 안 읽은 알림이 남아 있는지.
+ *
+ * 목록은 고른 갈래만 받아 오므로, 다른 갈래에 안 읽은 것이 있는지는 목록으로 알
+ * 수 없습니다. 이 한 번의 요청이 세 갈래를 모두 답해 주고, 읽음 상태는 건드리지
+ * 않습니다.
+ */
+export const useNotificationUnreadStatus = (enabled = true) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: queryKeys.notificationUnread,
+    queryFn: api.notifications.unreadStatus,
     enabled,
   });
 };
