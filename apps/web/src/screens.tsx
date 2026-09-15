@@ -1149,13 +1149,12 @@ const DiaryForm = ({
   // 이미 올린 사진은 `/uploads`라 토큰을 달아 받아 옵니다.
   const saved = useAssetObjectUrl(existing?.imageUrl ?? null);
   const preview = picked ?? saved;
-  // 이미지는 생성 요청의 multipart로만 올릴 수 있습니다. 수정에는 파일 필드가 없습니다.
-  const canAttach = !existing;
   const submit = async () => {
     setError("");
     try {
       let body: DiaryCreateRequest | DiaryPatchRequest | FormData;
-      if (image && canAttach) {
+      // 사진을 새로 고른 때만 multipart입니다 — 새로 쓸 때도, 고쳐 쓸 때도 같습니다.
+      if (image) {
         body = new FormData();
         body.append("date", selectedDate);
         body.append("content", content);
@@ -1249,15 +1248,17 @@ const DiaryForm = ({
               ) : null}
             </div>
             <div>
-              <DiaryRailLabel as="span">이미지 첨부하기</DiaryRailLabel>
-              <DiaryIconAction
-                aria-label="이미지 첨부하기"
-                disabled={!canAttach}
-                title={canAttach ? undefined : "이미지는 일기를 처음 쓸 때만 첨부할 수 있습니다."}
-                onClick={() => imageInput.current?.click()}
-              >
-                <img src={icons.imageBox} alt="" aria-hidden />
-              </DiaryIconAction>
+              <DiaryRailLabel as="span">{preview ? "이미지 바꾸기" : "이미지 첨부하기"}</DiaryRailLabel>
+              {/* 사진이 붙어 있으면 그 사진이 곧 버튼입니다. 눌러 다른 사진으로 바꿉니다. */}
+              {preview ? (
+                <DiaryPhotoButton aria-label="이미지 바꾸기" onClick={() => imageInput.current?.click()}>
+                  <DiaryPhoto src={preview} alt="" />
+                </DiaryPhotoButton>
+              ) : (
+                <DiaryIconAction aria-label="이미지 첨부하기" onClick={() => imageInput.current?.click()}>
+                  <img src={icons.imageBox} alt="" aria-hidden />
+                </DiaryIconAction>
+              )}
               <HiddenFileInput
                 ref={imageInput}
                 type="file"
@@ -1278,7 +1279,6 @@ const DiaryForm = ({
                   setImage(file);
                 }}
               />
-              {preview ? <DiaryPhoto src={preview} alt="" /> : null}
               {image ? <DiaryAttachment>{image.name}</DiaryAttachment> : null}
             </div>
           </DiaryRailRow>
@@ -1798,6 +1798,18 @@ const DiaryIconAction = styled.button`
   &:disabled {
     opacity: 0.35;
     cursor: not-allowed;
+  }
+`;
+/** 사진 자체가 버튼입니다. 눌러 다른 사진을 고릅니다. */
+const DiaryPhotoButton = styled.button`
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  line-height: 0;
+  border-radius: ${theme.radius.md};
+  &:hover img {
+    opacity: 0.85;
   }
 `;
 const DiaryAttachment = styled.small`

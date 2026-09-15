@@ -469,7 +469,7 @@ export const useSaveDiary = () => {
   return useMutation({
     mutationFn: (payload: { id?: number; body: DiaryCreateRequest | DiaryPatchRequest | FormData }) =>
       payload.id
-        ? api.diaries.update(payload.id, payload.body as DiaryPatchRequest)
+        ? api.diaries.update(payload.id, payload.body as DiaryPatchRequest | FormData)
         : api.diaries.create(payload.body as DiaryCreateRequest | FormData),
     onSuccess: saved => {
       writeBack.diaries(diaries =>

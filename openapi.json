@@ -2444,6 +2444,11 @@
               "schema": {
                 "$ref": "#/components/schemas/DiaryPatchRequest"
               }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/DiaryPatchMultipartRequest"
+              }
             }
           }
         },
@@ -2467,7 +2472,8 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           }
-        }
+        },
+        "description": "Accepts either JSON or multipart/form-data, the same as creating. Send multipart with an image field to replace the photo; the upload returns imageUrl as /uploads/diaries/{filename}."
       },
       "delete": {
         "tags": [
@@ -3167,6 +3173,46 @@
           },
           "visibility": {
             "$ref": "#/components/schemas/Visibility"
+          }
+        }
+      },
+      "DiaryPatchMultipartRequest": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Local calendar date the diary belongs to. Omit to leave it unchanged."
+          },
+          "content": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "emotion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "visibility": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Visibility"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "image": {
+            "type": "string",
+            "format": "binary",
+            "description": "Replaces the diary's photo. Send the multipart body only when the photo changes."
           }
         }
       },
