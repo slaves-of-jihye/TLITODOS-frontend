@@ -1,15 +1,7 @@
 import styled from "@emotion/styled";
+import { TODO_TITLE_LIMIT } from "@/shared/config";
 import { useState } from "react";
 import { StatusCluster, theme } from "@/shared/ui";
-
-const TODO_TITLE_LIMIT = 40;
-
-/**
- * 목록 안에서 바로 쓰는 입력 줄.
- *
- * 제목만 받아 만들고, 나머지 설정은 만든 뒤 상세에서 손봅니다. Enter로 만들고
- * Esc로 접습니다. 내용 없이 포커스를 잃으면 그냥 닫힙니다.
- */
 
 /**
  * 목록 안에서 바로 쓰는 입력 줄.
