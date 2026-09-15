@@ -26,6 +26,7 @@ import type {
   MessageResponse,
   NotificationsPage,
   NotificationType,
+  NotificationUnreadStatus,
   RefreshTokenRequest,
   RoutineCreateRequest,
   RoutineCreateResponse,
@@ -226,6 +227,8 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
     notifications: {
       list: (query?: { type?: NotificationType | null; cursor?: number | null; limit?: number }) =>
         request<NotificationsPage>("/api/v1/notifications", { query }),
+      /** 종류별로 안 읽은 알림이 있는지만 받아 옵니다. 읽음 상태를 건드리지 않습니다. */
+      unreadStatus: () => request<NotificationUnreadStatus>("/api/v1/notifications/unread-status"),
       markRead: (notificationId: number) =>
         request<unknown>(`/api/v1/notifications/${notificationId}/read`, { method: "PATCH" }),
     },
