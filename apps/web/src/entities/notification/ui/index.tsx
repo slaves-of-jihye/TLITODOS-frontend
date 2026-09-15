@@ -1,7 +1,7 @@
 import styled from "@emotion/styled";
-import { palette, Skeleton, SrOnly, theme } from "@tlitodos/ui";
 import { useAssetObjectUrl } from "@/shared/api";
 import { AlarmAvatar, AlarmList } from "./styles";
+import { DEFAULT_AVATAR, Skeleton, SrOnly, palette, theme } from "@/shared/ui";
 
 export const AlarmListSkeleton = () => (
   <AlarmList role="status">
@@ -29,5 +29,5 @@ const AlarmRowSkeleton = styled.div`
 
 export const ActorAvatar = ({ url }: { url: string | null }) => {
   const src = useAssetObjectUrl(url);
-  return <AlarmAvatar>{src ? <img src={src} alt="" /> : <span aria-hidden>🐰</span>}</AlarmAvatar>;
+  return <AlarmAvatar>{src ? <img src={src} alt="" /> : <span aria-hidden>{DEFAULT_AVATAR}</span>}</AlarmAvatar>;
 };

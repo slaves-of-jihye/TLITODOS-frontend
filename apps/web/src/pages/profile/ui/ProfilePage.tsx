@@ -16,7 +16,7 @@ import {
 import { useApi, useAssetObjectUrl } from "@/shared/api";
 import { errorMessage, readStoredFont } from "@/shared/lib";
 import { useSessionStore } from "@/shared/model";
-import { AppShell, ErrorText, FieldBlock, FieldLabel, theme } from "@/shared/ui";
+import { AppShell, DEFAULT_AVATAR, ErrorText, FieldBlock, FieldLabel, theme } from "@/shared/ui";
 import { PageNav } from "@/widgets/page-nav";
 
 export const ProfilePage = () => {
@@ -63,7 +63,7 @@ export const ProfilePage = () => {
           <FieldBlock>
             <FieldLabel>프로필 사진</FieldLabel>
             <PhotoRow>
-              {profileImage ? <img src={profileImage} alt="프로필" /> : <span aria-hidden>🌱</span>}
+              {profileImage ? <img src={profileImage} alt="프로필" /> : <span aria-hidden>{DEFAULT_AVATAR}</span>}
               <ProfileImageAction onPick={uploadProfileImage} />
             </PhotoRow>
           </FieldBlock>

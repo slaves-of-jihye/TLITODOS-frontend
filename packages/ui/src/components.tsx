@@ -173,6 +173,15 @@ export const HeaderRow = styled.header`
   }
 `;
 
+/**
+ * 사진을 올리지 않은 사람의 자리.
+ *
+ * 프로필, 멤버 칩, 그룹 화면 머리줄, 알림 줄 네 곳이 같은 자리를 그리는데 두
+ * 곳은 새싹, 두 곳은 토끼였습니다. 사람마다 화면마다 다른 얼굴이 되지 않도록
+ * 한 곳에서 정합니다.
+ */
+export const DEFAULT_AVATAR = "🌱";
+
 export const ViewChip = ({
   active,
   avatar,
@@ -180,7 +189,7 @@ export const ViewChip = ({
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; avatar?: string | null }) => (
   <ViewChipButton active={Boolean(active)} {...props}>
-    {avatar ? <Avatar src={avatar} alt="" /> : <AvatarFallback>🌱</AvatarFallback>}
+    {avatar ? <Avatar src={avatar} alt="" /> : <AvatarFallback>{DEFAULT_AVATAR}</AvatarFallback>}
     <span>{children}</span>
   </ViewChipButton>
 );
