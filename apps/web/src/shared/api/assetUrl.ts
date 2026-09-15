@@ -4,23 +4,6 @@ import { useEffect, useState } from "react";
 export const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 /**
- * 서버가 내려준 파일 경로를 실제로 받아올 수 있는 주소로 바꿉니다.
- *
- * 서버가 올려받은 사진은 `/uploads/profiles/{filename}` 같은 상대 경로로 옵니다.
- * 프런트엔드와 API의 출처가 달라, 그대로 쓰면 프런트엔드 쪽으로 요청이 가서
- * 404가 납니다. 구글이 준 주소처럼 이미 절대 주소인 것은 그대로 둡니다.
- */
-export const resolveAssetUrl = (url: string | null | undefined) => {
-  if (!url) return null;
-  if (/^(https?:|data:|blob:)/i.test(url)) return url;
-  try {
-    return new URL(url, apiBaseUrl.endsWith("/") ? apiBaseUrl : `${apiBaseUrl}/`).href;
-  } catch {
-    return url;
-  }
-};
-
-/**
  * 우리 서버가 잠가 둔 파일인지.
  *
  * `/uploads/...`는 Bearer가 있어야 열립니다. 그런데 구글로 로그인한 사람의
