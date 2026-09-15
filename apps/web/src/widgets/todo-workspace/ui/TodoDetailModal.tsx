@@ -60,7 +60,7 @@ export const TodoDetailModal = ({
   const deleteRoutine = useDeleteRoutine();
   const invalidateTodos = useInvalidateTodos();
   /*
-   * 시트 안에서 고친 것은 모아 두었다가 `할 일 수정하기`를 눌렀을 때 한 번에 보냅니다.
+   * 시트 안에서 고친 것은 모아 두었다가 `수정 완료하기`를 눌렀을 때 한 번에 보냅니다.
    *
    * 예전에는 칸마다 그 자리에서 보냈습니다. 중요도를 바꾸면 한 번, 세부사항에서
    * 포커스가 빠지면 또 한 번, 마감기한 시트를 닫으면 또 한 번이라 시트 하나를
@@ -111,6 +111,22 @@ export const TodoDetailModal = ({
   const ordered = sortCategories(categories);
   const candidates = dependencyCandidates(todos, todo, selectedDate, dependency === null ? [] : [dependency]);
   const trimmedTitle = title.trim();
+  /*
+   * 보낼 것을 미리 추려 둡니다.
+   *
+   * 버튼을 켤지 말지와 실제로 보낼 내용이 같은 계산이라 한 곳에서 만듭니다 —
+   * 둘이 갈라지면 보낼 것이 없는데 눌리거나, 눌렀는데 아무것도 안 가는 일이 생깁니다.
+   */
+  const changes: TodoPatchRequest = {};
+  if (trimmedTitle && trimmedTitle !== opened.title) changes.title = trimmedTitle;
+  if (detail !== opened.detail) changes.description = detail;
+  if (importance !== opened.importance) changes.importance = importance;
+  if (deadline.start !== opened.start) changes.startDate = deadline.start;
+  if (deadline.date !== opened.date) changes.dueDate = deadline.date;
+  if (deadline.time !== opened.time) changes.time = deadline.time || null;
+  const dependencyChanged = dependency !== opened.dependency;
+  /** 보낼 것이 하나라도 있는지. 없으면 `수정 완료하기`를 누를 수 없습니다. */
+  const dirty = Object.keys(changes).length > 0 || dependencyChanged || routine !== null;
   /**
    * 모아 둔 것을 한 번에 보냅니다.
    *
@@ -124,16 +140,8 @@ export const TodoDetailModal = ({
     setBusy(true);
     setError("");
     try {
-      const before = opened;
-      const body: TodoPatchRequest = {};
-      if (trimmedTitle && trimmedTitle !== before.title) body.title = trimmedTitle;
-      if (detail !== before.detail) body.description = detail;
-      if (importance !== before.importance) body.importance = importance;
-      if (deadline.start !== before.start) body.startDate = deadline.start;
-      if (deadline.date !== before.date) body.dueDate = deadline.date;
-      if (deadline.time !== before.time) body.time = deadline.time || null;
-      if (Object.keys(body).length) await updateTodo.mutateAsync({ id: todo.todoId, body });
-      if (dependency !== before.dependency) {
+      if (Object.keys(changes).length) await updateTodo.mutateAsync({ id: todo.todoId, body: changes });
+      if (dependencyChanged) {
         await setDependencies.mutateAsync({
           id: todo.todoId,
           dependencyTodoIds: dependency === null ? [] : [dependency],
@@ -194,7 +202,7 @@ export const TodoDetailModal = ({
             {/*
              * 제목은 눌러서 그 자리에서 고칩니다.
              *
-             * 예전에는 `할 일 수정하기`가 시트를 닫고 목록의 줄을 입력칸으로 바꿨습니다.
+             * 예전에는 `수정 완료하기`가 시트를 닫고 목록의 줄을 입력칸으로 바꿨습니다.
              * 고치려면 시트를 나가야 했고, 그 버튼이 무엇을 하는지도 이름과 달랐습니다.
              */}
             {editingTitle ? (
@@ -354,14 +362,14 @@ export const TodoDetailModal = ({
                 {/*
                  * 시트를 마무리하는 두 버튼이라 오른쪽 단 맨 아래에 둡니다.
                  *
-                 * `할 일 수정하기`가 이제 시트 안의 모든 것을 한 번에 보내므로, 다 고른
+                 * `수정 완료하기`가 이제 시트 안의 모든 것을 한 번에 보내므로, 다 고른
                  * 다음에 닿는 자리가 맞습니다. 삭제 확인 드롭다운은 시트 아래쪽이라
                  * `above`로 위로 펼칩니다 — 아래로 펼치면 시트 밖으로 나갑니다.
                  */}
                 <DetailActions>
-                  <DetailAction disabled={busy} onClick={save}>
+                  <DetailAction disabled={busy || !dirty} onClick={save}>
                     <img src={icons.edit} alt="" aria-hidden />
-                    {busy ? "저장 중..." : "할 일 수정하기"}
+                    {busy ? "저장 중..." : "수정 완료하기"}
                   </DetailAction>
                   <ConfirmMenu
                     open={confirming === "todo"}
@@ -413,7 +421,7 @@ export const TodoDetailModal = ({
         initialDate={dateOnly(todo?.startDate) ?? selectedDate}
         initialTime={todo?.time ?? ""}
         onClose={() => setRoutineOpen(false)}
-        // 여기서는 담아만 둡니다. 실제 등록은 `할 일 수정하기`를 눌렀을 때 함께 나갑니다.
+        // 여기서는 담아만 둡니다. 실제 등록은 `수정 완료하기`를 눌렀을 때 함께 나갑니다.
         onRegister={async (value, requestId) => {
           setRoutine({ value, requestId });
           setRoutineOpen(false);
@@ -523,7 +531,9 @@ const DetailActions = styled.div`
 
 const DetailAction = styled.button`
   display: flex;
-  /* 140px보다 좁아지지 않고, 남는 자리는 나눠 가집니다. 둘이 못 들어가면 줄을 바꿉니다. */
+  /* 같은 단에 선 네 버튼(마감기한·루틴·수정 완료·삭제)이 같은 폭이 되도록 단을 채웁니다. */
+  width: 100%;
+  /* 나란히 설 때는 140px보다 좁아지지 않고, 둘이 못 들어가면 줄을 바꿉니다. */
   flex: 1 1 140px;
   align-items: center;
   justify-content: center;
