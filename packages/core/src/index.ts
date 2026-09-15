@@ -513,3 +513,26 @@ export const diaryDate = (diary: Pick<Diary, "date" | "createdAt">) =>
 
 export const isDiaryForDate = (diary: Pick<Diary, "date" | "createdAt">, selectedDate: string) =>
   diaryDate(diary) === selectedDate;
+
+/**
+ * UUID 한 개.
+ *
+ * `crypto.randomUUID`는 보안 컨텍스트(https나 localhost)에만 있습니다. 휴대폰에서
+ * 개발 서버를 LAN 주소로 열어 보는 것처럼 평문 http로 띄운 화면에서는 아예 없어,
+ * 그대로 부르면 루틴 시트가 뜨자마자 죽고 구글 로그인 리다이렉트도 막힙니다.
+ * 없으면 `getRandomValues`로 16바이트를 받아 같은 v4 모양으로 맞춥니다 — 이쪽은
+ * 보안 컨텍스트를 가리지 않습니다. 서버가 `format: uuid`로 받으므로 마지막
+ * 대비책까지 모양은 반드시 UUID입니다.
+ */
+export const randomId = (): string => {
+  const source = globalThis.crypto;
+  if (source?.randomUUID) return source.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (source?.getRandomValues) source.getRandomValues(bytes);
+  else for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 256);
+  // v4임을 알리는 자리 두 곳만 정해진 값으로 덮습니다.
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
