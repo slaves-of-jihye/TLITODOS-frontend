@@ -7,14 +7,22 @@ const HOLD_MS = 250;
 const MOVE_TOLERANCE = 8;
 /** 칸을 표시하는 자리표. 포인터 아래의 칸을 이 이름으로 찾습니다. */
 export const CATEGORY_DROP_ATTRIBUTE = "data-category-drop";
+/** 휴지통을 표시하는 자리표. 끌고 있는 동안에만 화면에 떠 있습니다. */
+export const TRASH_DROP_ATTRIBUTE = "data-todo-trash";
 
-const categoryUnder = (x: number, y: number) => {
-  const column = document.elementFromPoint(x, y)?.closest<HTMLElement>(`[${CATEGORY_DROP_ATTRIBUTE}]`);
+/** 놓을 자리. 다른 칸으로 옮기거나, 휴지통에 버리거나, 아무 데도 아니거나. */
+type DropTarget = { kind: "category"; categoryId: number } | { kind: "trash" } | null;
+
+const targetUnder = (x: number, y: number): DropTarget => {
+  const element = document.elementFromPoint(x, y);
+  // 휴지통을 먼저 봅니다 — 칸 위에 떠 있으므로 포인터가 둘 다에 닿습니다.
+  if (element?.closest(`[${TRASH_DROP_ATTRIBUTE}]`)) return { kind: "trash" };
+  const column = element?.closest<HTMLElement>(`[${CATEGORY_DROP_ATTRIBUTE}]`);
   const value = column?.getAttribute(CATEGORY_DROP_ATTRIBUTE);
-  return value ? Number(value) : null;
+  return value ? { kind: "category", categoryId: Number(value) } : null;
 };
 
-type Dragging = { todo: Todo; x: number; y: number; over: number | null };
+type Dragging = { todo: Todo; x: number; y: number; over: DropTarget };
 
 /**
  * 할 일을 끌어 다른 카테고리로 옮깁니다.
@@ -24,15 +32,19 @@ type Dragging = { todo: Todo; x: number; y: number; over: number | null };
  * `touchmove`를 직접 막아 화면이 따라 굴러가지 않게 합니다(리액트가 다는 리스너는
  * passive라 막을 수 없어 창에 직접 답니다).
  *
- * 놓을 자리는 포인터 아래에 있는 칸으로 정합니다. 칸은 `CATEGORY_DROP_ATTRIBUTE`로
- * 자기 카테고리를 밝혀 둡니다.
+ * 놓을 자리는 포인터 아래에 있는 것으로 정합니다. 칸은 `CATEGORY_DROP_ATTRIBUTE`로
+ * 자기 카테고리를, 휴지통은 `TRASH_DROP_ATTRIBUTE`로 자기를 밝혀 둡니다. 휴지통에
+ * 놓는 것은 곧바로 지우지 않고 부르는 쪽에 알리기만 합니다 — 지우기 전에 한 번
+ * 물어야 하기 때문입니다.
  */
 export const useTodoDrag = ({
   enabled,
   onDrop,
+  onTrash,
 }: {
   enabled: boolean;
   onDrop: (todo: Todo, categoryId: number) => void;
+  onTrash: (todo: Todo) => void;
 }) => {
   const [dragging, setDragging] = useState<Dragging | null>(null);
 
@@ -46,7 +58,7 @@ export const useTodoDrag = ({
 
       const begin = (x: number, y: number) => {
         started = true;
-        setDragging({ todo, x, y, over: categoryUnder(x, y) });
+        setDragging({ todo, x, y, over: targetUnder(x, y) });
       };
       const move = (moveEvent: PointerEvent) => {
         if (moveEvent.pointerId !== pointerId) return;
@@ -67,7 +79,7 @@ export const useTodoDrag = ({
                 ...current,
                 x: moveEvent.clientX,
                 y: moveEvent.clientY,
-                over: categoryUnder(moveEvent.clientX, moveEvent.clientY),
+                over: targetUnder(moveEvent.clientX, moveEvent.clientY),
               }
             : current,
         );
@@ -77,7 +89,7 @@ export const useTodoDrag = ({
       };
       const up = (upEvent: PointerEvent) => {
         if (upEvent.pointerId !== pointerId) return;
-        const target = started ? categoryUnder(upEvent.clientX, upEvent.clientY) : null;
+        const target = started ? targetUnder(upEvent.clientX, upEvent.clientY) : null;
         const moved = started;
         stop();
         // 끌고 놓은 손짓이 상세 열기로 이어지지 않게 뒤따르는 클릭 한 번을 삼킵니다.
@@ -90,7 +102,8 @@ export const useTodoDrag = ({
            */
           window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 0);
         }
-        if (target !== null && target !== todo.categoryId) onDrop(todo, target);
+        if (target?.kind === "trash") onTrash(todo);
+        else if (target?.kind === "category" && target.categoryId !== todo.categoryId) onDrop(todo, target.categoryId);
       };
       const swallow = (clickEvent: MouseEvent) => {
         clickEvent.preventDefault();
@@ -117,14 +130,18 @@ export const useTodoDrag = ({
       window.addEventListener("keydown", onKey);
       if (byTouch) timer = window.setTimeout(() => begin(startX, startY), HOLD_MS);
     },
-    [enabled, onDrop],
+    [enabled, onDrop, onTrash],
   );
 
   return {
     /** 끌고 있는 할 일. 원래 자리는 옅게 둡니다. */
     activeId: dragging?.todo.todoId ?? null,
-    /** 지금 포인터가 올라가 있는 칸. */
-    overId: dragging?.over ?? null,
+    /** 지금 포인터가 올라가 있는 칸. 휴지통 위라면 어느 칸도 아닙니다. */
+    overId: dragging?.over?.kind === "category" ? dragging.over.categoryId : null,
+    /** 지금 포인터가 휴지통 위에 있는지. 휴지통이 이걸로 커집니다. */
+    overTrash: dragging?.over?.kind === "trash",
+    /** 끌고 있는 중인지. 휴지통은 이때만 떠 있습니다. */
+    dragging: dragging !== null,
     /** 손끝을 따라다니는 쪽지. */
     preview: dragging ? { title: dragging.todo.title, x: dragging.x, y: dragging.y } : null,
     rowProps: (todo: Todo) => ({ onPointerDown: startFrom(todo) }),
