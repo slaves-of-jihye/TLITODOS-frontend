@@ -14,11 +14,9 @@ export const CategorySection = ({
   todos,
   own,
   adding,
-  editingTitleId,
   onAdd,
   onCancelAdd,
   onCreate,
-  onRenameTitle,
   onManage,
   onToggle,
   onEdit,
@@ -32,12 +30,9 @@ export const CategorySection = ({
   own: boolean;
   /** 이 카테고리에 인라인 입력 줄이 열려 있는지. */
   adding?: boolean;
-  /** 제목을 인라인으로 고치는 중인 할 일. */
-  editingTitleId?: number | null;
   onAdd: (category: Category) => void;
   onCancelAdd: () => void;
   onCreate: (category: Category, title: string) => Promise<void>;
-  onRenameTitle: (todo: Todo, title: string) => Promise<void>;
   onManage: (category: Category) => void;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
@@ -63,28 +58,18 @@ export const CategorySection = ({
         onManage={own ? () => onManage(category) : undefined}
       />
       <TodoList>
-        {todos.map(todo =>
-          todo.todoId === editingTitleId ? (
-            <TodoDraftRow
-              key={todo.todoId}
+        {todos.map(todo => (
+          <DraggableRow key={todo.todoId} dragging={drag?.activeId === todo.todoId} {...drag?.rowProps(todo)}>
+            <SharedTodoRow
+              todo={todo}
               accent={accent}
-              initial={todo.title}
-              onCancel={onCancelAdd}
-              onCommit={title => onRenameTitle(todo, title)}
+              own={own}
+              onToggle={() => onToggle(todo)}
+              onEdit={() => onEdit(todo)}
+              onBet={onBet ? () => onBet(todo) : undefined}
             />
-          ) : (
-            <DraggableRow key={todo.todoId} dragging={drag?.activeId === todo.todoId} {...drag?.rowProps(todo)}>
-              <SharedTodoRow
-                todo={todo}
-                accent={accent}
-                own={own}
-                onToggle={() => onToggle(todo)}
-                onEdit={() => onEdit(todo)}
-                onBet={onBet ? () => onBet(todo) : undefined}
-              />
-            </DraggableRow>
-          ),
-        )}
+          </DraggableRow>
+        ))}
         {adding ? (
           <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
         ) : null}

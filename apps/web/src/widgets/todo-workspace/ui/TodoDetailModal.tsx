@@ -1,9 +1,10 @@
 import styled from "@emotion/styled";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { DeadlineValue } from "@/features/todo-deadline";
 import type { Category, Importance, Todo, TodoPatchRequest } from "@/shared/api";
 import { categoryAccent, sortCategories } from "@/entities/category";
 import {
+  ROUTINE_REPEATS,
   dependencyCandidates,
   toRecurrence,
   useConvertToRoutine,
@@ -13,8 +14,10 @@ import {
   useSetDependencies,
   useUpdateTodo,
 } from "@/entities/todo";
+import type { RoutineValue } from "@/features/todo-routine";
 import { DeadlineModal } from "@/features/todo-deadline";
 import { RoutineModal } from "@/features/todo-routine";
+import { TODO_TITLE_LIMIT } from "@/shared/config";
 import { dateOnly, errorMessage } from "@/shared/lib";
 import {
   Button,
@@ -25,6 +28,9 @@ import {
   ErrorText,
   Modal,
   StatusCluster,
+  hoverable,
+  formatSheetDate,
+  formatSheetTime,
   icons,
   palette,
   theme,
@@ -39,7 +45,6 @@ export const TodoDetailModal = ({
   todos,
   selectedDate,
   onClose,
-  onEditTitle,
 }: {
   open: boolean;
   todo: Todo | null;
@@ -47,7 +52,6 @@ export const TodoDetailModal = ({
   todos: Todo[];
   selectedDate: string;
   onClose: () => void;
-  onEditTitle: (todo: Todo) => void;
 }) => {
   const updateTodo = useUpdateTodo();
   const setDependencies = useSetDependencies();
@@ -55,15 +59,17 @@ export const TodoDetailModal = ({
   const convertToRoutine = useConvertToRoutine();
   const deleteRoutine = useDeleteRoutine();
   const invalidateTodos = useInvalidateTodos();
-  const [detail, setDetail] = useState(todo?.description ?? "");
-  /**
-   * 마지막으로 저장한 세부사항입니다.
+  /*
+   * 시트 안에서 고친 것은 모아 두었다가 `할 일 수정하기`를 눌렀을 때 한 번에 보냅니다.
    *
-   * 엔터로 저장한 뒤 포커스가 빠질 때 같은 값을 또 보내지 않으려고 들고 있습니다.
-   * `todo.description`과 비교하면 안 됩니다 — 상세 시트가 들고 있는 할 일은 저장
-   * 뒤에도 갱신되지 않아 방금 보낸 값을 모릅니다.
+   * 예전에는 칸마다 그 자리에서 보냈습니다. 중요도를 바꾸면 한 번, 세부사항에서
+   * 포커스가 빠지면 또 한 번, 마감기한 시트를 닫으면 또 한 번이라 시트 하나를
+   * 손보는 동안 요청이 네다섯 번 나갔고, 중간에 시트를 닫으면 어디까지 저장됐는지
+   * 알 수 없었습니다. 이제 닫으면 아무것도 바뀌지 않고, 누르면 다 바뀝니다.
    */
-  const savedDetail = useRef(todo?.description ?? "");
+  const [title, setTitle] = useState(todo?.title ?? "");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [detail, setDetail] = useState(todo?.description ?? "");
   const [importance, setImportance] = useState<Importance>(todo?.importance ?? "NONE");
   const [dependency, setDependency] = useState<number | null>(todo?.dependencies[0] ?? null);
   const [deadline, setDeadline] = useState<DeadlineValue>({
@@ -71,27 +77,83 @@ export const TodoDetailModal = ({
     date: dateOnly(todo?.dueDate) ?? dateOnly(todo?.startDate) ?? selectedDate,
     time: todo?.time ?? "",
   });
+  /**
+   * 등록하기로 해 둔 루틴. 아직 서버에는 없습니다.
+   *
+   * `requestId`도 함께 들고 있습니다 — 저장이 실패해 다시 누를 때 같은 키여야
+   * 루틴이 둘로 늘어나지 않기 때문입니다.
+   */
+  const [routine, setRoutine] = useState<{ value: RoutineValue; requestId: string } | null>(null);
   const [deadlineOpen, setDeadlineOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /**
+   * 열었을 때의 값입니다. 무엇이 바뀌었는지 이걸로 가려 바뀐 것만 보냅니다.
+   *
+   * 상세 시트는 할 일마다 다시 마운트되므로(`key`가 `todoId`) 처음 한 번만 잡으면
+   * 그 할 일을 보는 동안 그대로 남습니다. ref가 아니라 상태로 두는 것은 그리는 중에
+   * 읽기 때문입니다.
+   */
+  const [opened] = useState(() => ({
+    title: todo?.title ?? "",
+    detail: todo?.description ?? "",
+    importance: (todo?.importance ?? "NONE") as Importance,
+    start: dateOnly(todo?.startDate) ?? selectedDate,
+    date: dateOnly(todo?.dueDate) ?? dateOnly(todo?.startDate) ?? selectedDate,
+    time: todo?.time ?? "",
+    dependency: todo?.dependencies[0] ?? null,
+  }));
   /** 열려 있는 삭제 확인 드롭다운. 한 번에 하나만 엽니다. */
   const [confirming, setConfirming] = useState<"todo" | "routine" | null>(null);
   const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
   const candidates = dependencyCandidates(todos, todo, selectedDate, dependency === null ? [] : [dependency]);
-  const saveDetail = () => {
-    if (detail === savedDetail.current) return;
-    savedDetail.current = detail;
-    void patch({ description: detail });
-  };
-  const patch = async (body: TodoPatchRequest) => {
+  const trimmedTitle = title.trim();
+  /**
+   * 모아 둔 것을 한 번에 보냅니다.
+   *
+   * 한 번의 요청으로 끝나지는 않습니다 — 서버가 제목·세부사항·중요도·기간은 한
+   * 자리에서 받지만(`PATCH /todos/{id}`), 선행 할 일과 루틴은 각자 다른 자리이기
+   * 때문입니다. 대신 바뀐 것만, 사용자의 한 번의 누름으로 보냅니다. 도중에 실패하면
+   * 시트를 닫지 않고 그 자리에 둡니다 — 고친 내용이 손에 남아 다시 누를 수 있습니다.
+   */
+  const save = async () => {
     if (!todo) return;
     setBusy(true);
     setError("");
     try {
-      await updateTodo.mutateAsync({ id: todo.todoId, body });
+      const before = opened;
+      const body: TodoPatchRequest = {};
+      if (trimmedTitle && trimmedTitle !== before.title) body.title = trimmedTitle;
+      if (detail !== before.detail) body.description = detail;
+      if (importance !== before.importance) body.importance = importance;
+      if (deadline.start !== before.start) body.startDate = deadline.start;
+      if (deadline.date !== before.date) body.dueDate = deadline.date;
+      if (deadline.time !== before.time) body.time = deadline.time || null;
+      if (Object.keys(body).length) await updateTodo.mutateAsync({ id: todo.todoId, body });
+      if (dependency !== before.dependency) {
+        await setDependencies.mutateAsync({
+          id: todo.todoId,
+          dependencyTodoIds: dependency === null ? [] : [dependency],
+        });
+      }
+      if (routine) {
+        // 원본이 첫 회차가 되므로 새로 만들지 않고 이 할 일을 루틴으로 돌립니다.
+        await convertToRoutine.mutateAsync({
+          id: todo.todoId,
+          body: {
+            requestId: routine.requestId,
+            startDate: routine.value.start,
+            endDate: routine.value.end,
+            time: routine.value.time || null,
+            recurrence: toRecurrence(routine.value.repeat, routine.value.weekdays),
+          },
+        });
+        invalidateTodos();
+      }
+      onClose();
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -129,12 +191,44 @@ export const TodoDetailModal = ({
       <Modal open={open} sheet onClose={onClose} aria-label="할 일 상세">
         {todo ? (
           <DetailSheet>
-            <DetailTitle>{todo.title}</DetailTitle>
+            {/*
+             * 제목은 눌러서 그 자리에서 고칩니다.
+             *
+             * 예전에는 `할 일 수정하기`가 시트를 닫고 목록의 줄을 입력칸으로 바꿨습니다.
+             * 고치려면 시트를 나가야 했고, 그 버튼이 무엇을 하는지도 이름과 달랐습니다.
+             */}
+            {editingTitle ? (
+              <DetailTitleInput
+                autoFocus
+                value={title}
+                maxLength={TODO_TITLE_LIMIT}
+                aria-label="할 일 제목"
+                onChange={event => setTitle(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === "Enter") setEditingTitle(false);
+                  if (event.key === "Escape") {
+                    setTitle(opened.title);
+                    setEditingTitle(false);
+                  }
+                }}
+                // 비운 채로 빠져나가면 원래 제목으로 되돌립니다. 제목 없는 할 일은 없습니다.
+                onBlur={() => {
+                  if (!title.trim()) setTitle(opened.title);
+                  setEditingTitle(false);
+                }}
+              />
+            ) : (
+              <DetailTitleButton onClick={() => setEditingTitle(true)}>
+                <span>{trimmedTitle || opened.title}</span>
+                <img src={icons.edit} alt="" aria-hidden />
+              </DetailTitleButton>
+            )}
             <DetailBody>
               <div>
                 <DetailActions>
-                  <DetailAction onClick={() => onEditTitle(todo)}>
-                    <img src={icons.edit} alt="" aria-hidden />할 일 수정하기
+                  <DetailAction disabled={busy} onClick={save}>
+                    <img src={icons.edit} alt="" aria-hidden />
+                    {busy ? "저장 중..." : "할 일 수정하기"}
                   </DetailAction>
                   <ConfirmMenu
                     open={confirming === "todo"}
@@ -176,13 +270,6 @@ export const TodoDetailModal = ({
                       placeholder="세부사항을 작성하세요..."
                       disabled={busy}
                       onChange={event => setDetail(event.target.value)}
-                      // 엔터로 바로 저장합니다. 계속 고칠 수 있게 포커스는 두고 갑니다.
-                      onKeyDown={event => {
-                        if (event.key !== "Enter") return;
-                        event.preventDefault();
-                        saveDetail();
-                      }}
-                      onBlur={saveDetail}
                     />
                     <small>
                       {detail.length}/{TODO_DETAIL_LIMIT}
@@ -202,27 +289,8 @@ export const TodoDetailModal = ({
                             key={candidate.todoId}
                             aria-pressed={chosen}
                             disabled={busy}
-                            onClick={async () => {
-                              /*
-                               * 목록 전체를 한 번에 보냅니다(PUT). 고른 것을 다시 누르면 빈
-                               * 배열이 되어 서버에서도 풀립니다 — 예전에는 화면에서만 풀려
-                               * 서버에는 남았고, 다른 것을 고르면 앞의 것이 남아 둘이 됐습니다.
-                               */
-                              const previous = dependency;
-                              const next = chosen ? null : candidate.todoId;
-                              setDependency(next);
-                              setError("");
-                              try {
-                                await setDependencies.mutateAsync({
-                                  id: todo.todoId,
-                                  dependencyTodoIds: next === null ? [] : [next],
-                                });
-                              } catch (reason) {
-                                // 서버가 받지 않았으면 화면도 되돌립니다.
-                                setDependency(previous);
-                                setError(errorMessage(reason));
-                              }
-                            }}
+                            // 고른 것을 다시 누르면 풀립니다. 저장할 때 목록 전체를 보내므로(PUT) 서버에서도 함께 풀립니다.
+                            onClick={() => setDependency(chosen ? null : candidate.todoId)}
                           >
                             <StatusCluster
                               fills={chosen ? [accent, accent, accent, accent] : [null, null, null, null]}
@@ -253,10 +321,7 @@ export const TodoDetailModal = ({
                         key={key}
                         variant={importance === key ? "primary" : "soft"}
                         disabled={busy}
-                        onClick={() => {
-                          setImportance(key);
-                          void patch({ importance: key });
-                        }}
+                        onClick={() => setImportance(key)}
                       >
                         {label}
                       </Button>
@@ -268,6 +333,17 @@ export const TodoDetailModal = ({
                     <img src={icons.calendar} alt="" aria-hidden />
                     마감기한 설정하기
                   </DetailAction>
+                  {/*
+                   * 고른 값을 적어 둡니다.
+                   *
+                   * 이제 시트를 닫아도 서버로 가지 않으므로, 적어 두지 않으면 눌러도
+                   * 아무 일이 없는 것처럼 보입니다.
+                   */}
+                  <DetailChosen>
+                    {formatSheetDate(deadline.start)}
+                    {deadline.date !== deadline.start ? ` ~ ${formatSheetDate(deadline.date)}` : ""} ·{" "}
+                    {formatSheetTime(deadline.time)}
+                  </DetailChosen>
                   {todo.routineId ? (
                     <ConfirmMenu
                       open={confirming === "routine"}
@@ -291,10 +367,19 @@ export const TodoDetailModal = ({
                       <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
                     </ConfirmMenu>
                   ) : (
-                    <DetailAction onClick={() => setRoutineOpen(true)}>
-                      <img src={icons.routine} alt="" aria-hidden />
-                      루틴으로 등록하기
-                    </DetailAction>
+                    <>
+                      <DetailAction onClick={() => setRoutineOpen(true)}>
+                        <img src={icons.routine} alt="" aria-hidden />
+                        루틴으로 등록하기
+                      </DetailAction>
+                      {routine ? (
+                        <DetailChosen>
+                          {ROUTINE_REPEATS.find(item => item.key === routine.value.repeat)?.label} ·{" "}
+                          {formatSheetDate(routine.value.start)} ~ {formatSheetDate(routine.value.end)} · 저장하면
+                          등록됩니다
+                        </DetailChosen>
+                      ) : null}
+                    </>
                   )}
                 </DetailBlock>
               </div>
@@ -306,10 +391,7 @@ export const TodoDetailModal = ({
       <DeadlineModal
         open={deadlineOpen}
         value={deadline}
-        onChange={next => {
-          setDeadline(next);
-          void patch({ startDate: next.start, dueDate: next.date, time: next.time || null });
-        }}
+        onChange={setDeadline}
         onClose={() => setDeadlineOpen(false)}
       />
       <RoutineModal
@@ -318,27 +400,10 @@ export const TodoDetailModal = ({
         initialDate={dateOnly(todo?.startDate) ?? selectedDate}
         initialTime={todo?.time ?? ""}
         onClose={() => setRoutineOpen(false)}
+        // 여기서는 담아만 둡니다. 실제 등록은 `할 일 수정하기`를 눌렀을 때 함께 나갑니다.
         onRegister={async (value, requestId) => {
-          if (!todo) return;
-          setError("");
-          try {
-            // 원본이 첫 회차가 되므로 새로 만들지 않고 이 할 일을 루틴으로 돌립니다.
-            await convertToRoutine.mutateAsync({
-              id: todo.todoId,
-              body: {
-                requestId,
-                startDate: value.start,
-                endDate: value.end,
-                time: value.time || null,
-                recurrence: toRecurrence(value.repeat, value.weekdays),
-              },
-            });
-            invalidateTodos();
-            setRoutineOpen(false);
-            onClose();
-          } catch (reason) {
-            setError(errorMessage(reason));
-          }
+          setRoutine({ value, requestId });
+          setRoutineOpen(false);
         }}
       />
     </>
@@ -350,12 +415,55 @@ const DetailSheet = styled.div`
   gap: 32px;
 `;
 
-const DetailTitle = styled.p`
-  margin: 0;
+const DetailTitleButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 auto;
+  max-width: 100%;
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: transparent;
+  padding: 4px 10px;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  img {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    opacity: 0.45;
+  }
+  ${hoverable} {
+    &:hover {
+      background: ${palette.gray100};
+    }
+  }
+`;
+
+const DetailTitleInput = styled.input`
+  display: block;
+  width: 100%;
+  border: 0;
+  /* 고치는 중임을 밑줄로 알립니다. 목록에서 새로 쓸 때와 같은 표시입니다. */
+  border-bottom: 2px solid ${palette.gray300};
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 10px;
   text-align: center;
   font-size: ${theme.text.h3};
   color: ${theme.colors.ink};
-  overflow-wrap: anywhere;
+`;
+
+/** 시트에서 골라 둔 값. 아직 서버에 가지 않았습니다. */
+const DetailChosen = styled.p`
+  margin: 8px 0 0;
+  font-size: ${theme.text.xs};
+  color: ${theme.colors.muted};
 `;
 
 const DetailBody = styled.div`

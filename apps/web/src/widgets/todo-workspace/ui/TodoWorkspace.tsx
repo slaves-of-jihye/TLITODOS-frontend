@@ -71,7 +71,6 @@ export const TodoWorkspace = ({
     onRevert: refetch,
   });
   const [addingCategoryId, setAddingCategoryId] = useState<number | null>(null);
-  const [editingTitleId, setEditingTitleId] = useState<number | null>(null);
   const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
   /*
    * 만든 뒤 목록을 다시 받는 것까지 이 화면이 기다립니다.
@@ -204,12 +203,8 @@ export const TodoWorkspace = ({
                   )}
                   own={own}
                   adding={addingCategoryId === category.categoryId}
-                  editingTitleId={editingTitleId}
                   onAdd={next => setAddingCategoryId(next.categoryId)}
-                  onCancelAdd={() => {
-                    setAddingCategoryId(null);
-                    setEditingTitleId(null);
-                  }}
+                  onCancelAdd={() => setAddingCategoryId(null)}
                   onCreate={async (next, title) => {
                     setAddingCategoryId(null);
                     bumpPending(next.categoryId, 1);
@@ -228,10 +223,6 @@ export const TodoWorkspace = ({
                     } finally {
                       bumpPending(next.categoryId, -1);
                     }
-                  }}
-                  onRenameTitle={async (todo, title) => {
-                    setEditingTitleId(null);
-                    await updateTodo.mutateAsync({ id: todo.todoId, body: { title } });
                   }}
                   onManage={setManage}
                   onToggle={handleToggle}
@@ -254,10 +245,6 @@ export const TodoWorkspace = ({
         todos={selectedTodos}
         selectedDate={selectedDate}
         onClose={() => setDetailTodo(null)}
-        onEditTitle={todo => {
-          setDetailTodo(null);
-          setEditingTitleId(todo.todoId);
-        }}
       />
       <CategoryManageModal
         key={manage?.categoryId ?? 0}
