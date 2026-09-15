@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useMemo } from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useIsFetching,
+  useIsMutating,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { ApiClient } from "@tlitodos/api-client";
 import type {
   BetCreateRequest,
@@ -325,6 +332,34 @@ export const useInvalidateTodos = () => {
     invalidate(["todos-daily-status"]);
   }, [invalidate]);
 };
+
+/**
+ * 할 일 목록을 무효화하고, 새 목록이 실제로 도착할 때까지 기다립니다.
+ *
+ * `useInvalidateTodos`와 달리 프로미스를 돌려줍니다. 방금 만든 할 일이 목록에
+ * 나타날 때까지 자리를 비워 두어야 하는 곳(인라인 추가)이 그 끝을 알아야 하기
+ * 때문입니다. 화면 전환을 기다리게 하면 안 되는 곳은 그대로 무효화만 겁니다.
+ */
+export const useRefillTodos = () => {
+  const cache = useQueryClient();
+  return useCallback(
+    () =>
+      Promise.all([
+        cache.invalidateQueries({ queryKey: ["todos"] }),
+        cache.invalidateQueries({ queryKey: ["todos-daily-status"] }),
+      ]),
+    [cache],
+  );
+};
+
+/**
+ * 지금 서버와 주고받는 중인지.
+ *
+ * 쓰기(mutation)와 읽기(query)를 가리지 않고 셉니다. 쓰기는 끝나도 목록은 뒤에서
+ * 다시 받아 오므로(`useDetachedInvalidate`), 둘을 하나로 묶어야 "저장이 끝나고
+ * 화면에 반영되기까지"가 한 값으로 나옵니다. 화면 맨 위 진행 줄이 이걸로 켜집니다.
+ */
+export const useServerBusy = () => useIsMutating() + useIsFetching() > 0;
 
 type MutationOptions = { invalidate?: boolean };
 

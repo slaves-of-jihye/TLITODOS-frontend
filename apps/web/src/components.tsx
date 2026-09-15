@@ -61,6 +61,8 @@ import {
   icons,
   Modal,
   palette,
+  Skeleton,
+  SrOnly,
   StatusCluster,
   theme,
   TodoRow as SharedTodoRow,
@@ -444,16 +446,27 @@ const BackArrow = styled.img`
 export const MemberTabs = ({
   members,
   activeUserId,
+  loading = false,
   onSelect,
   onShareInvite,
 }: {
   members: GroupMember[];
   activeUserId: number | null;
+  /** 그룹을 아직 받아 오는 중인지. 빈 줄 대신 칩 자리를 잡아 둡니다. */
+  loading?: boolean;
   onSelect: (userId: number) => void;
   onShareInvite?: () => void;
 }) => (
   <MemberBar>
-    <MemberRow>
+    <MemberRow role={loading ? "status" : undefined}>
+      {loading ? (
+        <>
+          <SrOnly>멤버를 불러오는 중</SrOnly>
+          {["132px", "108px", "124px"].map(width => (
+            <Skeleton key={width} width={width} height="48px" radius={theme.radius.pill} />
+          ))}
+        </>
+      ) : null}
       {members.map(member => (
         <MemberChip
           key={member.userId}
@@ -2363,6 +2376,7 @@ export const CategorySection = ({
   onEdit,
   onBet,
   drag,
+  pending = 0,
 }: {
   category: Category;
   index: number;
@@ -2383,6 +2397,8 @@ export const CategorySection = ({
   onBet?: (todo: Todo) => void;
   /** 할 일을 끌어 옮기는 손짓. 내 화면에서만 넘어옵니다. */
   drag?: TodoDrag;
+  /** 방금 만들어 아직 목록에 없는 할 일의 수. 그만큼 빈 줄을 잡아 둡니다. */
+  pending?: number;
 }) => {
   const accent = categoryAccent(category.color, index);
   const isTarget = Boolean(drag?.activeId) && drag?.overId === category.categoryId;
@@ -2424,10 +2440,62 @@ export const CategorySection = ({
         {adding ? (
           <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
         ) : null}
+        {/*
+         * 방금 만든 할 일의 자리입니다.
+         *
+         * 만들기가 끝나도 목록은 한 번 더 받아 와야 도착합니다. 그 사이 입력 줄은
+         * 이미 닫혀 있어, 자리를 잡아 두지 않으면 방금 쓴 것이 사라진 것처럼 보입니다.
+         */}
+        {Array.from({ length: pending }, (_, index) => (
+          <TodoRowSkeleton key={`pending-${index}`} label="할 일을 담는 중" />
+        ))}
       </TodoList>
     </CategoryColumn>
   );
 };
+
+/**
+ * 아직 오지 않은 할 일 한 줄.
+ *
+ * 진짜 줄과 같은 자리를 잡습니다 — 완료 동그라미 하나와 제목 한 줄. 도착했을 때
+ * 아래 내용이 밀려 내려가지 않도록 여백까지 같게 둡니다.
+ */
+export const TodoRowSkeleton = ({ width = "70%", label }: { width?: string; label?: string }) => (
+  <SkeletonRow>
+    <Skeleton width="30px" height="30px" radius="50%" />
+    <Skeleton width={width} height="20px" />
+    {label ? <SrOnly>{label}</SrOnly> : null}
+  </SkeletonRow>
+);
+const SkeletonRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  @media (max-width: 600px) {
+    padding: 8px 6px;
+  }
+`;
+
+/** 줄마다 길이를 달리해, 자리표시가 표처럼 각지지 않게 합니다. */
+const SKELETON_ROW_WIDTHS = ["72%", "54%", "63%", "45%"];
+
+/**
+ * 아직 오지 않은 카테고리 한 칸.
+ *
+ * 이름표 자리와 할 일 몇 줄을 미리 놓습니다. 줄 수는 카테고리마다 달리 잡아,
+ * 네 칸이 똑같은 모양으로 늘어서지 않게 합니다.
+ */
+export const TodoColumnSkeleton = ({ rows }: { rows: number }) => (
+  <section>
+    <Skeleton width="128px" height="41px" radius={theme.radius.pill} />
+    <TodoList>
+      {Array.from({ length: rows }, (_, index) => (
+        <TodoRowSkeleton key={index} width={SKELETON_ROW_WIDTHS[index % SKELETON_ROW_WIDTHS.length]} />
+      ))}
+    </TodoList>
+  </section>
+);
 
 /** 할 일 제목 글자 수. 디자인의 카운터가 0/40입니다. */
 const TODO_TITLE_LIMIT = 40;
