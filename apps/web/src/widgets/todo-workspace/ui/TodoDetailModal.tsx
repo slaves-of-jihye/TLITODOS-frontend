@@ -1,14 +1,9 @@
 import styled from "@emotion/styled";
-import { useCallback, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useRef, useState } from "react";
 import type { DeadlineValue } from "@/features/todo-deadline";
-import type { TodoDrag } from "@/features/todo-drag";
-import type { Category, DailyTodoStatus, GroupMember, Importance, Todo, TodoPatchRequest } from "@/shared/api";
+import type { Category, Importance, Todo, TodoPatchRequest } from "@/shared/api";
 import { categoryAccent, sortCategories } from "@/entities/category";
-import { MemberChip, useGroups } from "@/entities/group";
 import {
-  TodoList,
-  TodoRowSkeleton,
   dependencyCandidates,
   toRecurrence,
   useConvertToRoutine,
@@ -18,328 +13,22 @@ import {
   useSetDependencies,
   useUpdateTodo,
 } from "@/entities/todo";
-import { TodoDraftRow } from "@/features/todo-create";
 import { DeadlineModal } from "@/features/todo-deadline";
-import { CATEGORY_DROP_ATTRIBUTE, DraggableRow } from "@/features/todo-drag";
 import { RoutineModal } from "@/features/todo-routine";
-import { addMonths, dateOnly, formatLocalDate, getCalendarDays } from "@/shared/lib";
+import { dateOnly, errorMessage } from "@/shared/lib";
 import {
   Button,
-  CategoryPill,
   ConfirmChoice,
   ConfirmMenu,
   ConfirmNote,
-  DayStash,
   DetailEmpty,
   ErrorText,
-  HeaderRow,
   Modal,
-  MonthArrow,
-  MonthButtons,
-  MonthHeader,
-  MonthPicker,
-  Skeleton,
-  SrOnly,
   StatusCluster,
-  TodoRow as SharedTodoRow,
-  ViewChip,
-  hoverScrollbarPull,
-  hoverScrollbarX,
   icons,
   palette,
   theme,
 } from "@/shared/ui";
-
-const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
-
-export const WorkspaceHeader = ({
-  activeGroupId,
-  onCreate,
-  onJoin,
-}: {
-  activeGroupId?: number;
-  onCreate: () => void;
-  onJoin: () => void;
-}) => {
-  const navigate = useNavigate();
-  const { data: groups = [] } = useGroups();
-  return (
-    <HeaderRow>
-      {groups.map(group => (
-        <ViewChip
-          key={group.groupId}
-          active={activeGroupId === group.groupId}
-          onClick={() => navigate(`/groups/${group.groupId}`)}
-        >
-          {group.name}
-        </ViewChip>
-      ))}
-      <Button type="button" onClick={onCreate}>
-        ＋ 그룹 생성
-      </Button>
-      <Button type="button" variant="ghost" onClick={onJoin}>
-        초대코드로 참여하기
-      </Button>
-    </HeaderRow>
-  );
-};
-
-/**
- * 그룹 화면 맨 위 줄. 뒤로가기 · 그룹 이름 · 그룹 설정입니다.
- *
- * 시트 안의 동작이 모두 그룹장 전용이라, `onSettings`는 그룹장일 때만 넘어옵니다.
- * 없으면 버튼 자리를 비웁니다 — 그래도 이름은 가운데에 남습니다.
- */
-export const GroupTopBar = ({
-  name,
-  onBack,
-  onSettings,
-}: {
-  name: string;
-  onBack: () => void;
-  onSettings?: () => void;
-}) => (
-  <GroupBar>
-    <GroupBarButton type="button" onClick={onBack}>
-      <BackArrow src={icons.arrowUp} alt="" aria-hidden />
-      뒤로가기
-    </GroupBarButton>
-    <GroupBarTitle>{name}</GroupBarTitle>
-    <GroupBarEnd>
-      {onSettings ? (
-        <GroupBarButton type="button" onClick={onSettings}>
-          그룹 설정
-        </GroupBarButton>
-      ) : null}
-    </GroupBarEnd>
-  </GroupBar>
-);
-/** 양쪽 칸을 같은 너비로 두어, 오른쪽 버튼이 없어도 이름이 가운데 있습니다. */
-const GroupBar = styled.header`
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 26px;
-`;
-const GroupBarEnd = styled.div`
-  display: flex;
-  justify-content: flex-end;
-`;
-const GroupBarButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font-size: ${theme.text.h3};
-  color: ${theme.colors.ink};
-  white-space: nowrap;
-`;
-const GroupBarTitle = styled.p`
-  margin: 0;
-  min-width: 0;
-  font-size: ${theme.text.h2};
-  color: ${theme.colors.ink};
-  overflow-wrap: anywhere;
-`;
-const BackArrow = styled.img`
-  width: 24px;
-  height: 24px;
-  transform: rotate(-90deg);
-`;
-
-/** 그룹 멤버를 고르는 줄. 나를 맨 앞에 둡니다. */
-export const MemberTabs = ({
-  members,
-  activeUserId,
-  loading = false,
-  onSelect,
-  onShareInvite,
-}: {
-  members: GroupMember[];
-  activeUserId: number | null;
-  /** 그룹을 아직 받아 오는 중인지. 빈 줄 대신 칩 자리를 잡아 둡니다. */
-  loading?: boolean;
-  onSelect: (userId: number) => void;
-  onShareInvite?: () => void;
-}) => (
-  <MemberBar>
-    <MemberRow role={loading ? "status" : undefined}>
-      {loading ? (
-        <>
-          <SrOnly>멤버를 불러오는 중</SrOnly>
-          {["132px", "108px", "124px"].map(width => (
-            <Skeleton key={width} width={width} height="48px" radius={theme.radius.pill} />
-          ))}
-        </>
-      ) : null}
-      {members.map(member => (
-        <MemberChip
-          key={member.userId}
-          member={member}
-          active={member.userId === activeUserId}
-          onClick={() => onSelect(member.userId)}
-        />
-      ))}
-    </MemberRow>
-    {/* 멤버가 넘쳐 줄이 옆으로 밀려도 같이 밀리지 않게, 스크롤되는 칩 줄 밖에 둡니다. */}
-    {onShareInvite ? (
-      <InviteShareButton type="button" variant="ghost" onClick={onShareInvite}>
-        초대코드 공유하기
-      </InviteShareButton>
-    ) : null}
-  </MemberBar>
-);
-const MemberBar = styled.div`
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  background: ${palette.white};
-  /* 붙었을 때만 여백이 되도록, 같은 값만큼 위로 당겨 평소 간격을 지킵니다. */
-  padding-top: 12px;
-  margin-top: -12px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 36px;
-  min-width: 0;
-`;
-const InviteShareButton = styled(Button)`
-  flex: none;
-`;
-const MemberRow = styled.div`
-  ${hoverScrollbarX}
-  display: flex;
-  gap: 16px;
-  min-width: 0;
-  ${hoverScrollbarPull}
-`;
-
-export const CalendarPanel = ({
-  month,
-  selectedDate,
-  statuses,
-  categories,
-  onMonthChange,
-  onDateChange,
-}: {
-  month: Date;
-  selectedDate: string;
-  /** 날짜별 요약. 서버의 daily-status이거나 목록으로 접어 만든 같은 모양입니다. */
-  statuses: DailyTodoStatus[];
-  categories: Category[];
-  onMonthChange: (date: Date) => void;
-  onDateChange: (date: string) => void;
-}) => {
-  const sorted = sortCategories(categories);
-  const days = getCalendarDays(month);
-  const today = formatLocalDate(new Date());
-  const byDate = useMemo(() => new Map(statuses.map(status => [status.date, status])), [statuses]);
-  return (
-    <CalendarWrap>
-      <MonthHeader>
-        <MonthPicker month={month} onChange={onMonthChange} />
-        <MonthButtons>
-          <MonthArrow direction="prev" aria-label="이전 달" onClick={() => onMonthChange(addMonths(month, -1))}>
-            <img src={icons.arrowUp} alt="" aria-hidden />
-          </MonthArrow>
-          <MonthArrow direction="next" aria-label="다음 달" onClick={() => onMonthChange(addMonths(month, 1))}>
-            <img src={icons.arrowUp} alt="" aria-hidden />
-          </MonthArrow>
-        </MonthButtons>
-      </MonthHeader>
-      <WeekRow>
-        {["일", "월", "화", "수", "목", "금", "토"].map(day => (
-          <span key={day}>{day}</span>
-        ))}
-      </WeekRow>
-      <DaysGrid>
-        {days.map((date, index) => {
-          if (!date) return <span key={`empty-${index}`} />;
-          const value = formatLocalDate(date);
-          const status = byDate.get(value);
-          // 점은 카테고리 순서(해야할 일 -> 사용자 -> 취미)대로 찍습니다. 서버는
-          // categoryId 순으로 주므로 정렬된 카테고리를 훑어 맞춥니다.
-          const marks = sorted.flatMap((category, catIndex) => {
-            const categoryStatus = status?.categoryStatuses.find(item => item.categoryId === category.categoryId);
-            return categoryStatus
-              ? [{ accent: categoryAccent(category.color, catIndex), done: categoryStatus.isCompleted }]
-              : [];
-          });
-          return (
-            <DayStash
-              key={value}
-              date={date.getDate()}
-              marks={marks}
-              incompleteCount={status?.incompleteCount ?? 0}
-              /*
-               * 사분면 배치가 흔들리지 않도록 씨앗은 배치를 정하는 것만 담습니다 —
-               * 그 날짜와, 쓰인 카테고리가 채워졌는지 여부(0/1)입니다. 남은 할 일
-               * 수를 넣으면 관계없는 할 일을 하나 체크할 때마다 남는 칸이 다른
-               * 카테고리로 옮겨 다닙니다.
-               */
-              seed={`${value}:${marks.map(mark => (mark.done ? 1 : 0)).join("")}`}
-              selected={value === selectedDate}
-              today={value === today}
-              onClick={() => onDateChange(value)}
-            />
-          );
-        })}
-      </DaysGrid>
-    </CalendarWrap>
-  );
-};
-/** 달력 한 칸의 너비. `StatusCluster` 기본 크기와 같습니다. */
-const DAY_CELL = 30;
-/**
- * 날짜 칸 사이 간격.
- *
- * 디자인의 450px 달력이 40px 간격입니다(7*30 + 6*40 = 450). 그보다 좁은 자리에
- * 놓이면 칸 크기는 두고 간격만 좁혀 넘치지 않게 합니다 — 1100px 아래에서 두 단이
- * 함께 줄어들 때가 그렇습니다. 화면 폭이 아니라 놓인 자리의 폭에 맞춰야 하므로
- * 미디어쿼리로는 할 수 없고, 격자 간격의 퍼센트가 그 자리의 너비를 가리킵니다.
- */
-const dayColumnGap = `clamp(4px, calc((100% - ${DAY_CELL * 7}px) / 6), 40px)`;
-
-const CalendarWrap = styled.section`
-  width: 100%;
-  max-width: ${theme.layout.calendar};
-`;
-const WeekRow = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  column-gap: ${dayColumnGap};
-  text-align: center;
-  margin: 12px 0 20px;
-  font-size: ${theme.text.h3};
-  /* 일요일은 빨강, 토요일은 파랑입니다. */
-  span:first-of-type {
-    color: ${theme.colors.red};
-  }
-  span:last-of-type {
-    color: ${theme.colors.blue};
-  }
-  @media (max-width: 600px) {
-    gap: 8px;
-    font-size: ${theme.text.s};
-  }
-`;
-const DaysGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  column-gap: ${dayColumnGap};
-  row-gap: 16px;
-  justify-items: center;
-  /* 일요일 열은 빨강, 토요일 열은 파랑입니다. */
-  > *:nth-child(7n + 1) {
-    color: ${theme.colors.red};
-  }
-  > *:nth-child(7n) {
-    color: ${theme.colors.blue};
-  }
-`;
 
 const TODO_DETAIL_LIMIT = 100;
 
@@ -660,6 +349,7 @@ const DetailSheet = styled.div`
   display: grid;
   gap: 32px;
 `;
+
 const DetailTitle = styled.p`
   margin: 0;
   text-align: center;
@@ -667,6 +357,7 @@ const DetailTitle = styled.p`
   color: ${theme.colors.ink};
   overflow-wrap: anywhere;
 `;
+
 const DetailBody = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 357px) minmax(0, 1fr);
@@ -685,10 +376,12 @@ const DetailBody = styled.div`
     }
   }
 `;
+
 const DetailActions = styled.div`
   display: flex;
   gap: 20px;
 `;
+
 const DetailAction = styled.button`
   display: flex;
   flex: 1;
@@ -711,16 +404,19 @@ const DetailAction = styled.button`
     cursor: not-allowed;
   }
 `;
+
 const DetailBlock = styled.div`
   display: grid;
   gap: 12px;
   justify-items: start;
 `;
+
 const DetailLabel = styled.p`
   margin: 0;
   font-size: ${theme.text.h3};
   color: ${theme.colors.ink};
 `;
+
 const DetailField = styled.div`
   display: flex;
   align-items: center;
@@ -747,10 +443,12 @@ const DetailField = styled.div`
     color: ${theme.colors.muted};
   }
 `;
+
 const DependencyRows = styled.div`
   display: grid;
   width: 100%;
 `;
+
 const DependencyRow = styled.button`
   display: flex;
   align-items: center;
@@ -770,111 +468,9 @@ const DependencyRow = styled.button`
     cursor: progress;
   }
 `;
+
 const DetailPills = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-`;
-
-export const CategorySection = ({
-  category,
-  index,
-  todos,
-  own,
-  adding,
-  editingTitleId,
-  onAdd,
-  onCancelAdd,
-  onCreate,
-  onRenameTitle,
-  onManage,
-  onToggle,
-  onEdit,
-  onBet,
-  drag,
-  pending = 0,
-}: {
-  category: Category;
-  index: number;
-  todos: Todo[];
-  own: boolean;
-  /** 이 카테고리에 인라인 입력 줄이 열려 있는지. */
-  adding?: boolean;
-  /** 제목을 인라인으로 고치는 중인 할 일. */
-  editingTitleId?: number | null;
-  onAdd: (category: Category) => void;
-  onCancelAdd: () => void;
-  onCreate: (category: Category, title: string) => Promise<void>;
-  onRenameTitle: (todo: Todo, title: string) => Promise<void>;
-  onManage: (category: Category) => void;
-  onToggle: (todo: Todo) => void;
-  onEdit: (todo: Todo) => void;
-  /** 남의 할 일에 내기를 걸 때. 내 화면에서는 넘어오지 않습니다. */
-  onBet?: (todo: Todo) => void;
-  /** 할 일을 끌어 옮기는 손짓. 내 화면에서만 넘어옵니다. */
-  drag?: TodoDrag;
-  /** 방금 만들어 아직 목록에 없는 할 일의 수. 그만큼 빈 줄을 잡아 둡니다. */
-  pending?: number;
-}) => {
-  const accent = categoryAccent(category.color, index);
-  const isTarget = Boolean(drag?.activeId) && drag?.overId === category.categoryId;
-  return (
-    <CategoryColumn
-      {...{ [CATEGORY_DROP_ATTRIBUTE]: category.categoryId }}
-      style={{ borderColor: isTarget ? accent : undefined }}
-    >
-      <CategoryPill
-        name={category.name}
-        accent={accent}
-        own={own}
-        onAdd={own ? () => onAdd(category) : undefined}
-        onManage={own ? () => onManage(category) : undefined}
-      />
-      <TodoList>
-        {todos.map(todo =>
-          todo.todoId === editingTitleId ? (
-            <TodoDraftRow
-              key={todo.todoId}
-              accent={accent}
-              initial={todo.title}
-              onCancel={onCancelAdd}
-              onCommit={title => onRenameTitle(todo, title)}
-            />
-          ) : (
-            <DraggableRow key={todo.todoId} dragging={drag?.activeId === todo.todoId} {...drag?.rowProps(todo)}>
-              <SharedTodoRow
-                todo={todo}
-                accent={accent}
-                own={own}
-                onToggle={() => onToggle(todo)}
-                onEdit={() => onEdit(todo)}
-                onBet={onBet ? () => onBet(todo) : undefined}
-              />
-            </DraggableRow>
-          ),
-        )}
-        {adding ? (
-          <TodoDraftRow accent={accent} onCancel={onCancelAdd} onCommit={title => onCreate(category, title)} />
-        ) : null}
-        {/*
-         * 방금 만든 할 일의 자리입니다.
-         *
-         * 만들기가 끝나도 목록은 한 번 더 받아 와야 도착합니다. 그 사이 입력 줄은
-         * 이미 닫혀 있어, 자리를 잡아 두지 않으면 방금 쓴 것이 사라진 것처럼 보입니다.
-         */}
-        {Array.from({ length: pending }, (_, index) => (
-          <TodoRowSkeleton key={`pending-${index}`} label="할 일을 담는 중" />
-        ))}
-      </TodoList>
-    </CategoryColumn>
-  );
-};
-
-const CategoryColumn = styled.section`
-  min-width: 0;
-  /* 끌어온 할 일을 받을 칸임을 테두리로 알립니다. 자리는 늘 잡아 두어 흔들리지 않습니다. */
-  border: 2px dashed transparent;
-  border-radius: ${theme.radius.sm};
-  margin: -8px;
-  padding: 8px;
 `;
