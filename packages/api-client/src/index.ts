@@ -231,7 +231,8 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
         request<Diary[]>("/api/v1/diaries", { query }),
       create: (body: DiaryCreateRequest | FormData) => request<Diary>("/api/v1/diaries", { method: "POST", body }),
       get: (id: number) => request<Diary>(`/api/v1/diaries/${id}`),
-      update: (id: number, body: DiaryPatchRequest) =>
+      /** 사진을 바꿀 때만 `FormData`를 씁니다. 그 외에는 JSON이 가볍습니다. */
+      update: (id: number, body: DiaryPatchRequest | FormData) =>
         request<Diary>(`/api/v1/diaries/${id}`, { method: "PATCH", body }),
       remove: (id: number) => request<MessageResponse>(`/api/v1/diaries/${id}`, { method: "DELETE" }),
     },

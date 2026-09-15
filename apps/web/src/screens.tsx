@@ -28,6 +28,7 @@ import {
   useMarkNotificationRead,
   useMe,
   useNotifications,
+  useDeleteDiary,
   useSaveDiary,
   useTodos,
   useUpdateCategory,
@@ -50,6 +51,9 @@ import {
   BottomNav,
   Button,
   CategoryPill,
+  ConfirmChoice,
+  ConfirmMenu,
+  ConfirmNote,
   DiaryBadge,
   ErrorText,
   Glyph,
@@ -58,7 +62,7 @@ import {
   palette,
   theme,
 } from "@tlitodos/ui";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAssetObjectUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
@@ -275,17 +279,9 @@ const TodoWorkspace = ({
       />
       <DependencyBlockModal todos={blocked} open={blocked.length > 0} onClose={() => setBlocked([])} />
       {/* Figma group 섹션의 `modal / diary`입니다. 닫기 버튼이 없어 뒤 배경을 눌러 닫습니다. */}
-      <Modal open={diaryPreview !== null} sheet onClose={() => setDiaryPreview(null)} aria-label="친구의 일기">
-        <DiaryPreview>
-          <DiaryPreviewTitle>{ownerName || "친구"}님의 일기</DiaryPreviewTitle>
-          <DiaryBadge
-            emotion={diaryPreview?.emotion}
-            nickname={ownerName || "친구"}
-            date={formatLongKoreanDate(diaryPreview ? (diaryDate(diaryPreview) ?? "") : "")}
-          />
-          <p>{diaryPreview?.content ?? ""}</p>
-        </DiaryPreview>
-      </Modal>
+      {diaryPreview ? (
+        <DiaryViewModal diary={diaryPreview} author={ownerName || "친구"} onClose={() => setDiaryPreview(null)} />
+      ) : null}
       {/* BetModal is intentionally kept out of the active MVP build. */}
     </>
   );
@@ -451,7 +447,7 @@ export const AlarmPage = () => {
         ) : null}
       </AlarmColumn>
       {openDiary ? (
-        <NotifiedDiary diaryId={openDiary.diaryId} actor={openDiary.actor} onClose={() => setOpenDiary(null)} />
+        <DiaryViewModal diaryId={openDiary.diaryId} author={openDiary.actor} onClose={() => setOpenDiary(null)} />
       ) : null}
       <PageNav active="alarm" />
     </AppShell>
@@ -459,38 +455,65 @@ export const AlarmPage = () => {
 };
 
 /**
- * 알림에서 연 일기.
+ * 일기 보기 시트.
  *
- * 목록에는 `diaryId`만 오므로 내용은 그때 받아 옵니다. 볼 수 없는 일기면 서버가
- * 막고 그 메시지를 그대로 보여 줍니다 — 화면에서 미리 가릴 방법이 없습니다.
- * 열 때만 붙였다 닫으면 떼어, 다음에 열면 늘 새로 받습니다.
+ * 달력에서 열든 알림에서 열든 같은 시트입니다. 달력 쪽은 이미 받아 둔 일기를
+ * 그대로 넘기고, 알림 쪽은 목록에 `diaryId`만 있으므로 열 때 받아 옵니다 — 둘 중
+ * 하나만 넘깁니다. 볼 수 없는 일기면 서버가 막고 그 메시지를 그대로 보여 줍니다.
  */
-const NotifiedDiary = ({ diaryId, actor, onClose }: { diaryId: number; actor: string; onClose: () => void }) => {
-  const { data: diary, isLoading, error } = useDiary(diaryId);
+const DiaryViewModal = ({
+  diary,
+  diaryId,
+  author,
+  onClose,
+}: {
+  /** 손에 이미 있는 일기. */
+  diary?: Diary | null;
+  /** 아직 내용이 없을 때 받아 올 id. */
+  diaryId?: number | null;
+  author: string;
+  onClose: () => void;
+}) => {
+  const fetched = useDiary(diary ? null : (diaryId ?? null));
+  const shown = diary ?? fetched.data ?? null;
   // 일기 사진도 `/uploads`라 토큰이 필요합니다.
-  const image = useAssetObjectUrl(diary?.imageUrl ?? null);
+  const image = useAssetObjectUrl(shown?.imageUrl ?? null);
   return (
     <Modal open sheet onClose={onClose} aria-label="일기">
       <DiaryPreview>
-        <DiaryPreviewTitle>{actor}님의 일기</DiaryPreviewTitle>
-        {error ? (
-          <ErrorText>{message(error)}</ErrorText>
-        ) : isLoading || !diary ? (
+        <DiaryPreviewTitle>{author}님의 일기</DiaryPreviewTitle>
+        {fetched.error ? (
+          <ErrorText>{message(fetched.error)}</ErrorText>
+        ) : !shown ? (
           <AlarmEmpty>일기를 불러오는 중...</AlarmEmpty>
         ) : (
           <>
-            <DiaryBadge emotion={diary.emotion} nickname={actor} date={formatLongKoreanDate(diaryDate(diary) ?? "")} />
-            {image ? <DiaryPhoto src={image} alt="" /> : null}
-            <p>{diary.content}</p>
+            <DiaryBadge emotion={shown.emotion} nickname={author} date={formatLongKoreanDate(diaryDate(shown) ?? "")} />
+            {shown.imageUrl ? (
+              <>
+                {image ? <DiaryPhoto src={image} alt="" /> : null}
+                {/* 사진 칸과 본문 칸을 가릅니다. */}
+                <DiaryDivider aria-hidden />
+              </>
+            ) : null}
+            <p>{shown.content}</p>
           </>
         )}
       </DiaryPreview>
     </Modal>
   );
 };
+/** 사진은 원래 비율 그대로, 250px까지만 키웁니다. */
 const DiaryPhoto = styled.img`
-  width: 100%;
+  max-width: min(250px, 100%);
+  height: auto;
   border-radius: ${theme.radius.md};
+`;
+const DiaryDivider = styled.span`
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: ${palette.gray200};
 `;
 /** 사진은 인증이 필요해 한 줄씩 따로 받아 옵니다. */
 const ActorAvatar = ({ url }: { url: string | null }) => {
@@ -1101,6 +1124,9 @@ const DiaryForm = ({
 }) => {
   const navigate = useNavigate();
   const save = useSaveDiary();
+  const remove = useDeleteDiary();
+  const [confirming, setConfirming] = useState(false);
+  const dismissConfirm = useCallback(() => setConfirming(false), []);
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
   const [emotionOpen, setEmotionOpen] = useState(false);
   const [content, setContent] = useState(existing?.content ?? "");
@@ -1109,13 +1135,26 @@ const DiaryForm = ({
   const [image, setImage] = useState<File | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
-  // 이미지는 생성 요청의 multipart로만 올릴 수 있습니다. 수정에는 파일 필드가 없습니다.
-  const canAttach = !existing;
+  /*
+   * 고른 사진은 브라우저 안에서 바로 보여 줍니다. 올리기 전이라 주소가 없어
+   * 파일에서 임시 주소를 만들고, 다른 사진을 고르거나 화면을 떠날 때 거둡니다.
+   */
+  const picked = useMemo(() => (image ? URL.createObjectURL(image) : null), [image]);
+  useEffect(
+    () => () => {
+      if (picked) URL.revokeObjectURL(picked);
+    },
+    [picked],
+  );
+  // 이미 올린 사진은 `/uploads`라 토큰을 달아 받아 옵니다.
+  const saved = useAssetObjectUrl(existing?.imageUrl ?? null);
+  const preview = picked ?? saved;
   const submit = async () => {
     setError("");
     try {
       let body: DiaryCreateRequest | DiaryPatchRequest | FormData;
-      if (image && canAttach) {
+      // 사진을 새로 고른 때만 multipart입니다 — 새로 쓸 때도, 고쳐 쓸 때도 같습니다.
+      if (image) {
         body = new FormData();
         body.append("date", selectedDate);
         body.append("content", content);
@@ -1129,6 +1168,18 @@ const DiaryForm = ({
       navigate("/");
     } catch (reason) {
       setError(message(reason));
+    }
+  };
+  const discard = async () => {
+    if (!existing) return;
+    setError("");
+    try {
+      await remove.mutateAsync(existing.diaryId);
+      navigate("/");
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setConfirming(false);
     }
   };
   return (
@@ -1197,15 +1248,17 @@ const DiaryForm = ({
               ) : null}
             </div>
             <div>
-              <DiaryRailLabel as="span">이미지 첨부하기</DiaryRailLabel>
-              <DiaryIconAction
-                aria-label="이미지 첨부하기"
-                disabled={!canAttach}
-                title={canAttach ? undefined : "이미지는 일기를 처음 쓸 때만 첨부할 수 있습니다."}
-                onClick={() => imageInput.current?.click()}
-              >
-                <img src={icons.imageBox} alt="" aria-hidden />
-              </DiaryIconAction>
+              <DiaryRailLabel as="span">{preview ? "이미지 바꾸기" : "이미지 첨부하기"}</DiaryRailLabel>
+              {/* 사진이 붙어 있으면 그 사진이 곧 버튼입니다. 눌러 다른 사진으로 바꿉니다. */}
+              {preview ? (
+                <DiaryPhotoButton aria-label="이미지 바꾸기" onClick={() => imageInput.current?.click()}>
+                  <DiaryPhoto src={preview} alt="" />
+                </DiaryPhotoButton>
+              ) : (
+                <DiaryIconAction aria-label="이미지 첨부하기" onClick={() => imageInput.current?.click()}>
+                  <img src={icons.imageBox} alt="" aria-hidden />
+                </DiaryIconAction>
+              )}
               <HiddenFileInput
                 ref={imageInput}
                 type="file"
@@ -1229,6 +1282,25 @@ const DiaryForm = ({
               {image ? <DiaryAttachment>{image.name}</DiaryAttachment> : null}
             </div>
           </DiaryRailRow>
+          {existing ? (
+            <ConfirmMenu
+              open={confirming}
+              label="일기 삭제"
+              above
+              onDismiss={dismissConfirm}
+              trigger={
+                <Button variant="danger" disabled={remove.isPending} onClick={() => setConfirming(!confirming)}>
+                  {remove.isPending ? "삭제 중..." : "일기 삭제하기"}
+                </Button>
+              }
+            >
+              <ConfirmNote>이 날의 일기가 사라집니다. 되돌릴 수 없습니다.</ConfirmNote>
+              <ConfirmChoice tone="danger" disabled={remove.isPending} onClick={discard}>
+                일기 삭제
+              </ConfirmChoice>
+              <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+            </ConfirmMenu>
+          ) : null}
           {error ? <ErrorText>{error}</ErrorText> : null}
         </DiaryRail>
       </DiaryBody>
@@ -1726,6 +1798,18 @@ const DiaryIconAction = styled.button`
   &:disabled {
     opacity: 0.35;
     cursor: not-allowed;
+  }
+`;
+/** 사진 자체가 버튼입니다. 눌러 다른 사진을 고릅니다. */
+const DiaryPhotoButton = styled.button`
+  display: block;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  line-height: 0;
+  border-radius: ${theme.radius.md};
+  &:hover img {
+    opacity: 0.85;
   }
 `;
 const DiaryAttachment = styled.small`
