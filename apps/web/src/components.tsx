@@ -1055,8 +1055,21 @@ export const CalendarPanel = ({
     </CalendarWrap>
   );
 };
+/** 달력 한 칸의 너비. `StatusCluster` 기본 크기와 같습니다. */
+const DAY_CELL = 30;
+/**
+ * 날짜 칸 사이 간격.
+ *
+ * 디자인의 450px 달력이 40px 간격입니다(7*30 + 6*40 = 450). 그보다 좁은 자리에
+ * 놓이면 칸 크기는 두고 간격만 좁혀 넘치지 않게 합니다 — 1100px 아래에서 두 단이
+ * 함께 줄어들 때가 그렇습니다. 화면 폭이 아니라 놓인 자리의 폭에 맞춰야 하므로
+ * 미디어쿼리로는 할 수 없고, 격자 간격의 퍼센트가 그 자리의 너비를 가리킵니다.
+ */
+const dayColumnGap = `clamp(4px, calc((100% - ${DAY_CELL * 7}px) / 6), 40px)`;
+
 const CalendarWrap = styled.section`
-  width: min(${theme.layout.calendar}, 100%);
+  width: 100%;
+  max-width: ${theme.layout.calendar};
 `;
 const MonthHeader = styled.div`
   display: flex;
@@ -1104,7 +1117,7 @@ const MonthButtons = styled.div`
 const WeekRow = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 40px;
+  column-gap: ${dayColumnGap};
   text-align: center;
   margin: 12px 0 20px;
   font-size: ${theme.text.h3};
@@ -1123,7 +1136,7 @@ const WeekRow = styled.div`
 const DaysGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  column-gap: 40px;
+  column-gap: ${dayColumnGap};
   row-gap: 16px;
   justify-items: center;
   /* 일요일 열은 빨강, 토요일 열은 파랑입니다. */
@@ -1132,9 +1145,6 @@ const DaysGrid = styled.div`
   }
   > *:nth-child(7n) {
     color: ${theme.colors.blue};
-  }
-  @media (max-width: 600px) {
-    column-gap: 8px;
   }
 `;
 
