@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiClient } from "@tlitodos/api-client";
 import type {
+  BetCreateRequest,
+  BetStatusRequest,
   Category,
   CategoryPatchRequest,
   CategoryRequest,
@@ -458,6 +460,37 @@ export const useDeleteDiary = () => {
       writeBack.diaries(diaries => diaries.filter(diary => diary.diaryId !== diaryId));
       invalidate(["diaries"]);
       invalidate(["diary", diaryId]);
+    },
+  });
+};
+
+/**
+ * 친구의 할 일에 내기를 겁니다.
+ *
+ * 상대에게는 알림으로 갑니다. 목록은 그 알림이 이미 캐시에 있으니 함께 무효화해
+ * 방금 건 내기가 바로 보이게 합니다.
+ */
+export const useCreateBet = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: ({ todoId, body }: { todoId: number; body: BetCreateRequest }) => api.bets.create(todoId, body),
+    onSuccess: () => {
+      invalidate(["bets"]);
+      invalidate(["notifications"]);
+    },
+  });
+};
+
+/** 받은 내기를 수락하거나 거절합니다. */
+export const useSetBetStatus = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: ({ betId, body }: { betId: number; body: BetStatusRequest }) => api.bets.setStatus(betId, body),
+    onSuccess: () => {
+      invalidate(["bets"]);
+      invalidate(["notifications"]);
     },
   });
 };

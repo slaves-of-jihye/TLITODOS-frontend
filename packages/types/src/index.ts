@@ -240,6 +240,15 @@ export interface Bet {
   isVerified: boolean;
 }
 
+/** 내기를 걸 때. 요청한 사람은 토큰에서 정해집니다. */
+export interface BetCreateRequest {
+  content: string;
+}
+/** 받은 내기에 대한 답. 둘 중 하나만 보냅니다. */
+export interface BetStatusRequest {
+  status: Extract<BetStatus, "ACCEPTED" | "REJECTED">;
+}
+
 /** `Notification`은 DOM 전역 이름과 겹쳐 `AppNotification`으로 둡니다. */
 export interface AppNotification {
   notificationId: number;

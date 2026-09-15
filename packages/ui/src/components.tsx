@@ -388,12 +388,15 @@ export const TodoRow = ({
   own,
   onToggle,
   onEdit,
+  onBet,
 }: {
   todo: Todo;
   accent: string;
   own: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
+  /** 남의 할 일에 내기를 걸 때. 넘기지 않으면 덮개를 띄우지 않습니다. */
+  onBet?: () => void;
 }) => {
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
@@ -403,12 +406,20 @@ export const TodoRow = ({
       <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
         <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
-      <TodoTextButton disabled={!own} onClick={onEdit}>
+      {/*
+       * 남의 할 일에서는 줄 자체가 내기 요청으로 이어집니다.
+       *
+       * 디자인은 손을 올렸을 때 덮개를 띄우지만, 손가락에는 hover가 없어 그
+       * 길밖에 없습니다. 마우스로는 덮개가 먼저 덮여 있어 이 버튼까지 닿지
+       * 않으니 두 길이 겹치지 않습니다.
+       */}
+      <TodoTextButton disabled={own ? !onEdit : !onBet} onClick={own ? onEdit : onBet}>
         <strong>{todo.title}</strong>
         {detail ? <small>{detail}</small> : null}
       </TodoTextButton>
-      {!own && !todo.isCompleted ? (
-        <BetOverlay type="button" disabled title="내기 기능은 MVP 이후 제공됩니다.">
+      {/* 남의 할 일에만, 아직 끝나지 않은 것에만 덮개가 올라옵니다. */}
+      {!own && !todo.isCompleted && onBet ? (
+        <BetOverlay type="button" onClick={onBet}>
           내기 요청하기
         </BetOverlay>
       ) : null}

@@ -1,4 +1,7 @@
 import type {
+  Bet,
+  BetCreateRequest,
+  BetStatusRequest,
   Category,
   CategoryPatchRequest,
   CategoryRequest,
@@ -225,6 +228,15 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
         request<NotificationsPage>("/api/v1/notifications", { query }),
       markRead: (notificationId: number) =>
         request<unknown>(`/api/v1/notifications/${notificationId}/read`, { method: "PATCH" }),
+    },
+    bets: {
+      /** 내가 걸었거나 내가 대상인 내기. */
+      list: () => request<Bet[]>("/api/v1/bets"),
+      get: (betId: number) => request<Bet>(`/api/v1/bets/${betId}`),
+      create: (todoId: number, body: BetCreateRequest) =>
+        request<Bet>(`/api/v1/todos/${todoId}/bets`, { method: "POST", body }),
+      setStatus: (betId: number, body: BetStatusRequest) =>
+        request<Bet>(`/api/v1/bets/${betId}/status`, { method: "PATCH", body }),
     },
     diaries: {
       list: (query?: { date?: string | null; userId?: number | null; groupId?: number | null }) =>

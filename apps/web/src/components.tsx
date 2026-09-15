@@ -20,6 +20,7 @@ import {
 import {
   useApi,
   useConvertToRoutine,
+  useCreateBet,
   useCreateGroup,
   useDeleteGroup,
   useDeleteRoutine,
@@ -30,11 +31,14 @@ import {
   useMe,
   useRemoveGroupMembers,
   useRenameGroup,
+  useSetBetStatus,
   useSetDependencies,
   useUpdateCategory,
   useUpdateTodo,
 } from "@tlitodos/hooks";
 import type {
+  Bet,
+  BetStatusRequest,
   Category,
   DailyTodoStatus,
   GroupDetail,
@@ -1491,6 +1495,141 @@ export const DependencyBlockModal = ({
 const TODO_DETAIL_LIMIT = 100;
 
 /**
+ * 내기를 거는 시트. 디자인의 `modal / bet`(1815:1569)입니다.
+ *
+ * 친구의 할 일 줄에서 열고, 무엇을 걸지 한 줄로 적어 보냅니다. 상대에게는 알림이
+ * 가고, 수락·거절은 그쪽 화면에서 정합니다.
+ */
+export const BetRequestModal = ({
+  todo,
+  ownerName,
+  open,
+  onClose,
+}: {
+  todo: Todo | null;
+  ownerName: string;
+  open: boolean;
+  onClose: () => void;
+}) => {
+  const [content, setContent] = useState("");
+  const createBet = useCreateBet();
+  const [error, setError] = useState("");
+  return (
+    <Modal open={open} sheet onClose={onClose} aria-label="내기 요청">
+      <SheetForm>
+        <SheetHeading>{ownerName}님의 할 일에 내기를 요청할까요?</SheetHeading>
+        <BetBox>
+          <input
+            value={content}
+            maxLength={BET_CONTENT_LIMIT}
+            placeholder="무엇을 걸까요?"
+            onChange={event => setContent(event.target.value)}
+          />
+        </BetBox>
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        <SheetActions>
+          <SheetCancel type="button" onClick={onClose}>
+            취소
+          </SheetCancel>
+          <SheetSubmit
+            type="button"
+            disabled={!todo || !content.trim() || createBet.isPending}
+            onClick={async () => {
+              if (!todo) return;
+              setError("");
+              try {
+                await createBet.mutateAsync({ todoId: todo.todoId, body: { content: content.trim() } });
+                onClose();
+              } catch (reason) {
+                setError(errorMessage(reason));
+              }
+            }}
+          >
+            {createBet.isPending ? "보내는 중..." : "내기 요청하기"}
+          </SheetSubmit>
+        </SheetActions>
+      </SheetForm>
+    </Modal>
+  );
+};
+
+/**
+ * 받은 내기를 수락하거나 거절하는 시트. 디자인의 `modal / bet`(167:878)입니다.
+ *
+ * 두 버튼의 색은 디자인 그대로입니다 — 거절이 검정, 수락이 회색입니다.
+ */
+export const BetReceivedModal = ({
+  bet,
+  requesterName,
+  open,
+  onClose,
+}: {
+  bet: Bet | null;
+  requesterName: string;
+  open: boolean;
+  onClose: () => void;
+}) => {
+  const setStatus = useSetBetStatus();
+  const [error, setError] = useState("");
+  const answer = async (status: BetStatusRequest["status"]) => {
+    if (!bet) return;
+    setError("");
+    try {
+      await setStatus.mutateAsync({ betId: bet.betId, body: { status } });
+      onClose();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+  return (
+    <Modal open={open} sheet onClose={onClose} aria-label="받은 내기 요청">
+      <SheetForm>
+        <SheetHeading>{requesterName}님께 받은 내기 요청</SheetHeading>
+        <BetBox>
+          <p>{bet?.content ?? ""}</p>
+        </BetBox>
+        {error ? <ErrorText>{error}</ErrorText> : null}
+        <SheetActions>
+          <SheetSubmit type="button" disabled={setStatus.isPending} onClick={() => answer("REJECTED")}>
+            내기 거절하기
+          </SheetSubmit>
+          <SheetCancel type="button" disabled={setStatus.isPending} onClick={() => answer("ACCEPTED")}>
+            내기 수락하기
+          </SheetCancel>
+        </SheetActions>
+      </SheetForm>
+    </Modal>
+  );
+};
+/** 내기 내용 글자 수. 서버가 1000자까지 받습니다. */
+const BET_CONTENT_LIMIT = 1000;
+/** 디자인의 내기 내용 칸: gray/100 바탕에 8px 모서리입니다. */
+const BetBox = styled.div`
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: ${theme.radius.sm};
+  background: ${theme.colors.panel};
+  padding: 12px 20px;
+  p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.ink};
+    &::placeholder {
+      color: ${theme.colors.muted};
+    }
+  }
+`;
+
+/**
  * 할 일 상세 시트.
  *
  * 제목은 여기서 고치지 않습니다 — "할 일 수정하기"를 누르면 시트를 닫고 목록에서
@@ -2222,6 +2361,7 @@ export const CategorySection = ({
   onManage,
   onToggle,
   onEdit,
+  onBet,
   drag,
 }: {
   category: Category;
@@ -2239,6 +2379,8 @@ export const CategorySection = ({
   onManage: (category: Category) => void;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
+  /** 남의 할 일에 내기를 걸 때. 내 화면에서는 넘어오지 않습니다. */
+  onBet?: (todo: Todo) => void;
   /** 할 일을 끌어 옮기는 손짓. 내 화면에서만 넘어옵니다. */
   drag?: TodoDrag;
 }) => {
@@ -2274,6 +2416,7 @@ export const CategorySection = ({
                 own={own}
                 onToggle={() => onToggle(todo)}
                 onEdit={() => onEdit(todo)}
+                onBet={onBet ? () => onBet(todo) : undefined}
               />
             </DraggableRow>
           ),
