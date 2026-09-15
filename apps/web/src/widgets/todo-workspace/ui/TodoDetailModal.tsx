@@ -198,25 +198,30 @@ export const TodoDetailModal = ({
              * 고치려면 시트를 나가야 했고, 그 버튼이 무엇을 하는지도 이름과 달랐습니다.
              */}
             {editingTitle ? (
-              <DetailTitleInput
-                autoFocus
-                value={title}
-                maxLength={TODO_TITLE_LIMIT}
-                aria-label="할 일 제목"
-                onChange={event => setTitle(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key === "Enter") setEditingTitle(false);
-                  if (event.key === "Escape") {
-                    setTitle(opened.title);
+              <DetailTitleField>
+                <input
+                  autoFocus
+                  value={title}
+                  maxLength={TODO_TITLE_LIMIT}
+                  aria-label="할 일 제목"
+                  onChange={event => setTitle(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === "Enter") setEditingTitle(false);
+                    if (event.key === "Escape") {
+                      setTitle(opened.title);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  // 칸을 벗어나면 고치기를 마칩니다. 비운 채로 나갔다면 원래 제목으로 되돌립니다 — 제목 없는 할 일은 없습니다.
+                  onBlur={() => {
+                    if (!title.trim()) setTitle(opened.title);
                     setEditingTitle(false);
-                  }
-                }}
-                // 비운 채로 빠져나가면 원래 제목으로 되돌립니다. 제목 없는 할 일은 없습니다.
-                onBlur={() => {
-                  if (!title.trim()) setTitle(opened.title);
-                  setEditingTitle(false);
-                }}
-              />
+                  }}
+                />
+                <small>
+                  {title.length}/{TODO_TITLE_LIMIT}
+                </small>
+              </DetailTitleField>
             ) : (
               <DetailTitleButton onClick={() => setEditingTitle(true)}>
                 <span>{trimmedTitle || opened.title}</span>
@@ -445,18 +450,28 @@ const DetailTitleButton = styled.button`
   }
 `;
 
-const DetailTitleInput = styled.input`
-  display: block;
-  width: 100%;
-  border: 0;
-  /* 고치는 중임을 밑줄로 알립니다. 목록에서 새로 쓸 때와 같은 표시입니다. */
+/** 고치는 중인 제목. 밑줄과 글자 수는 목록에서 새로 쓸 때와 같은 표시입니다. */
+const DetailTitleField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 고치는 중임을 밑줄로 알립니다. */
   border-bottom: 2px solid ${palette.gray300};
-  border-radius: 0;
-  background: transparent;
   padding: 4px 10px;
-  text-align: center;
-  font-size: ${theme.text.h3};
-  color: ${theme.colors.ink};
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    font-size: ${theme.text.h3};
+    color: ${theme.colors.ink};
+  }
+  small {
+    flex: none;
+    font-size: ${theme.text.s};
+    color: ${theme.colors.muted};
+  }
 `;
 
 /** 시트에서 골라 둔 값. 아직 서버에 가지 않았습니다. */
