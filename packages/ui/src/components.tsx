@@ -1,5 +1,6 @@
 import { css } from "@emotion/react";
 import styled from "@emotion/styled";
+import { useEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Todo } from "@tlitodos/types";
 import { stashFills } from "@tlitodos/core";
@@ -656,6 +657,104 @@ const NavIcon = styled.span<{ active: boolean }>`
   mask-size: contain;
   mask-repeat: no-repeat;
   transition: background 0.16s ease;
+`;
+
+/**
+ * 지우기 전에 한 번 묻는 드롭다운.
+ *
+ * `window.confirm`은 화면 밖의 브라우저 창을 띄우고, 확인/취소 두 갈래밖에
+ * 없습니다. 루틴 회차는 "이것만"과 "루틴 전체"를 골라야 하므로 누른 버튼 바로
+ * 아래에 붙여 고르게 합니다. 바깥을 누르거나 Esc를 누르는 것도 취소입니다 —
+ * 여는 버튼까지 감싼 자리 안쪽만 "안"으로 봅니다. 그래야 같은 버튼을 다시 눌러
+ * 닫을 때 바깥 클릭으로 먼저 닫히고 다시 열리는 일이 없습니다.
+ */
+export const ConfirmMenu = ({
+  open,
+  label,
+  above = false,
+  trigger,
+  onDismiss,
+  children,
+}: {
+  open: boolean;
+  label: string;
+  /** 시트 아래쪽 버튼은 위로 펼칩니다. */
+  above?: boolean;
+  trigger: ReactNode;
+  onDismiss: () => void;
+  children: ReactNode;
+}) => {
+  const anchor = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!anchor.current?.contains(event.target as Node)) onDismiss();
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [open, onDismiss]);
+  return (
+    <ConfirmAnchor ref={anchor}>
+      {trigger}
+      {open ? (
+        <ConfirmBox above={above} role="dialog" aria-label={label}>
+          {children}
+        </ConfirmBox>
+      ) : null}
+    </ConfirmAnchor>
+  );
+};
+
+export const ConfirmAnchor = styled.div`
+  position: relative;
+  display: flex;
+  flex: 1;
+  > button {
+    flex: 1;
+  }
+`;
+export const ConfirmBox = styled.div<{ above: boolean }>`
+  position: absolute;
+  ${({ above }) => (above ? "bottom: calc(100% + 8px);" : "top: calc(100% + 8px);")}
+  left: 0;
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  min-width: max(100%, 232px);
+  border: 1px solid ${palette.gray200};
+  border-radius: 12px;
+  background: ${palette.white};
+  padding: 8px;
+  box-shadow: ${theme.shadow};
+`;
+export const ConfirmNote = styled.p`
+  margin: 0;
+  padding: 6px 12px;
+  font-size: ${theme.text.xs};
+  color: ${theme.colors.muted};
+`;
+export const ConfirmChoice = styled.button<{ tone?: "danger" }>`
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: ${theme.text.s};
+  color: ${({ tone }) => (tone === "danger" ? theme.colors.red : theme.colors.ink)};
+  &:hover:not(:disabled) {
+    background: ${palette.gray100};
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 `;
 
 export const Modal = ({

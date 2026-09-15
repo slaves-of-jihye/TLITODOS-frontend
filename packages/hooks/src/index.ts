@@ -447,6 +447,21 @@ export const useDeleteRoutine = () => {
   });
 };
 
+/** 일기를 지웁니다. 목록에서 먼저 걷어내 사라진 일기가 남아 보이지 않게 합니다. */
+export const useDeleteDiary = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  const writeBack = useWriteBack();
+  return useMutation({
+    mutationFn: (diaryId: number) => api.diaries.remove(diaryId),
+    onSuccess: (_result, diaryId) => {
+      writeBack.diaries(diaries => diaries.filter(diary => diary.diaryId !== diaryId));
+      invalidate(["diaries"]);
+      invalidate(["diary", diaryId]);
+    },
+  });
+};
+
 export const useSaveDiary = () => {
   const api = useApi();
   const invalidate = useDetachedInvalidate();

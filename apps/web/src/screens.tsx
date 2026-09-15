@@ -28,6 +28,7 @@ import {
   useMarkNotificationRead,
   useMe,
   useNotifications,
+  useDeleteDiary,
   useSaveDiary,
   useTodos,
   useUpdateCategory,
@@ -50,6 +51,9 @@ import {
   BottomNav,
   Button,
   CategoryPill,
+  ConfirmChoice,
+  ConfirmMenu,
+  ConfirmNote,
   DiaryBadge,
   ErrorText,
   Glyph,
@@ -58,7 +62,7 @@ import {
   palette,
   theme,
 } from "@tlitodos/ui";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAssetObjectUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
@@ -1120,6 +1124,9 @@ const DiaryForm = ({
 }) => {
   const navigate = useNavigate();
   const save = useSaveDiary();
+  const remove = useDeleteDiary();
+  const [confirming, setConfirming] = useState(false);
+  const dismissConfirm = useCallback(() => setConfirming(false), []);
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
   const [emotionOpen, setEmotionOpen] = useState(false);
   const [content, setContent] = useState(existing?.content ?? "");
@@ -1162,6 +1169,18 @@ const DiaryForm = ({
       navigate("/");
     } catch (reason) {
       setError(message(reason));
+    }
+  };
+  const discard = async () => {
+    if (!existing) return;
+    setError("");
+    try {
+      await remove.mutateAsync(existing.diaryId);
+      navigate("/");
+    } catch (reason) {
+      setError(message(reason));
+    } finally {
+      setConfirming(false);
     }
   };
   return (
@@ -1263,6 +1282,25 @@ const DiaryForm = ({
               {image ? <DiaryAttachment>{image.name}</DiaryAttachment> : null}
             </div>
           </DiaryRailRow>
+          {existing ? (
+            <ConfirmMenu
+              open={confirming}
+              label="일기 삭제"
+              above
+              onDismiss={dismissConfirm}
+              trigger={
+                <Button variant="danger" disabled={remove.isPending} onClick={() => setConfirming(!confirming)}>
+                  {remove.isPending ? "삭제 중..." : "일기 삭제하기"}
+                </Button>
+              }
+            >
+              <ConfirmNote>이 날의 일기가 사라집니다. 되돌릴 수 없습니다.</ConfirmNote>
+              <ConfirmChoice tone="danger" disabled={remove.isPending} onClick={discard}>
+                일기 삭제
+              </ConfirmChoice>
+              <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+            </ConfirmMenu>
+          ) : null}
           {error ? <ErrorText>{error}</ErrorText> : null}
         </DiaryRail>
       </DiaryBody>
