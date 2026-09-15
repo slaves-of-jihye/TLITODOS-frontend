@@ -35,8 +35,14 @@ const stickyTopRow = css`
 /** 손을 올릴 수 있는 기기에서 칩 줄 스크롤바가 차지하는 높이. */
 export const SCROLLBAR_GUTTER = "6px";
 
-/** 스크롤바를 그리는 조건. 손을 올릴 수 없는 기기에는 애초에 필요가 없습니다. */
-const hoverable = "@media (hover: hover) and (pointer: fine)";
+/**
+ * 손을 올릴 수 있는 기기에서만 적용하는 조건.
+ *
+ * hover 상태를 주는 곳은 모두 이 뒤에 둡니다 — 손가락으로 한 번 누르면 손을 뗀
+ * 뒤에도 hover가 남아, 누르고 있는 것처럼 보이는 자리가 생깁니다. 스크롤바도
+ * 마찬가지로 손을 올릴 수 없는 기기에는 애초에 필요가 없습니다.
+ */
+export const hoverable = "@media (hover: hover) and (pointer: fine)";
 
 /**
  * 옆으로 넘치는 칩 줄의 스크롤바입니다.
@@ -697,6 +703,33 @@ const NavIcon = styled.span<{ active: boolean }>`
  * 여는 버튼까지 감싼 자리 안쪽만 "안"으로 봅니다. 그래야 같은 버튼을 다시 눌러
  * 닫을 때 바깥 클릭으로 먼저 닫히고 다시 열리는 일이 없습니다.
  */
+/**
+ * 바깥을 누르거나 Esc를 누르면 닫히는 자리.
+ *
+ * 돌려주는 ref는 여는 버튼까지 감싼 자리에 걸어야 합니다 — 그래야 그 버튼이
+ * "안"으로 세어져, 같은 버튼을 다시 눌러 닫을 때 바깥 클릭으로 먼저 닫히고
+ * 곧바로 다시 열리는 일이 없습니다.
+ */
+export const useDismissable = <Element extends HTMLElement>(open: boolean, onDismiss: () => void) => {
+  const anchor = useRef<Element>(null);
+  useEffect(() => {
+    if (!open) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!anchor.current?.contains(event.target as Node)) onDismiss();
+    };
+    const dismissOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onDismiss();
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissOnEscape);
+    };
+  }, [open, onDismiss]);
+  return anchor;
+};
+
 export const ConfirmMenu = ({
   open,
   label,
@@ -713,22 +746,7 @@ export const ConfirmMenu = ({
   onDismiss: () => void;
   children: ReactNode;
 }) => {
-  const anchor = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const dismissOutside = (event: PointerEvent) => {
-      if (!anchor.current?.contains(event.target as Node)) onDismiss();
-    };
-    const dismissOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onDismiss();
-    };
-    document.addEventListener("pointerdown", dismissOutside);
-    document.addEventListener("keydown", dismissOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", dismissOutside);
-      document.removeEventListener("keydown", dismissOnEscape);
-    };
-  }, [open, onDismiss]);
+  const anchor = useDismissable<HTMLDivElement>(open, onDismiss);
   return (
     <ConfirmAnchor ref={anchor}>
       {trigger}

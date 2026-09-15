@@ -9,6 +9,7 @@ import {
   dependencyCandidates,
   isInviteCode,
   parseLocalDate,
+  randomId,
   sortCategories,
   toRecurrence,
   repeatUsesWeekdays,
@@ -56,6 +57,7 @@ import {
   DayStash,
   ErrorText,
   HeaderRow,
+  hoverable,
   hoverScrollbarPull,
   hoverScrollbarX,
   icons,
@@ -65,6 +67,7 @@ import {
   SrOnly,
   StatusCluster,
   theme,
+  useDismissable,
   TodoRow as SharedTodoRow,
   ViewChip,
 } from "@tlitodos/ui";
@@ -103,7 +106,7 @@ const buildGoogleOAuthUrl = (clientId: string, state: string) => {
 
 const redirectToGoogle = (clientId: string) => {
   const returnPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-  const state = window.crypto.randomUUID();
+  const state = randomId();
   window.sessionStorage.setItem(googleOAuthReturnKey, returnPath);
   window.sessionStorage.setItem(googleOAuthStateKey, state);
   window.location.assign(buildGoogleOAuthUrl(clientId, state));
@@ -963,15 +966,7 @@ export const CalendarPanel = ({
   return (
     <CalendarWrap>
       <MonthHeader>
-        <MonthInput
-          type="month"
-          value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
-          aria-label="월 빠른 이동"
-          onChange={e => {
-            const [y, m] = e.target.value.split("-").map(Number);
-            if (y && m) onMonthChange(new Date(y, m - 1, 1));
-          }}
-        />
+        <MonthPicker month={month} onChange={onMonthChange} />
         <MonthButtons>
           <MonthArrow direction="prev" aria-label="이전 달" onClick={() => onMonthChange(addMonths(month, -1))}>
             <img src={icons.arrowUp} alt="" aria-hidden />
@@ -1060,20 +1055,144 @@ const MonthArrow = styled.button<{ direction: "prev" | "next" }>`
     transform: rotate(${({ direction }) => (direction === "prev" ? "-90deg" : "90deg")});
   }
 `;
-const MonthInput = styled.input`
+/**
+ * 달력 제목이자 달 빠른 이동.
+ *
+ * 전에는 `<input type="month">` 하나였습니다. 크롬은 그 형식을 "2026년 9월"로
+ * 그려 주고 달력 아이콘까지 붙여 주지만, 파이어폭스와 사파리는 이 형식을 아예
+ * 모릅니다 — 모르는 형식은 그냥 글자칸이 되므로 제목 자리에 `2026-09`라는
+ * 날것이 뜨고, 눌러도 아무것도 열리지 않았습니다. 브라우저가 그려 주기를
+ * 기대하지 않고 직접 그립니다.
+ */
+const MonthPicker = ({ month, onChange }: { month: Date; onChange: (next: Date) => void }) => {
+  const [open, setOpen] = useState(false);
+  /** 펼친 칸이 보고 있는 해. 달을 고르기 전까지 달력은 움직이지 않습니다. */
+  const [year, setYear] = useState(month.getFullYear());
+  const dismiss = useCallback(() => setOpen(false), []);
+  const anchor = useDismissable<HTMLDivElement>(open, dismiss);
+  return (
+    <MonthAnchor ref={anchor}>
+      <MonthTrigger
+        type="button"
+        aria-expanded={open}
+        onClick={() => {
+          // 펼칠 때마다 지금 보고 있는 해에서 다시 시작합니다.
+          setYear(month.getFullYear());
+          setOpen(!open);
+        }}
+      >
+        <span>
+          {month.getFullYear()}년 {month.getMonth() + 1}월
+        </span>
+        <img src={icons.calendar} alt="" aria-hidden />
+      </MonthTrigger>
+      {open ? (
+        <MonthBox role="dialog" aria-label="월 빠른 이동">
+          <MonthYearRow>
+            <MonthArrow direction="prev" aria-label="이전 해" onClick={() => setYear(year - 1)}>
+              <img src={icons.arrowUp} alt="" aria-hidden />
+            </MonthArrow>
+            <b>{year}년</b>
+            <MonthArrow direction="next" aria-label="다음 해" onClick={() => setYear(year + 1)}>
+              <img src={icons.arrowUp} alt="" aria-hidden />
+            </MonthArrow>
+          </MonthYearRow>
+          <MonthGrid>
+            {Array.from({ length: 12 }, (_, index) => {
+              const current = year === month.getFullYear() && index === month.getMonth();
+              return (
+                <MonthChoice
+                  key={index}
+                  type="button"
+                  selected={current}
+                  aria-current={current ? "true" : undefined}
+                  onClick={() => {
+                    onChange(new Date(year, index, 1));
+                    setOpen(false);
+                  }}
+                >
+                  {index + 1}월
+                </MonthChoice>
+              );
+            })}
+          </MonthGrid>
+        </MonthBox>
+      ) : null}
+    </MonthAnchor>
+  );
+};
+const MonthAnchor = styled.div`
+  position: relative;
   min-width: 0;
+`;
+const MonthTrigger = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
   max-width: 100%;
   border: 0;
+  border-radius: ${theme.radius.sm};
   background: transparent;
+  padding: 2px 4px;
   font-size: ${theme.text.h3};
   color: ${theme.colors.ink};
-  &::-webkit-calendar-picker-indicator {
+  img {
+    flex: none;
+    width: 20px;
+    height: 20px;
     opacity: 0.45;
-    cursor: pointer;
+  }
+  span {
+    min-width: 0;
+    white-space: nowrap;
+  }
+  ${hoverable} {
+    &:hover {
+      background: ${palette.gray100};
+    }
   }
   @media (max-width: 600px) {
-    width: 170px;
     font-size: 18px;
+  }
+`;
+const MonthBox = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 1;
+  width: max(100%, 260px);
+  border: 1px solid ${palette.gray200};
+  border-radius: 12px;
+  background: ${palette.white};
+  padding: 12px;
+  box-shadow: ${theme.shadow};
+`;
+const MonthYearRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 4px;
+  b {
+    font-size: ${theme.text.s};
+  }
+`;
+const MonthGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+`;
+const MonthChoice = styled.button<{ selected: boolean }>`
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: ${theme.text.s};
+  background: ${({ selected }) => (selected ? palette.black : "transparent")};
+  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
+  ${hoverable} {
+    &:hover {
+      background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
+    }
   }
 `;
 const MonthButtons = styled.div`
@@ -1131,15 +1250,7 @@ const SheetCalendar = ({ value, onChange }: { value: string; onChange: (next: st
   return (
     <SheetCalendarWrap>
       <MonthHeader>
-        <MonthInput
-          type="month"
-          aria-label="월 빠른 이동"
-          value={`${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`}
-          onChange={e => {
-            const [y, m] = e.target.value.split("-").map(Number);
-            if (y && m) setMonth(new Date(y, m - 1, 1));
-          }}
-        />
+        <MonthPicker month={month} onChange={setMonth} />
         <MonthButtons>
           <MonthArrow direction="prev" aria-label="이전 달" onClick={() => setMonth(addMonths(month, -1))}>
             <img src={icons.arrowUp} alt="" aria-hidden />
@@ -2200,7 +2311,7 @@ export const RoutineModal = ({
   const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | "weekdays" | null>("repeat");
   const [busy, setBusy] = useState(false);
   // 같은 시트가 열려 있는 동안은 재시도해도 같은 키를 씁니다.
-  const requestId = useRef(crypto.randomUUID());
+  const requestId = useRef(randomId());
   const toggle = (next: "start" | "end" | "time" | "repeat" | "weekdays") => () =>
     setPanel(panel === next ? null : next);
   const showWeekdays = repeatUsesWeekdays(value.repeat);
