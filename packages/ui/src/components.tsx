@@ -399,7 +399,7 @@ export const TodoRow = ({
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
   const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
-    <TodoItem>
+    <TodoItem interactive={own}>
       <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
         <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
@@ -415,16 +415,34 @@ export const TodoRow = ({
     </TodoItem>
   );
 };
-const TodoItem = styled.div`
+const TodoItem = styled.div<{ interactive: boolean }>`
   position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 6px 8px;
   border-radius: ${theme.radius.sm};
+  transition: background 0.16s ease;
   &:hover > button:last-child:not(:disabled) {
     opacity: 1;
   }
+  /*
+   * 손을 올린 줄에만 옅은 바탕을 깝니다. 흰 바탕에서 한 단 어두운 gray/100이고,
+   * 이름표가 gray/200 -> gray/300으로 가는 것과 같은 한 걸음입니다.
+   *
+   * 누를 수 있는 줄에만 줍니다 — 읽기 전용인 남의 줄까지 반응하면 누를 수 있다고
+   * 잘못 알려 줍니다. 손을 올릴 수 없는 기기에서는 두지 않습니다: 한 번 누르면
+   * 손을 뗀 뒤에도 hover가 남습니다.
+   */
+  ${({ interactive }) =>
+    interactive &&
+    css`
+      ${hoverable} {
+        &:hover {
+          background: ${theme.colors.panel};
+        }
+      }
+    `}
   @media (max-width: 600px) {
     padding: 8px 6px;
   }
