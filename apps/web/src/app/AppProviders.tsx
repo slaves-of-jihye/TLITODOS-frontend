@@ -4,8 +4,8 @@ import { createApiClient } from "@tlitodos/api-client";
 import { ApiProvider } from "@tlitodos/hooks";
 import { globalStyles } from "@tlitodos/ui";
 import { useMemo, type ReactNode } from "react";
-import { apiBaseUrl } from "./assetUrl";
-import { useSessionStore } from "./sessionStore";
+import { apiBaseUrl } from "@/shared/api";
+import { useSessionStore } from "@/shared/model";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: false }, mutations: { retry: 0 } },

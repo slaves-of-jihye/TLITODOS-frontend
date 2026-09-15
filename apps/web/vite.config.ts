@@ -8,6 +8,7 @@ export default defineConfig({
   base: "./",
   resolve: {
     alias: {
+      "@": new URL("./src", import.meta.url).pathname,
       "@tlitodos/api-client": new URL("../../packages/api-client/src/index.ts", import.meta.url).pathname,
       "@tlitodos/core": new URL("../../packages/core/src/index.ts", import.meta.url).pathname,
       "@tlitodos/hooks": new URL("../../packages/hooks/src/index.ts", import.meta.url).pathname,

@@ -1,6 +1,6 @@
 import { useMe } from "@tlitodos/hooks";
 import { useEffect } from "react";
-import { applyFont } from "./fontPreference";
+import { applyFont } from "@/shared/lib";
 
 /**
  * 서버에 저장된 폰트를 앱 전체에 반영합니다.

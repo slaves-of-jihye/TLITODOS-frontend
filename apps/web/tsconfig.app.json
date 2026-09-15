@@ -16,6 +16,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* 레이어를 건널 때는 늘 이 별칭을 씁니다. 상대 경로로는 어느 층인지 읽히지 않습니다. */
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,

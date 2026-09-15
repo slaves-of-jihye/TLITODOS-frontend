@@ -72,6 +72,10 @@
 ## Engineering conventions
 
 - Keep transport in `packages/api-client`, server state hooks in `packages/hooks`, pure rules/date helpers in `packages/core`, reusable visuals in `packages/ui`, and route composition in `apps/web`.
+- `apps/web/src` is laid out by Feature-Sliced Design: `shared -> entities -> features -> widgets -> pages -> app`, each layer knowing only the ones below it. The packages above are not a seventh layer — they are the implementation behind `shared`, which re-exports them so nothing higher imports `@tlitodos/*` directly. A slice is reached only through its `index.ts`, never by reaching inside it.
+- Layers are enforced, not just described: `eslint.config.js` builds one `no-restricted-imports` rule per layer from the layer list. It refuses an import from a higher layer, an import from another slice of the same layer, and any relative path that climbs out of its own slice — crossing a layer always uses the `@/` alias, because `../../` hides which layer is being called and slips past the rule. `shared` is exempt from the same-layer half: it has no domain slices, only `ui`/`lib`/`api`/`model` segments, and those may use each other.
+- Two slices needing the same piece is the signal that the piece belongs one layer down, not that they should import each other.
+- A `ui` segment splits visuals from styles: components in their own file, shared `styled` pieces in a `styles.ts` beside them. `react-refresh/only-export-components` counts a `styled` export as a non-component, so a file holding both makes every edit to it a full reload instead of a hot swap.
 - Treat calendar dates as local `YYYY-MM-DD` strings. Do not use UTC conversion for user-facing dates.
 - Keep TanStack Query keys stable and invalidate the narrowest relevant prefix after mutations.
 - Preserve the API contract's request/response casing and nullability.
