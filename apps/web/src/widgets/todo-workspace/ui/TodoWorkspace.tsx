@@ -22,7 +22,8 @@ import { CalendarPanel } from "./CalendarPanel";
 import { CategoryBoard, TodoArea } from "./boardStyles";
 import { CategorySection, TodoBoardSkeleton } from "./TodoBoard";
 import { DependencyBlockModal, useTodoCompletion } from "@/features/todo-complete";
-import { useTodoDrag } from "@/features/todo-drag";
+import { TrashDropZone, useTodoDrag } from "@/features/todo-drag";
+import { TodoDeleteModal } from "@/features/todo-delete";
 import { TodoDetailModal } from "./TodoDetailModal";
 import { useAssetObjectUrl } from "@/shared/api";
 import { errorMessage, formatLocalDate, monthKey } from "@/shared/lib";
@@ -147,7 +148,9 @@ export const TodoWorkspace = ({
     },
     [updateTodo],
   );
-  const drag = useTodoDrag({ enabled: own, onDrop: moveToCategory });
+  /** 휴지통에 놓은 할 일. 곧바로 지우지 않고 한 번 묻습니다. */
+  const [trashTodo, setTrashTodo] = useState<Todo | null>(null);
+  const drag = useTodoDrag({ enabled: own, onDrop: moveToCategory, onTrash: setTrashTodo });
   // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
   const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : null);
   return (
@@ -260,6 +263,9 @@ export const TodoWorkspace = ({
         open={betTodo !== null}
         onClose={() => setBetTodo(null)}
       />
+      {/* 끌고 있는 동안에만 아래에서 올라오는 휴지통. 내 화면에서만 끌 수 있으므로 남의 화면에는 없습니다. */}
+      {own ? <TrashDropZone visible={drag.dragging} over={drag.overTrash} /> : null}
+      <TodoDeleteModal todo={trashTodo} onClose={() => setTrashTodo(null)} />
       {/* 끌고 있는 동안 손끝을 따라다니는 쪽지. 포인터를 가리지 않게 오른쪽 아래로 비켜 둡니다. */}
       {drag.preview ? (
         <DragPreview style={{ left: drag.preview.x, top: drag.preview.y }}>{drag.preview.title}</DragPreview>
