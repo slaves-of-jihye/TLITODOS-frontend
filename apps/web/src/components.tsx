@@ -8,7 +8,6 @@ import {
   getCalendarDays,
   dependencyCandidates,
   isInviteCode,
-  parseLocalDate,
   randomId,
   sortCategories,
   toRecurrence,
@@ -57,7 +56,6 @@ import {
   DayStash,
   ErrorText,
   HeaderRow,
-  hoverable,
   hoverScrollbarPull,
   hoverScrollbarX,
   icons,
@@ -67,17 +65,38 @@ import {
   SrOnly,
   StatusCluster,
   theme,
-  useDismissable,
   TodoRow as SharedTodoRow,
   ViewChip,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
-import { useAssetObjectUrl } from "./app/assetUrl";
-import { useSessionStore } from "./app/sessionStore";
-import { CATEGORY_DROP_ATTRIBUTE, type TodoDrag } from "./app/useTodoDrag";
+import { dismissInstallBanner, promptInstall, usePwaInstall } from "@/app/pwaInstall";
+import { useSessionStore } from "@/shared/model";
+import { CATEGORY_DROP_ATTRIBUTE, type TodoDrag } from "@/app/useTodoDrag";
+import {
+  formatSheetDate,
+  formatSheetTime,
+  MonthArrow,
+  MonthButtons,
+  MonthHeader,
+  MonthPicker,
+  SheetActions,
+  SheetBox,
+  SheetCalendar,
+  SheetCancel,
+  SheetField,
+  SheetForm,
+  SheetHeading,
+  SheetLabel,
+  SheetRow,
+  SheetRows,
+  SheetSubmit,
+  TimeChooser,
+} from "@/shared/ui";
+import { BET_CONTENT_LIMIT, BetBox } from "@/entities/bet";
+import { MemberChip } from "@/entities/group";
+import { TodoList, TodoRowSkeleton } from "@/entities/todo";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
 const googleOAuthResultKey = "tlitodos-google-oauth-result";
@@ -487,13 +506,6 @@ export const MemberTabs = ({
     ) : null}
   </MemberBar>
 );
-/** 사진은 인증이 필요해 멤버마다 따로 받아 옵니다 — 훅을 목록 안에서 부를 수 없으니 한 칩씩 나눕니다. */
-const MemberChip = ({ member, active, onClick }: { member: GroupMember; active: boolean; onClick: () => void }) => (
-  <ViewChip active={active} avatar={useAssetObjectUrl(member.profileImageUrl)} onClick={onClick}>
-    {member.name}
-  </ViewChip>
-);
-/** 홈의 `HeaderRow`와 같은 자리에서 같은 방식으로 화면 위에 붙습니다. */
 const MemberBar = styled.div`
   position: sticky;
   top: 0;
@@ -1033,173 +1045,6 @@ const CalendarWrap = styled.section`
   width: 100%;
   max-width: ${theme.layout.calendar};
 `;
-const MonthHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px;
-  border-bottom: 1px solid ${theme.colors.line};
-  gap: 10px;
-`;
-const MonthArrow = styled.button<{ direction: "prev" | "next" }>`
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  img {
-    width: 24px;
-    height: 24px;
-    transform: rotate(${({ direction }) => (direction === "prev" ? "-90deg" : "90deg")});
-  }
-`;
-/**
- * 달력 제목이자 달 빠른 이동.
- *
- * 전에는 `<input type="month">` 하나였습니다. 크롬은 그 형식을 "2026년 9월"로
- * 그려 주고 달력 아이콘까지 붙여 주지만, 파이어폭스와 사파리는 이 형식을 아예
- * 모릅니다 — 모르는 형식은 그냥 글자칸이 되므로 제목 자리에 `2026-09`라는
- * 날것이 뜨고, 눌러도 아무것도 열리지 않았습니다. 브라우저가 그려 주기를
- * 기대하지 않고 직접 그립니다.
- */
-const MonthPicker = ({ month, onChange }: { month: Date; onChange: (next: Date) => void }) => {
-  const [open, setOpen] = useState(false);
-  /** 펼친 칸이 보고 있는 해. 달을 고르기 전까지 달력은 움직이지 않습니다. */
-  const [year, setYear] = useState(month.getFullYear());
-  const dismiss = useCallback(() => setOpen(false), []);
-  const anchor = useDismissable<HTMLDivElement>(open, dismiss);
-  return (
-    <MonthAnchor ref={anchor}>
-      <MonthTrigger
-        type="button"
-        aria-expanded={open}
-        onClick={() => {
-          // 펼칠 때마다 지금 보고 있는 해에서 다시 시작합니다.
-          setYear(month.getFullYear());
-          setOpen(!open);
-        }}
-      >
-        <span>
-          {month.getFullYear()}년 {month.getMonth() + 1}월
-        </span>
-        <img src={icons.calendar} alt="" aria-hidden />
-      </MonthTrigger>
-      {open ? (
-        <MonthBox role="dialog" aria-label="월 빠른 이동">
-          <MonthYearRow>
-            <MonthArrow direction="prev" aria-label="이전 해" onClick={() => setYear(year - 1)}>
-              <img src={icons.arrowUp} alt="" aria-hidden />
-            </MonthArrow>
-            <b>{year}년</b>
-            <MonthArrow direction="next" aria-label="다음 해" onClick={() => setYear(year + 1)}>
-              <img src={icons.arrowUp} alt="" aria-hidden />
-            </MonthArrow>
-          </MonthYearRow>
-          <MonthGrid>
-            {Array.from({ length: 12 }, (_, index) => {
-              const current = year === month.getFullYear() && index === month.getMonth();
-              return (
-                <MonthChoice
-                  key={index}
-                  type="button"
-                  selected={current}
-                  aria-current={current ? "true" : undefined}
-                  onClick={() => {
-                    onChange(new Date(year, index, 1));
-                    setOpen(false);
-                  }}
-                >
-                  {index + 1}월
-                </MonthChoice>
-              );
-            })}
-          </MonthGrid>
-        </MonthBox>
-      ) : null}
-    </MonthAnchor>
-  );
-};
-const MonthAnchor = styled.div`
-  position: relative;
-  min-width: 0;
-`;
-const MonthTrigger = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: transparent;
-  padding: 2px 4px;
-  font-size: ${theme.text.h3};
-  color: ${theme.colors.ink};
-  img {
-    flex: none;
-    width: 20px;
-    height: 20px;
-    opacity: 0.45;
-  }
-  span {
-    min-width: 0;
-    white-space: nowrap;
-  }
-  ${hoverable} {
-    &:hover {
-      background: ${palette.gray100};
-    }
-  }
-  @media (max-width: 600px) {
-    font-size: 18px;
-  }
-`;
-const MonthBox = styled.div`
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  z-index: 1;
-  width: max(100%, 260px);
-  border: 1px solid ${palette.gray200};
-  border-radius: 12px;
-  background: ${palette.white};
-  padding: 12px;
-  box-shadow: ${theme.shadow};
-`;
-const MonthYearRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  padding: 0 4px;
-  b {
-    font-size: ${theme.text.s};
-  }
-`;
-const MonthGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-`;
-const MonthChoice = styled.button<{ selected: boolean }>`
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 0;
-  font-size: ${theme.text.s};
-  background: ${({ selected }) => (selected ? palette.black : "transparent")};
-  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
-  ${hoverable} {
-    &:hover {
-      background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
-    }
-  }
-`;
-const MonthButtons = styled.div`
-  display: flex;
-  gap: 5px;
-  flex: 0 0 auto;
-`;
 const WeekRow = styled.div`
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1236,307 +1081,6 @@ const DaysGrid = styled.div`
 
 /** 기간 할 일이라 시작/마감을 함께 고릅니다. `time`이 빈 문자열이면 미설정입니다. */
 type DeadlineValue = { start: string; date: string; time: string };
-const formatSheetDate = (value: string) => value.replaceAll("-", ".");
-const formatSheetTime = (value: string) => {
-  if (!value) return "설정하지 않음";
-  const [hour = "0", minute = "00"] = value.split(":");
-  const hourNumber = Number(hour);
-  return `${hourNumber < 12 ? "AM" : "PM"} ${String(hourNumber % 12 || 12).padStart(2, "0")}:${minute}`;
-};
-
-/** 시트 안에 들어가는 달력. 날짜 하나만 고릅니다. */
-const SheetCalendar = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
-  const [month, setMonth] = useState(() => parseLocalDate(value));
-  return (
-    <SheetCalendarWrap>
-      <MonthHeader>
-        <MonthPicker month={month} onChange={setMonth} />
-        <MonthButtons>
-          <MonthArrow direction="prev" aria-label="이전 달" onClick={() => setMonth(addMonths(month, -1))}>
-            <img src={icons.arrowUp} alt="" aria-hidden />
-          </MonthArrow>
-          <MonthArrow direction="next" aria-label="다음 달" onClick={() => setMonth(addMonths(month, 1))}>
-            <img src={icons.arrowUp} alt="" aria-hidden />
-          </MonthArrow>
-        </MonthButtons>
-      </MonthHeader>
-      <SheetWeekRow>
-        {["일", "월", "화", "수", "목", "금", "토"].map((day, index) => (
-          <span key={day} style={{ color: weekdayTone(index) }}>
-            {day}
-          </span>
-        ))}
-      </SheetWeekRow>
-      <SheetDaysGrid>
-        {getCalendarDays(month).map((date, index) => {
-          if (!date) return <span key={`empty-${index}`} />;
-          const day = formatLocalDate(date);
-          return (
-            <SheetDay
-              key={day}
-              type="button"
-              selected={day === value}
-              tone={weekdayTone(date.getDay())}
-              onClick={() => onChange(day)}
-            >
-              {String(date.getDate()).padStart(2, "0")}
-            </SheetDay>
-          );
-        })}
-      </SheetDaysGrid>
-    </SheetCalendarWrap>
-  );
-};
-/** 일요일은 빨강, 토요일은 파랑입니다. */
-const weekdayTone = (day: number) => (day === 0 ? theme.colors.red : day === 6 ? theme.colors.blue : theme.colors.ink);
-const SheetCalendarWrap = styled.div`
-  width: 100%;
-`;
-const SheetWeekRow = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  justify-items: center;
-  margin: 12px 0 16px;
-  font-size: ${theme.text.s};
-`;
-const SheetDaysGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  justify-items: center;
-  row-gap: 16px;
-`;
-const SheetDay = styled.button<{ selected: boolean; tone: string }>`
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 0;
-  border-radius: ${theme.radius.pill};
-  font-size: ${theme.text.s};
-  background: ${({ selected }) => (selected ? palette.black : "transparent")};
-  color: ${({ selected, tone }) => (selected ? palette.white : tone)};
-`;
-
-/** 시(hour)/분(minute)을 pill로 고르는 판. Figma의 `deadline - time`입니다. */
-const TimeChooser = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
-  const [hour = "", minute = "00"] = value ? value.split(":") : [];
-  const hourNumber = value ? Number(hour) : null;
-  const meridiem = hourNumber === null ? null : hourNumber < 12 ? "AM" : "PM";
-  const displayHour = hourNumber === null ? null : hourNumber % 12 || 12;
-  const compose = (nextMeridiem: "AM" | "PM", nextHour: number, nextMinute: string) => {
-    const base = nextHour % 12;
-    onChange(`${String(nextMeridiem === "AM" ? base : base + 12).padStart(2, "0")}:${nextMinute}`);
-  };
-  return (
-    <TimePanel>
-      <TimeBlock>
-        <TimeLabel>오전/오후 선택하기</TimeLabel>
-        <TimePills>
-          <TimePill type="button" selected={value === ""} onClick={() => onChange("")}>
-            설정하지 않음
-          </TimePill>
-          {(["AM", "PM"] as const).map(key => (
-            <TimePill
-              key={key}
-              type="button"
-              selected={meridiem === key}
-              onClick={() => compose(key, displayHour ?? 12, minute)}
-            >
-              {key === "AM" ? "오전(AM)" : "오후(PM)"}
-            </TimePill>
-          ))}
-        </TimePills>
-      </TimeBlock>
-      <TimeColumns>
-        <TimeBlock>
-          <TimeLabel>시(hour) 선택하기</TimeLabel>
-          <TimeGrid>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map(item => (
-              <TimeCell
-                key={item}
-                type="button"
-                selected={displayHour === item}
-                onClick={() => compose(meridiem ?? "AM", item, minute)}
-              >
-                {item}
-              </TimeCell>
-            ))}
-          </TimeGrid>
-        </TimeBlock>
-        <TimeBlock>
-          <TimeLabel>분(minute) 선택하기</TimeLabel>
-          <TimeGrid>
-            {Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0")).map(item => (
-              <TimeCell
-                key={item}
-                type="button"
-                selected={value !== "" && minute === item}
-                onClick={() => compose(meridiem ?? "AM", displayHour ?? 12, item)}
-              >
-                {item}
-              </TimeCell>
-            ))}
-          </TimeGrid>
-        </TimeBlock>
-      </TimeColumns>
-    </TimePanel>
-  );
-};
-const TimePanel = styled.div`
-  display: grid;
-  gap: 20px;
-  padding: 20px;
-  @media (max-width: 600px) {
-    padding: 12px 0;
-  }
-`;
-const TimeBlock = styled.div`
-  display: grid;
-  gap: 8px;
-  justify-items: start;
-`;
-const TimeLabel = styled.p`
-  margin: 0;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-`;
-const TimeColumns = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 40px;
-`;
-const TimePills = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-`;
-const TimeGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(6, 36px);
-  gap: 8px;
-`;
-const TimePill = styled.button<{ selected: boolean }>`
-  display: grid;
-  place-items: center;
-  border: 1px solid ${({ selected }) => (selected ? "transparent" : palette.gray200)};
-  border-radius: ${theme.radius.pill};
-  padding: 4px 30px;
-  font-size: ${theme.text.s};
-  background: ${({ selected }) => (selected ? palette.black : palette.gray100)};
-  color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
-`;
-const TimeCell = styled(TimePill)`
-  width: 36px;
-  height: 36px;
-  padding: 0;
-`;
-
-/* 시트가 공통으로 쓰는 조각입니다. 회색 줄을 누르면 그 아래에 고르는 판이 열립니다. */
-const SheetForm = styled.div`
-  display: grid;
-  gap: 20px;
-`;
-const SheetHeading = styled.p`
-  margin: 0;
-  font-size: ${theme.text.h3};
-  color: ${theme.colors.ink};
-  b {
-    margin-left: 8px;
-    font-weight: inherit;
-    color: ${theme.colors.red};
-  }
-`;
-const SheetRows = styled.div`
-  display: grid;
-  gap: 8px;
-`;
-const SheetRow = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.panel};
-  padding: 8px 20px;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-  text-align: left;
-  &[aria-expanded="true"] {
-    background: ${palette.gray200};
-  }
-`;
-const SheetSubmit = styled.button`
-  width: 100%;
-  border: 0;
-  border-radius: 12px;
-  background: ${palette.black};
-  padding: 6px 20px;
-  font-size: ${theme.text.s};
-  color: ${palette.white};
-  &:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
-`;
-
-const SheetCancel = styled(SheetSubmit)`
-  background: ${palette.gray200};
-  color: ${theme.colors.ink};
-`;
-const SheetField = styled.div`
-  display: grid;
-  gap: 8px;
-  width: 100%;
-`;
-const SheetLabel = styled.label`
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-`;
-/** 라벨 아래 회색 입력 상자. 글자 수는 상자 안 오른쪽에 붙습니다. */
-const SheetBox = styled.div`
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-  width: 100%;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.panel};
-  padding: 12px 20px;
-  input,
-  textarea {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: ${theme.text.s};
-    color: ${theme.colors.ink};
-    &::placeholder {
-      color: ${theme.colors.muted};
-    }
-  }
-  textarea {
-    min-height: 72px;
-    resize: vertical;
-  }
-  small {
-    flex: none;
-    font-size: ${theme.text.s};
-    color: ${theme.colors.muted};
-  }
-`;
-const SheetActions = styled.div`
-  display: flex;
-  gap: 20px;
-  > * {
-    flex: 1;
-  }
-  @media (max-width: 600px) {
-    gap: 12px;
-  }
-`;
 
 export const CategoryManageModal = ({
   category,
@@ -1725,41 +1269,6 @@ export const BetReceivedModal = ({
     </Modal>
   );
 };
-/** 내기 내용 글자 수. 서버가 1000자까지 받습니다. */
-const BET_CONTENT_LIMIT = 1000;
-/** 디자인의 내기 내용 칸: gray/100 바탕에 8px 모서리입니다. */
-const BetBox = styled.div`
-  display: flex;
-  align-items: center;
-  width: 100%;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.panel};
-  padding: 12px 20px;
-  p {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    font-size: ${theme.text.s};
-    color: ${theme.colors.ink};
-    &::placeholder {
-      color: ${theme.colors.muted};
-    }
-  }
-`;
-
-/**
- * 할 일 상세 시트.
- *
- * 제목은 여기서 고치지 않습니다 — "할 일 수정하기"를 누르면 시트를 닫고 목록에서
- * 바로 고치게 합니다(추가할 때와 같은 입력 줄). 세부사항·중요도·선행 할 일은 이
- * 안에서 저장하고, 마감기한과 루틴은 각자의 모달을 엽니다.
- */
 export const TodoDetailModal = ({
   open,
   todo,
@@ -2565,50 +2074,6 @@ export const CategorySection = ({
   );
 };
 
-/**
- * 아직 오지 않은 할 일 한 줄.
- *
- * 진짜 줄과 같은 자리를 잡습니다 — 완료 동그라미 하나와 제목 한 줄. 도착했을 때
- * 아래 내용이 밀려 내려가지 않도록 여백까지 같게 둡니다.
- */
-export const TodoRowSkeleton = ({ width = "70%", label }: { width?: string; label?: string }) => (
-  <SkeletonRow>
-    <Skeleton width="30px" height="30px" radius="50%" />
-    <Skeleton width={width} height="20px" />
-    {label ? <SrOnly>{label}</SrOnly> : null}
-  </SkeletonRow>
-);
-const SkeletonRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 8px;
-  @media (max-width: 600px) {
-    padding: 8px 6px;
-  }
-`;
-
-/** 줄마다 길이를 달리해, 자리표시가 표처럼 각지지 않게 합니다. */
-const SKELETON_ROW_WIDTHS = ["72%", "54%", "63%", "45%"];
-
-/**
- * 아직 오지 않은 카테고리 한 칸.
- *
- * 이름표 자리와 할 일 몇 줄을 미리 놓습니다. 줄 수는 카테고리마다 달리 잡아,
- * 네 칸이 똑같은 모양으로 늘어서지 않게 합니다.
- */
-export const TodoColumnSkeleton = ({ rows }: { rows: number }) => (
-  <section>
-    <Skeleton width="128px" height="41px" radius={theme.radius.pill} />
-    <TodoList>
-      {Array.from({ length: rows }, (_, index) => (
-        <TodoRowSkeleton key={index} width={SKELETON_ROW_WIDTHS[index % SKELETON_ROW_WIDTHS.length]} />
-      ))}
-    </TodoList>
-  </section>
-);
-
-/** 할 일 제목 글자 수. 디자인의 카운터가 0/40입니다. */
 const TODO_TITLE_LIMIT = 40;
 
 /**
@@ -2707,11 +2172,4 @@ const DraggableRow = styled.div<{ dragging?: boolean }>`
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-`;
-const TodoList = styled.div`
-  display: grid;
-  margin-top: 20px;
-  @media (max-width: 600px) {
-    margin-top: 14px;
-  }
 `;

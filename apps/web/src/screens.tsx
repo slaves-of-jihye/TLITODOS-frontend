@@ -41,7 +41,6 @@ import {
 } from "@tlitodos/hooks";
 import type {
   Bet,
-  AppNotification,
   Category,
   Diary,
   DiaryCreateRequest,
@@ -71,11 +70,25 @@ import {
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useAssetObjectUrl } from "./app/assetUrl";
-import { applyFont, readStoredFont } from "./app/fontPreference";
-import { useSessionStore } from "./app/sessionStore";
-import { useTodoCompletion } from "./app/useTodoCompletion";
-import { useTodoDrag } from "./app/useTodoDrag";
+import { useAssetObjectUrl } from "@/shared/api";
+import { EmptyState, HiddenFileInput, PageTitle } from "@/shared/ui";
+import { DiaryDivider, DiaryPhoto } from "@/entities/diary";
+import { TodoColumnSkeleton } from "@/entities/todo";
+import {
+  ALARM_FILTERS,
+  ActorAvatar,
+  AlarmDot,
+  AlarmEmpty,
+  AlarmList,
+  AlarmListSkeleton,
+  AlarmRow,
+  alarmSentence,
+  UnreadDot,
+} from "@/entities/notification";
+import { applyFont, readStoredFont } from "@/shared/lib";
+import { useSessionStore } from "@/shared/model";
+import { useTodoCompletion } from "@/app/useTodoCompletion";
+import { useTodoDrag } from "@/app/useTodoDrag";
 import {
   CalendarPanel,
   BetReceivedModal,
@@ -88,7 +101,6 @@ import {
   GroupInviteModal,
   GroupTopBar,
   MemberTabs,
-  TodoColumnSkeleton,
   TodoDetailModal,
   WorkspaceHeader,
 } from "./components";
@@ -465,28 +477,6 @@ export const GroupHome = () => {
   );
 };
 
-/**
- * 알림 화면.
- *
- * Figma는 친구의 할 일 완료 / 친구의 일기 / 친구의 내기 요청 세 갈래를 pill로
- * 고르고 그 아래에 알림을 쌓아 보여줍니다. 서버의 `GET /api/v1/notifications`가
- * 그 세 종류를 그대로 내려 주고 `nextCursor`로 이어 줍니다. 내기는 MVP 밖이라
- * 갈래에서 빼 두었습니다.
- */
-const ALARM_FILTERS = [
-  { key: "TODO_COMPLETED", label: "친구의 할 일 완료" },
-  { key: "DIARY_CREATED", label: "친구의 일기" },
-  { key: "BET_REQUESTED", label: "친구의 내기 요청" },
-] as const;
-
-/** 알림 한 줄에 쓰는 문구. 종류마다 다릅니다. */
-const alarmSentence = (item: AppNotification) => {
-  const who = item.actor.name || "친구";
-  if (item.type === "TODO_COMPLETED") return `${who}님이 "${item.todo?.title ?? "할 일"}"을 완료했어요.`;
-  if (item.type === "DIARY_CREATED") return `${who}님이 일기를 남겼어요.`;
-  return `${who}님이 나의 할 일에 내기를 요청했어요.`;
-};
-
 export const AlarmPage = () => {
   const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
   /** 열어 둔 일기. 알림에 딸려 온 작성자 이름은 일기 응답에 없어 함께 들고 있습니다. */
@@ -640,29 +630,6 @@ const DiaryViewModal = ({
     </Modal>
   );
 };
-/** 아직 오지 않은 알림 목록. 줄 높이가 같아 도착해도 화면이 밀리지 않습니다. */
-const AlarmListSkeleton = () => (
-  <AlarmList role="status">
-    <SrOnly>알림을 불러오는 중</SrOnly>
-    {["78%", "62%", "70%", "54%"].map(width => (
-      <AlarmRowSkeleton key={width}>
-        <Skeleton width="36px" height="36px" radius="50%" />
-        <Skeleton width={width} height="20px" />
-      </AlarmRowSkeleton>
-    ))}
-  </AlarmList>
-);
-const AlarmRowSkeleton = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  border: 1px solid ${palette.gray200};
-  border-radius: ${theme.radius.sm};
-  padding: 12px 16px;
-`;
-
-/** 아직 오지 않은 일기 한 편. 알림에서 열면 내용을 그때 받아 옵니다. */
 const DiarySkeleton = () => (
   <DiaryLines role="status">
     <SrOnly>일기를 불러오는 중</SrOnly>
@@ -678,82 +645,6 @@ const DiaryLines = styled.div`
   width: 100%;
 `;
 
-/** 사진은 원래 비율 그대로, 250px까지만 키웁니다. */
-const DiaryPhoto = styled.img`
-  max-width: min(250px, 100%);
-  height: auto;
-  border-radius: ${theme.radius.md};
-`;
-const DiaryDivider = styled.span`
-  width: 100%;
-  height: 3px;
-  border-radius: 2px;
-  background: ${palette.gray200};
-`;
-/** 사진은 인증이 필요해 한 줄씩 따로 받아 옵니다. */
-const ActorAvatar = ({ url }: { url: string | null }) => {
-  const src = useAssetObjectUrl(url);
-  return <AlarmAvatar>{src ? <img src={src} alt="" /> : <span aria-hidden>🐰</span>}</AlarmAvatar>;
-};
-const AlarmList = styled.div`
-  display: grid;
-  gap: 12px;
-  width: 100%;
-`;
-const AlarmRow = styled.button<{ unread: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  border: 1px solid ${palette.gray200};
-  border-radius: ${theme.radius.sm};
-  background: ${({ unread }) => (unread ? palette.white : palette.gray100)};
-  padding: 12px 16px;
-  text-align: left;
-  color: ${theme.colors.ink};
-  > div {
-    display: grid;
-    gap: 4px;
-    min-width: 0;
-  }
-  strong {
-    font-size: ${theme.text.s};
-    font-weight: 400;
-    overflow-wrap: anywhere;
-  }
-  small {
-    color: ${theme.colors.muted};
-    font-size: ${theme.text.xs};
-    overflow-wrap: anywhere;
-  }
-`;
-const AlarmAvatar = styled.span`
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  overflow: hidden;
-  background: ${palette.gray100};
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-`;
-/** 안 읽은 것이 남아 있음을 알리는 빨간 점. 목록 줄과 갈래 칩이 같은 점을 씁니다. */
-const UnreadDot = styled.i`
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: ${theme.colors.red};
-`;
-/** 목록 줄에서는 줄 오른쪽 끝으로 밀어 둡니다. */
-const AlarmDot = styled(UnreadDot)`
-  margin-left: auto;
-`;
 const AlarmColumn = styled.div`
   display: grid;
   gap: 32px;
@@ -791,12 +682,6 @@ const AlarmFilter = styled.button<{ selected: boolean }>`
   background: ${({ selected }) => (selected ? palette.black : palette.gray200)};
   color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
 `;
-const AlarmEmpty = styled.p`
-  margin: 0;
-  color: ${theme.colors.muted};
-`;
-
-/** 자기소개 글자 수. 디자인의 카운터가 0/30입니다. */
 const BIO_LIMIT = 30;
 const NAME_LIMIT = 20;
 
@@ -1655,17 +1540,6 @@ const DiaryPreviewTitle = styled.p`
   font-size: ${theme.text.h2};
   color: ${theme.colors.ink};
 `;
-const EmptyState = styled.div`
-  min-height: 260px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  color: ${theme.colors.muted};
-`;
-const PageTitle = styled.h1`
-  margin: 0;
-  font-size: ${theme.text.h1};
-`;
 const ProfileTitle = styled.h1`
   margin: 0 0 40px;
   font-size: ${theme.text.h1};
@@ -1811,9 +1685,6 @@ const FieldActions = styled.div`
   display: flex;
   gap: 6px;
   flex: none;
-`;
-const HiddenFileInput = styled.input`
-  display: none;
 `;
 const PhotoRow = styled.div`
   display: flex;

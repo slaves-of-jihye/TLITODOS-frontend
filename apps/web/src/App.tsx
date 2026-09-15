@@ -1,6 +1,6 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
-import { FontSync } from "./app/FontSync";
-import { useSessionStore } from "./app/sessionStore";
+import { FontSync } from "@/app/FontSync";
+import { useSessionStore } from "@/shared/model";
 import { InstallPrompt, LoginModal } from "./components";
 import { AlarmPage, DiaryPage, GroupHome, MyHome, NotFoundPage, ProfilePage, ServerBusyBar } from "./screens";
 
