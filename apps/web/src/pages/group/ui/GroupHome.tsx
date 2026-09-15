@@ -42,7 +42,15 @@ export const GroupHome = () => {
         onSelect={next => navigate(next === me?.userId ? `/groups/${id}` : `/groups/${id}/members/${next}`)}
         onShareInvite={() => setInviteOpen(true)}
       />
-      {own ? (
+      {/*
+       * 누구의 할 일을 볼지 정해진 뒤에 보드를 겁니다.
+       *
+       * 내 차례인지 남의 차례인지는 `me`가 와야 알 수 있는데, 오기 전에 걸어 두면
+       * 남의 보드로 한 번 그렸다가 내 보드로 바꿔 답니다. 그 사이 두 보드가 각자
+       * 카테고리·할 일·달 요약·일기를 받아 오므로, 그룹 주소를 직접 열 때마다
+       * 네 가지를 두 번씩 받고 첫 번은 버려집니다.
+       */}
+      {me === undefined ? null : own ? (
         <TodoWorkspace own groupId={null} />
       ) : (
         <TodoWorkspace own={false} ownerId={activeId ?? undefined} ownerName={active?.name} groupId={id} />

@@ -6,6 +6,7 @@ import { useApi } from "@/shared/api";
 import { errorMessage, randomId } from "@/shared/lib";
 import { useSessionStore } from "@/shared/model";
 import { ErrorText, Modal, palette, theme } from "@/shared/ui";
+import { loadGoogleScript } from "../model/googleScript";
 
 const googleOAuthResultKey = "tlitodos-google-oauth-result";
 
@@ -158,6 +159,19 @@ export const LoginModal = () => {
     pendingRedirectToken = null;
     queueMicrotask(() => void acceptGoogleToken(token));
   }, [acceptGoogleToken]);
+  /*
+   * 로그인 화면이 떠 있는 동안에만 구글 스크립트를 받아 둡니다.
+   *
+   * 이 모달은 늘 붙어 있고 `accessToken`이 없을 때만 펼쳐지므로, 들어와 있는
+   * 사람은 이 스크립트를 아예 받지 않습니다. 버튼을 누르는 순간에 받으면 늦습니다 —
+   * 기다리는 사이 사용자의 손짓이 끊겨 팝업이 막히기 때문입니다.
+   */
+  useEffect(() => {
+    if (accessToken) return;
+    void loadGoogleScript().catch(() => {
+      /* 없으면 리다이렉트 길로 갑니다. 여기서 알릴 것은 없습니다. */
+    });
+  }, [accessToken]);
   /* 팝업으로 열린 길은 창끼리 주고받습니다. 이쪽은 바깥에서 오는 소식을 듣는 자리입니다. */
   useEffect(() => {
     const receiveToken = (event: MessageEvent<GoogleOAuthResult & { type?: string }>) => {
