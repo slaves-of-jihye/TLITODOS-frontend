@@ -230,42 +230,6 @@ export const TodoDetailModal = ({
             )}
             <DetailBody>
               <div>
-                <DetailActions>
-                  <DetailAction disabled={busy} onClick={save}>
-                    <img src={icons.edit} alt="" aria-hidden />
-                    {busy ? "저장 중..." : "할 일 수정하기"}
-                  </DetailAction>
-                  <ConfirmMenu
-                    open={confirming === "todo"}
-                    label="할 일 삭제"
-                    onDismiss={dismissConfirm}
-                    trigger={
-                      <DetailAction
-                        disabled={removing}
-                        onClick={() => setConfirming(current => (current === "todo" ? null : "todo"))}
-                      >
-                        <img src={icons.trash} alt="" aria-hidden />할 일 삭제하기
-                      </DetailAction>
-                    }
-                  >
-                    {todo.routineId ? (
-                      <>
-                        <ConfirmNote>루틴의 한 회차입니다. 전체를 지우면 완료한 회차까지 사라집니다.</ConfirmNote>
-                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
-                          이 할 일만 삭제
-                        </ConfirmChoice>
-                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeRoutine}>
-                          루틴 전체 삭제
-                        </ConfirmChoice>
-                      </>
-                    ) : (
-                      <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
-                        삭제
-                      </ConfirmChoice>
-                    )}
-                    <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
-                  </ConfirmMenu>
-                </DetailActions>
                 <DetailBlock>
                   <DetailLabel>할 일에 대한 세부사항 입력하기</DetailLabel>
                   <DetailField>
@@ -387,6 +351,50 @@ export const TodoDetailModal = ({
                     </>
                   )}
                 </DetailBlock>
+                {/*
+                 * 시트를 마무리하는 두 버튼이라 오른쪽 단 맨 아래에 둡니다.
+                 *
+                 * `할 일 수정하기`가 이제 시트 안의 모든 것을 한 번에 보내므로, 다 고른
+                 * 다음에 닿는 자리가 맞습니다. 삭제 확인 드롭다운은 시트 아래쪽이라
+                 * `above`로 위로 펼칩니다 — 아래로 펼치면 시트 밖으로 나갑니다.
+                 */}
+                <DetailActions>
+                  <DetailAction disabled={busy} onClick={save}>
+                    <img src={icons.edit} alt="" aria-hidden />
+                    {busy ? "저장 중..." : "할 일 수정하기"}
+                  </DetailAction>
+                  <ConfirmMenu
+                    open={confirming === "todo"}
+                    label="할 일 삭제"
+                    above
+                    onDismiss={dismissConfirm}
+                    trigger={
+                      <DetailAction
+                        disabled={removing}
+                        onClick={() => setConfirming(current => (current === "todo" ? null : "todo"))}
+                      >
+                        <img src={icons.trash} alt="" aria-hidden />할 일 삭제하기
+                      </DetailAction>
+                    }
+                  >
+                    {todo.routineId ? (
+                      <>
+                        <ConfirmNote>루틴의 한 회차입니다. 전체를 지우면 완료한 회차까지 사라집니다.</ConfirmNote>
+                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
+                          이 할 일만 삭제
+                        </ConfirmChoice>
+                        <ConfirmChoice tone="danger" disabled={removing} onClick={removeRoutine}>
+                          루틴 전체 삭제
+                        </ConfirmChoice>
+                      </>
+                    ) : (
+                      <ConfirmChoice tone="danger" disabled={removing} onClick={removeTodo}>
+                        삭제
+                      </ConfirmChoice>
+                    )}
+                    <ConfirmChoice onClick={dismissConfirm}>취소</ConfirmChoice>
+                  </ConfirmMenu>
+                </DetailActions>
               </div>
             </DetailBody>
             {error ? <ErrorText>{error}</ErrorText> : null}
@@ -500,14 +508,23 @@ const DetailBody = styled.div`
   }
 `;
 
+/*
+ * 시트를 마무리하는 두 버튼.
+ *
+ * 오른쪽 단은 왼쪽(최대 357px)이 가져가고 남은 만큼이라 좁습니다. 둘을 나란히
+ * 두면 넘치므로, 자리가 모자라면 한 줄씩 내려 쌓습니다 — 좁을 때 같은 단의
+ * 마감기한·루틴과 같은 모양이 됩니다. 넓은 한 단 배치에서는 나란히 섭니다.
+ */
 const DetailActions = styled.div`
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
 `;
 
 const DetailAction = styled.button`
   display: flex;
-  flex: 1;
+  /* 140px보다 좁아지지 않고, 남는 자리는 나눠 가집니다. 둘이 못 들어가면 줄을 바꿉니다. */
+  flex: 1 1 140px;
   align-items: center;
   justify-content: center;
   gap: 10px;
