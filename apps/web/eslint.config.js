@@ -23,6 +23,17 @@ const escapesSlice = {
   message: '레이어를 건널 때는 @/ 별칭을 쓰세요. 상대 경로로는 어느 층인지 읽히지 않습니다.',
 }
 
+/*
+ * 워크스페이스 패키지는 shared의 몸통입니다.
+ *
+ * shared가 다시 내보내고, entities의 `api`/`lib` 조각이 도메인별로 한 번 더
+ * 좁힙니다. 그 위 층이 패키지를 곧장 부르면 그 창구가 있으나 마나 해집니다.
+ */
+const packagesAreSharedsBody = {
+  group: ['@tlitodos/*'],
+  message: '워크스페이스 패키지는 @/shared 또는 @/entities를 통해 쓰세요.',
+}
+
 /**
  * 그 층이 몰라야 하는 것들: 자기보다 위층 전부와, 자기 층의 다른 슬라이스.
  *
@@ -44,6 +55,7 @@ const boundaries = LAYERS.map((layer, index) => ({
             message: `${layer} 층은 자기보다 위층과 같은 층의 다른 슬라이스를 몰라야 합니다.`,
           },
           escapesSlice,
+          ...(index >= LAYERS.indexOf('features') ? [packagesAreSharedsBody] : []),
         ],
       },
     ],

@@ -1,5 +1,5 @@
-import { useMe } from "@tlitodos/hooks";
 import { useEffect } from "react";
+import { useMe } from "@/entities/user";
 import { applyFont } from "@/shared/lib";
 
 /**
