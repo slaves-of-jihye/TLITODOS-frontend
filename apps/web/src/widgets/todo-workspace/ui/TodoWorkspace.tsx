@@ -19,26 +19,32 @@ import { BetRequestModal } from "@/features/bet-request";
 import { CategoryManageModal } from "@/features/category-rename";
 import { DiaryViewModal } from "@/features/diary-view";
 import { CalendarPanel } from "./CalendarPanel";
-import { CategoryBoard, TodoArea } from "./boardStyles";
 import { CategorySection, TodoBoardSkeleton } from "./TodoBoard";
-import { DependencyBlockModal, useTodoCompletion } from "@/features/todo-complete";
-import { TrashDropZone, useTodoDrag } from "@/features/todo-drag";
-import { TodoDeleteModal } from "@/features/todo-delete";
 import { TodoDetailModal } from "./TodoDetailModal";
+import { CategoryBoard, TodoArea } from "./boardStyles";
+import { DependencyBlockModal, useTodoCompletion } from "@/features/todo-complete";
+import { TodoDeleteModal } from "@/features/todo-delete";
+import { TrashDropZone, useTodoDrag } from "@/features/todo-drag";
 import { useAssetObjectUrl } from "@/shared/api";
 import { errorMessage, formatLocalDate, monthKey } from "@/shared/lib";
-import { DiaryBadge, EmptyState, ErrorText, palette, theme } from "@/shared/ui";
+import { DEFAULT_AVATAR, DiaryBadge, EmptyState, ErrorText, palette, theme } from "@/shared/ui";
 
 export const TodoWorkspace = ({
   own,
   ownerId,
   groupId,
   ownerName,
+  ownerBio,
+  ownerImageUrl,
 }: {
   own: boolean;
   ownerId?: number;
   groupId: number | null;
   ownerName?: string;
+  /** 남의 화면일 때 그 사람의 자기소개. 내 화면은 `me`에서 가져옵니다. */
+  ownerBio?: string;
+  /** 남의 화면일 때 그 사람의 프로필 사진 경로. */
+  ownerImageUrl?: string | null;
 }) => {
   const navigate = useNavigate();
   const today = formatLocalDate(new Date());
@@ -151,18 +157,20 @@ export const TodoWorkspace = ({
   /** 휴지통에 놓은 할 일. 곧바로 지우지 않고 한 번 묻습니다. */
   const [trashTodo, setTrashTodo] = useState<Todo | null>(null);
   const drag = useTodoDrag({ enabled: own, onDrop: moveToCategory, onTrash: setTrashTodo });
-  // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
-  const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : null);
+  // 그룹 멤버 목록도 사진 경로를 함께 주므로 남의 화면에서도 그 사람의 사진을 씁니다.
+  const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : ownerImageUrl);
+  const bio = own ? me?.bio : ownerBio;
   return (
     <>
       <WorkspaceGrid>
         <div>
           <OwnerRow>
             <OwnerProfile>
-              {ownerImage ? <img src={ownerImage} alt="" /> : <span aria-hidden>{own ? "🌱" : "🐰"}</span>}
+              {ownerImage ? <img src={ownerImage} alt="" /> : <span aria-hidden>{DEFAULT_AVATAR}</span>}
               <div>
                 <strong>{own ? me?.name || "나" : ownerName || "친구"}</strong>
-                {own && me?.bio ? <small>{me.bio}</small> : null}
+                {/* 자기소개는 내 화면에서만 보였습니다. 그룹에서 남의 할 일을 볼 때도 그 사람의 소개를 답니다. */}
+                {bio ? <small>{bio}</small> : null}
               </div>
             </OwnerProfile>
             {own || selectedDiary ? (

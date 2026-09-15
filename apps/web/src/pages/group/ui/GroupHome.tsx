@@ -53,7 +53,14 @@ export const GroupHome = () => {
       {me === undefined ? null : own ? (
         <TodoWorkspace own groupId={null} />
       ) : (
-        <TodoWorkspace own={false} ownerId={activeId ?? undefined} ownerName={active?.name} groupId={id} />
+        <TodoWorkspace
+          own={false}
+          ownerId={activeId ?? undefined}
+          ownerName={active?.name}
+          ownerBio={active?.bio}
+          ownerImageUrl={active?.profileImageUrl}
+          groupId={id}
+        />
       )}
       <PageNav active="home" />
       <GroupInfoModal
