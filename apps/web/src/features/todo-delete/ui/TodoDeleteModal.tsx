@@ -32,7 +32,7 @@ export const TodoDeleteModal = ({ todo, onClose }: { todo: Todo | null; onClose:
     }
   };
   return (
-    <Modal open={todo !== null} onClose={busy ? undefined : onClose} aria-label="할 일 삭제">
+    <Modal compact open={todo !== null} onClose={busy ? undefined : onClose} aria-label="할 일 삭제">
       <DeleteBody>
         <DeleteTitle>&ldquo;{todo?.title}&rdquo;을(를) 삭제하시겠습니까?</DeleteTitle>
         {todo?.routineId ? (

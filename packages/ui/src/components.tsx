@@ -812,6 +812,7 @@ export const Modal = ({
   nested = false,
   login = false,
   sheet = false,
+  compact = false,
   "aria-label": ariaLabel,
 }: {
   open: boolean;
@@ -822,6 +823,13 @@ export const Modal = ({
   login?: boolean;
   /** 디자인의 상세 시트처럼 넓은 화면에서도 아래에 붙는 형태입니다. */
   sheet?: boolean;
+  /**
+   * 한두 줄만 묻는 창.
+   *
+   * 기본 크기는 800px 폭에 54/60px 여백이라, 한 줄짜리 물음을 담으면 글자보다
+   * 빈자리가 훨씬 넓어집니다. 짧은 물음은 내용만큼만 차지하게 좁힙니다.
+   */
+  compact?: boolean;
   /**
    * 제목을 보여주지 않는 시트에 이름을 붙입니다.
    *
@@ -839,7 +847,14 @@ export const Modal = ({
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog login={login} sheet={sheet} role="dialog" aria-modal="true" aria-label={title ?? ariaLabel}>
+      <Dialog
+        login={login}
+        sheet={sheet}
+        compact={compact}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title ?? ariaLabel}
+      >
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>
@@ -858,13 +873,13 @@ const Overlay = styled.div<{ login: boolean; sheet: boolean }>`
     padding: ${({ login }) => (login ? "16px" : "0")};
   }
 `;
-const Dialog = styled.div<{ login: boolean; sheet: boolean }>`
-  width: min(800px, 100%);
+const Dialog = styled.div<{ login: boolean; sheet: boolean; compact: boolean }>`
+  width: ${({ compact }) => (compact ? "min(420px, 100%)" : "min(800px, 100%)")};
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: ${({ sheet }) => (sheet ? "40px 40px 0 0" : theme.radius.lg)};
   background: white;
-  padding: ${({ sheet }) => (sheet ? "60px" : "54px 60px")};
+  padding: ${({ sheet, compact }) => (sheet ? "60px" : compact ? "32px 28px" : "54px 60px")};
   box-shadow: ${theme.shadow};
   h2 {
     margin: 0 0 30px;
