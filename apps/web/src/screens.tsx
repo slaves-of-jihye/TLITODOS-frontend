@@ -68,6 +68,7 @@ import { useAssetObjectUrl } from "./app/assetUrl";
 import { applyFont, readStoredFont } from "./app/fontPreference";
 import { useSessionStore } from "./app/sessionStore";
 import { useTodoCompletion } from "./app/useTodoCompletion";
+import { useTodoDrag } from "./app/useTodoDrag";
 import {
   CalendarPanel,
   CategoryManageModal,
@@ -143,14 +144,19 @@ const TodoWorkspace = ({
   const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
+  /** 끌어 옮기는 중인 할 일의 새 카테고리. 서버가 답하기 전에도 옮겨 둡니다. */
+  const [movedCategories, setMovedCategories] = useState<Record<number, number>>({});
+  const [moveError, setMoveError] = useState("");
   const todos = useMemo(
     () =>
-      ownerTodos.map(todo =>
-        completionOverrides[todo.todoId] === undefined
+      ownerTodos.map(todo => {
+        const isCompleted = completionOverrides[todo.todoId] ?? todo.isCompleted;
+        const categoryId = movedCategories[todo.todoId] ?? todo.categoryId;
+        return isCompleted === todo.isCompleted && categoryId === todo.categoryId
           ? todo
-          : { ...todo, isCompleted: completionOverrides[todo.todoId]! },
-      ),
-    [ownerTodos, completionOverrides],
+          : { ...todo, isCompleted, categoryId };
+      }),
+    [ownerTodos, completionOverrides, movedCategories],
   );
   const selectedTodos = useMemo(() => todosForDate(todos, selectedDate), [todos, selectedDate]);
   /**
@@ -172,6 +178,24 @@ const TodoWorkspace = ({
     if (!own) return;
     toggle(todo.todoId);
   };
+  const moveToCategory = useCallback(
+    async (todo: Todo, categoryId: number) => {
+      setMoveError("");
+      setMovedCategories(current => ({ ...current, [todo.todoId]: categoryId }));
+      try {
+        await updateTodo.mutateAsync({ id: todo.todoId, body: { categoryId } });
+      } catch (reason) {
+        setMoveError(message(reason));
+      } finally {
+        // 서버 값이 캐시에 들어왔으니 임시 자리는 거둡니다. 실패했다면 원래 칸으로 돌아갑니다.
+        setMovedCategories(current =>
+          Object.fromEntries(Object.entries(current).filter(([id]) => Number(id) !== todo.todoId)),
+        );
+      }
+    },
+    [updateTodo],
+  );
+  const drag = useTodoDrag({ enabled: own, onDrop: moveToCategory });
   // 친구 화면에서는 멤버 목록에 사진이 없어, 내 화면에서만 프로필 사진을 씁니다.
   const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : null);
   return (
@@ -252,10 +276,12 @@ const TodoWorkspace = ({
                   onManage={setManage}
                   onToggle={handleToggle}
                   onEdit={setDetailTodo}
+                  drag={own ? drag : undefined}
                 />
               ))}
             </CategoryBoard>
           )}
+          {moveError ? <ErrorText>{moveError}</ErrorText> : null}
         </TodoArea>
       </WorkspaceGrid>
       <TodoDetailModal
@@ -278,6 +304,10 @@ const TodoWorkspace = ({
         onClose={() => setManage(null)}
       />
       <DependencyBlockModal todos={blocked} open={blocked.length > 0} onClose={() => setBlocked([])} />
+      {/* 끌고 있는 동안 손끝을 따라다니는 쪽지. 포인터를 가리지 않게 오른쪽 아래로 비켜 둡니다. */}
+      {drag.preview ? (
+        <DragPreview style={{ left: drag.preview.x, top: drag.preview.y }}>{drag.preview.title}</DragPreview>
+      ) : null}
       {/* Figma group 섹션의 `modal / diary`입니다. 닫기 버튼이 없어 뒤 배경을 눌러 닫습니다. */}
       {diaryPreview ? (
         <DiaryViewModal diary={diaryPreview} author={ownerName || "친구"} onClose={() => setDiaryPreview(null)} />
@@ -1350,6 +1380,23 @@ const WorkspaceGrid = styled.main`
   @media (max-width: 600px) {
     gap: 36px;
   }
+`;
+const DragPreview = styled.div`
+  position: fixed;
+  /* 모달(100)보다는 아래, 네비게이션(60)보다는 위입니다. */
+  z-index: 90;
+  transform: translate(14px, 14px);
+  pointer-events: none;
+  max-width: 240px;
+  border-radius: ${theme.radius.sm};
+  background: ${palette.white};
+  box-shadow: ${theme.shadow};
+  padding: 8px 14px;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.ink};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 const OwnerRow = styled.div`
   display: flex;

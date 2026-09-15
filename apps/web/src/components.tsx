@@ -68,6 +68,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { dismissInstallBanner, promptInstall, usePwaInstall } from "./app/pwaInstall";
 import { useAssetObjectUrl } from "./app/assetUrl";
 import { useSessionStore } from "./app/sessionStore";
+import { CATEGORY_DROP_ATTRIBUTE, type TodoDrag } from "./app/useTodoDrag";
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
 const googleOAuthResultKey = "tlitodos-google-oauth-result";
@@ -2221,6 +2222,7 @@ export const CategorySection = ({
   onManage,
   onToggle,
   onEdit,
+  drag,
 }: {
   category: Category;
   index: number;
@@ -2237,10 +2239,16 @@ export const CategorySection = ({
   onManage: (category: Category) => void;
   onToggle: (todo: Todo) => void;
   onEdit: (todo: Todo) => void;
+  /** 할 일을 끌어 옮기는 손짓. 내 화면에서만 넘어옵니다. */
+  drag?: TodoDrag;
 }) => {
   const accent = categoryAccent(category.color, index);
+  const isTarget = Boolean(drag?.activeId) && drag?.overId === category.categoryId;
   return (
-    <CategoryColumn>
+    <CategoryColumn
+      {...{ [CATEGORY_DROP_ATTRIBUTE]: category.categoryId }}
+      style={{ borderColor: isTarget ? accent : undefined }}
+    >
       <CategoryPill
         name={category.name}
         accent={accent}
@@ -2259,14 +2267,15 @@ export const CategorySection = ({
               onCommit={title => onRenameTitle(todo, title)}
             />
           ) : (
-            <SharedTodoRow
-              key={todo.todoId}
-              todo={todo}
-              accent={accent}
-              own={own}
-              onToggle={() => onToggle(todo)}
-              onEdit={() => onEdit(todo)}
-            />
+            <DraggableRow key={todo.todoId} dragging={drag?.activeId === todo.todoId} {...drag?.rowProps(todo)}>
+              <SharedTodoRow
+                todo={todo}
+                accent={accent}
+                own={own}
+                onToggle={() => onToggle(todo)}
+                onEdit={() => onEdit(todo)}
+              />
+            </DraggableRow>
           ),
         )}
         {adding ? (
@@ -2359,6 +2368,23 @@ const DraftRow = styled.div`
 `;
 const CategoryColumn = styled.section`
   min-width: 0;
+  /* 끌어온 할 일을 받을 칸임을 테두리로 알립니다. 자리는 늘 잡아 두어 흔들리지 않습니다. */
+  border: 2px dashed transparent;
+  border-radius: ${theme.radius.sm};
+  margin: -8px;
+  padding: 8px;
+`;
+/**
+ * 끌 수 있는 할 일 한 줄.
+ *
+ * 끌고 있는 줄은 원래 자리에 옅게 남겨 어디서 떠났는지 보이게 합니다. 손가락으로
+ * 길게 누르는 동안 글자가 선택되지 않도록 막아 둡니다.
+ */
+const DraggableRow = styled.div<{ dragging?: boolean }>`
+  opacity: ${({ dragging }) => (dragging ? 0.35 : 1)};
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 `;
 const TodoList = styled.div`
   display: grid;
