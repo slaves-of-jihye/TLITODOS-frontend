@@ -2861,18 +2861,17 @@
       "BetCreateRequest": {
         "type": "object",
         "required": [
-          "content",
-          "requesterId"
+          "content"
         ],
         "properties": {
           "content": {
             "type": "string",
-            "minLength": 1
-          },
-          "requesterId": {
-            "type": "integer"
+            "minLength": 1,
+            "maxLength": 1000,
+            "description": "What the two of them are betting on. The requester comes from the access token."
           }
-        }
+        },
+        "additionalProperties": false
       },
       "BetProofResponse": {
         "type": "object",

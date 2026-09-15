@@ -37,6 +37,7 @@ import {
   useUpdateTodo,
 } from "@tlitodos/hooks";
 import type {
+  Bet,
   AppNotification,
   Category,
   Diary,
@@ -71,6 +72,8 @@ import { useTodoCompletion } from "./app/useTodoCompletion";
 import { useTodoDrag } from "./app/useTodoDrag";
 import {
   CalendarPanel,
+  BetReceivedModal,
+  BetRequestModal,
   CategoryManageModal,
   CategorySection,
   DependencyBlockModal,
@@ -144,6 +147,8 @@ const TodoWorkspace = ({
   const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
+  /** 내기를 걸려고 고른 남의 할 일. */
+  const [betTodo, setBetTodo] = useState<Todo | null>(null);
   /** 끌어 옮기는 중인 할 일의 새 카테고리. 서버가 답하기 전에도 옮겨 둡니다. */
   const [movedCategories, setMovedCategories] = useState<Record<number, number>>({});
   const [moveError, setMoveError] = useState("");
@@ -276,6 +281,7 @@ const TodoWorkspace = ({
                   onManage={setManage}
                   onToggle={handleToggle}
                   onEdit={setDetailTodo}
+                  onBet={own ? undefined : setBetTodo}
                   drag={own ? drag : undefined}
                 />
               ))}
@@ -304,6 +310,13 @@ const TodoWorkspace = ({
         onClose={() => setManage(null)}
       />
       <DependencyBlockModal todos={blocked} open={blocked.length > 0} onClose={() => setBlocked([])} />
+      <BetRequestModal
+        key={betTodo?.todoId ?? 0}
+        todo={betTodo}
+        ownerName={ownerName || "친구"}
+        open={betTodo !== null}
+        onClose={() => setBetTodo(null)}
+      />
       {/* 끌고 있는 동안 손끝을 따라다니는 쪽지. 포인터를 가리지 않게 오른쪽 아래로 비켜 둡니다. */}
       {drag.preview ? (
         <DragPreview style={{ left: drag.preview.x, top: drag.preview.y }}>{drag.preview.title}</DragPreview>
@@ -401,7 +414,7 @@ export const GroupHome = () => {
 const ALARM_FILTERS = [
   { key: "TODO_COMPLETED", label: "친구의 할 일 완료" },
   { key: "DIARY_CREATED", label: "친구의 일기" },
-  // { key: "BET_REQUESTED", label: "친구의 내기 요청" },
+  { key: "BET_REQUESTED", label: "친구의 내기 요청" },
 ] as const;
 
 /** 알림 한 줄에 쓰는 문구. 종류마다 다릅니다. */
@@ -409,13 +422,15 @@ const alarmSentence = (item: AppNotification) => {
   const who = item.actor.name || "친구";
   if (item.type === "TODO_COMPLETED") return `${who}님이 "${item.todo?.title ?? "할 일"}"을 완료했어요.`;
   if (item.type === "DIARY_CREATED") return `${who}님이 일기를 남겼어요.`;
-  return `${who}님이 내기를 요청했어요.`;
+  return `${who}님이 나의 할 일에 내기를 요청했어요.`;
 };
 
 export const AlarmPage = () => {
   const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
   /** 열어 둔 일기. 알림에 딸려 온 작성자 이름은 일기 응답에 없어 함께 들고 있습니다. */
   const [openDiary, setOpenDiary] = useState<{ diaryId: number; actor: string } | null>(null);
+  /** 열어 둔 내기. 알림이 내기를 통째로 담아 오므로 따로 받아 올 것이 없습니다. */
+  const [openBet, setOpenBet] = useState<{ bet: Bet; actor: string } | null>(null);
   const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
   const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
   const markRead = useMarkNotificationRead();
@@ -456,12 +471,21 @@ export const AlarmPage = () => {
                   if (item.type === "DIARY_CREATED" && item.diaryId !== null) {
                     setOpenDiary({ diaryId: item.diaryId, actor: item.actor.name || "친구" });
                   }
+                  // 내기 알림은 수락/거절을 그 자리에서 정합니다.
+                  if (item.type === "BET_REQUESTED" && item.bet) {
+                    setOpenBet({ bet: item.bet, actor: item.actor.name || "친구" });
+                  }
                 }}
               >
                 <ActorAvatar url={item.actor.profileImageUrl} />
                 <div>
                   <strong>{alarmSentence(item)}</strong>
-                  {item.todo?.description ? <small>{item.todo.description}</small> : null}
+                  {/* 내기는 무엇을 걸었는지가 먼저입니다. 나머지는 할 일의 세부사항을 둡니다. */}
+                  {item.bet ? (
+                    <small>{item.bet.content}</small>
+                  ) : item.todo?.description ? (
+                    <small>{item.todo.description}</small>
+                  ) : null}
                 </div>
                 {item.readAt === null ? <AlarmDot aria-label="읽지 않음" /> : null}
               </AlarmRow>
@@ -479,6 +503,13 @@ export const AlarmPage = () => {
       {openDiary ? (
         <DiaryViewModal diaryId={openDiary.diaryId} author={openDiary.actor} onClose={() => setOpenDiary(null)} />
       ) : null}
+      <BetReceivedModal
+        key={openBet?.bet.betId ?? 0}
+        bet={openBet?.bet ?? null}
+        requesterName={openBet?.actor ?? "친구"}
+        open={openBet !== null}
+        onClose={() => setOpenBet(null)}
+      />
       <PageNav active="alarm" />
     </AppShell>
   );

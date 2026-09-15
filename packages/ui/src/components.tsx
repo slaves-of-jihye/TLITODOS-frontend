@@ -388,43 +388,72 @@ export const TodoRow = ({
   own,
   onToggle,
   onEdit,
+  onBet,
 }: {
   todo: Todo;
   accent: string;
   own: boolean;
   onToggle?: () => void;
   onEdit?: () => void;
+  /** 남의 할 일에 내기를 걸 때. 넘기지 않으면 덮개를 띄우지 않습니다. */
+  onBet?: () => void;
 }) => {
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
   const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
-    <TodoItem>
+    <TodoItem interactive={own}>
       <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
         <StatusCluster fills={fills} checked={todo.isCompleted} />
       </CheckButton>
-      <TodoTextButton disabled={!own} onClick={onEdit}>
+      {/*
+       * 남의 할 일에서는 줄 자체가 내기 요청으로 이어집니다.
+       *
+       * 디자인은 손을 올렸을 때 덮개를 띄우지만, 손가락에는 hover가 없어 그
+       * 길밖에 없습니다. 마우스로는 덮개가 먼저 덮여 있어 이 버튼까지 닿지
+       * 않으니 두 길이 겹치지 않습니다.
+       */}
+      <TodoTextButton disabled={own ? !onEdit : !onBet} onClick={own ? onEdit : onBet}>
         <strong>{todo.title}</strong>
         {detail ? <small>{detail}</small> : null}
       </TodoTextButton>
-      {!own && !todo.isCompleted ? (
-        <BetOverlay type="button" disabled title="내기 기능은 MVP 이후 제공됩니다.">
+      {/* 남의 할 일에만, 아직 끝나지 않은 것에만 덮개가 올라옵니다. */}
+      {!own && !todo.isCompleted && onBet ? (
+        <BetOverlay type="button" onClick={onBet}>
           내기 요청하기
         </BetOverlay>
       ) : null}
     </TodoItem>
   );
 };
-const TodoItem = styled.div`
+const TodoItem = styled.div<{ interactive: boolean }>`
   position: relative;
   display: flex;
   align-items: flex-start;
   gap: 12px;
   padding: 6px 8px;
   border-radius: ${theme.radius.sm};
+  transition: background 0.16s ease;
   &:hover > button:last-child:not(:disabled) {
     opacity: 1;
   }
+  /*
+   * 손을 올린 줄에만 옅은 바탕을 깝니다. 흰 바탕에서 한 단 어두운 gray/100이고,
+   * 이름표가 gray/200 -> gray/300으로 가는 것과 같은 한 걸음입니다.
+   *
+   * 누를 수 있는 줄에만 줍니다 — 읽기 전용인 남의 줄까지 반응하면 누를 수 있다고
+   * 잘못 알려 줍니다. 손을 올릴 수 없는 기기에서는 두지 않습니다: 한 번 누르면
+   * 손을 뗀 뒤에도 hover가 남습니다.
+   */
+  ${({ interactive }) =>
+    interactive &&
+    css`
+      ${hoverable} {
+        &:hover {
+          background: ${theme.colors.panel};
+        }
+      }
+    `}
   @media (max-width: 600px) {
     padding: 8px 6px;
   }
