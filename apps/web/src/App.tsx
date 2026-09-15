@@ -1,7 +1,8 @@
 import { HashRouter, Route, Routes } from "react-router-dom";
-import { FontSync } from "@/app/FontSync";
+import { FontSync } from "@/features/font-select";
 import { useSessionStore } from "@/shared/model";
-import { InstallPrompt, LoginModal } from "./components";
+import { LoginModal } from "@/features/auth-google";
+import { InstallPrompt } from "@/features/pwa-install";
 import { AlarmPage, DiaryPage, GroupHome, MyHome, NotFoundPage, ProfilePage, ServerBusyBar } from "./screens";
 
 function App() {

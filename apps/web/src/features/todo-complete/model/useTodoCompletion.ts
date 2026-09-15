@@ -1,7 +1,6 @@
-import { unresolvedDependencies } from "@tlitodos/core";
-import { useCompleteTodo, useUncompleteTodo } from "@tlitodos/hooks";
-import type { Todo } from "@tlitodos/types";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Todo } from "@/shared/api";
+import { unresolvedDependencies, useCompleteTodo, useUncompleteTodo } from "@/entities/todo";
 
 /**
  * 체크박스는 즉시 반응하되 서버 호출은 미뤄 두는 완료/해제 토글.

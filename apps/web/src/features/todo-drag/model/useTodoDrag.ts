@@ -1,5 +1,5 @@
-import type { Todo } from "@tlitodos/types";
 import { useCallback, useState, type PointerEvent as ReactPointerEvent } from "react";
+import type { Todo } from "@/shared/api";
 
 /** 손가락으로 끌기 시작하기까지 누르고 있어야 하는 시간. 그 전에 움직이면 목록을 굴리는 것으로 봅니다. */
 const HOLD_MS = 250;

@@ -6,6 +6,8 @@
  * 지나가게 합니다 — 도메인마다 필요한 것만 각 엔티티의 api 조각이 다시 좁혀 내보내고,
  * 어느 레이어가 무엇을 쓰는지 여기 한 곳에서 보입니다.
  */
+/* 서버가 주고받는 말의 어휘입니다. 위층은 이 자리를 통해서만 봅니다. */
+export type * from "@tlitodos/types";
 export { ApiError, createApiClient } from "@tlitodos/api-client";
 export type { ApiClient, ApiClientOptions } from "@tlitodos/api-client";
 export { ApiProvider, useApi, queryKeys, useServerBusy } from "@tlitodos/hooks";

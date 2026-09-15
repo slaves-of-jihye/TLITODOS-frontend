@@ -1,10 +1,8 @@
 import { Global } from "@emotion/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createApiClient } from "@tlitodos/api-client";
-import { ApiProvider } from "@tlitodos/hooks";
-import { globalStyles } from "@tlitodos/ui";
+import { ApiProvider, apiBaseUrl, createApiClient } from "@/shared/api";
+import { globalStyles } from "@/shared/ui";
 import { useMemo, type ReactNode } from "react";
-import { apiBaseUrl } from "@/shared/api";
 import { useSessionStore } from "@/shared/model";
 
 const queryClient = new QueryClient({

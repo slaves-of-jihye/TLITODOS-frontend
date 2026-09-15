@@ -1,44 +1,7 @@
 import styled from "@emotion/styled";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  CATEGORY_SWATCHES,
-  buildDailyStatuses,
-  categoryAccent,
-  FONT_PRESETS,
-  fontFamilyStack,
-  formatLocalDate,
-  diaryDate,
-  formatLongKoreanDate,
-  isDiaryForDate,
-  monthKey,
-  resolveFont,
-  sortCategories,
-  sortTodos,
-  todosForDate,
-  type FontKey,
-} from "@tlitodos/core";
-import {
-  useApi,
-  useCategories,
-  useCreateTodo,
-  useDailyTodoStatuses,
-  useDiaries,
-  useDiary,
-  useGroup,
-  useMarkNotificationRead,
-  useMe,
-  useNotificationUnreadStatus,
-  useNotifications,
-  useDeleteDiary,
-  useRefillTodos,
-  useSaveDiary,
-  useServerBusy,
-  useTodos,
-  useUpdateCategory,
-  useUpdateFont,
-  useUpdateProfile,
-  useUpdateTodo,
-} from "@tlitodos/hooks";
 import type {
   Bet,
   Category,
@@ -48,32 +11,10 @@ import type {
   NotificationType,
   Todo,
   UiVisibility,
-} from "@tlitodos/types";
-import {
-  AppShell,
-  BottomNav,
-  BusyBar,
-  Button,
-  CategoryPill,
-  ConfirmChoice,
-  ConfirmMenu,
-  ConfirmNote,
-  DiaryBadge,
-  ErrorText,
-  Glyph,
-  icons,
-  Modal,
-  palette,
-  Skeleton,
-  SrOnly,
-  theme,
-} from "@tlitodos/ui";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useAssetObjectUrl } from "@/shared/api";
-import { EmptyState, HiddenFileInput, PageTitle } from "@/shared/ui";
-import { DiaryDivider, DiaryPhoto } from "@/entities/diary";
-import { TodoColumnSkeleton } from "@/entities/todo";
+} from "@/shared/api";
+import { sortCategories, useCategories } from "@/entities/category";
+import { DiaryPhoto, isDiaryForDate, useDeleteDiary, useDiaries, useSaveDiary } from "@/entities/diary";
+import { useGroup } from "@/entities/group";
 import {
   ALARM_FILTERS,
   ActorAvatar,
@@ -82,23 +23,70 @@ import {
   AlarmList,
   AlarmListSkeleton,
   AlarmRow,
-  alarmSentence,
   UnreadDot,
+  alarmSentence,
+  useMarkNotificationRead,
+  useNotificationUnreadStatus,
+  useNotifications,
 } from "@/entities/notification";
-import { applyFont, readStoredFont } from "@/shared/lib";
+import {
+  TodoColumnSkeleton,
+  buildDailyStatuses,
+  sortTodos,
+  todosForDate,
+  useCreateTodo,
+  useDailyTodoStatuses,
+  useRefillTodos,
+  useTodos,
+  useUpdateTodo,
+} from "@/entities/todo";
+import { resolveFont, useMe, useUpdateFont, useUpdateProfile } from "@/entities/user";
+import { BetReceivedModal } from "@/features/bet-answer";
+import { BetRequestModal } from "@/features/bet-request";
+import { CategoryColorSection } from "@/features/category-color";
+import { CategoryManageModal } from "@/features/category-rename";
+import { DiaryViewModal } from "@/features/diary-view";
+import { FontProfileRow } from "@/features/font-select";
+import { GroupInviteModal } from "@/features/group-invite";
+import { GroupActionModals } from "@/features/group-join";
+import { GroupInfoModal } from "@/features/group-settings";
+import {
+  BIO_LIMIT,
+  EditableProfileRow,
+  MAX_PROFILE_IMAGE_BYTES,
+  NAME_LIMIT,
+  PhotoRow,
+  ProfileImageAction,
+} from "@/features/profile-edit";
+import { DependencyBlockModal, useTodoCompletion } from "@/features/todo-complete";
+import { useTodoDrag } from "@/features/todo-drag";
+import { useApi, useAssetObjectUrl, useServerBusy } from "@/shared/api";
+import { formatLocalDate, formatLongKoreanDate, monthKey, readStoredFont } from "@/shared/lib";
 import { useSessionStore } from "@/shared/model";
-import { useTodoCompletion } from "@/app/useTodoCompletion";
-import { useTodoDrag } from "@/app/useTodoDrag";
+import {
+  AppShell,
+  BottomNav,
+  BusyBar,
+  Button,
+  ConfirmChoice,
+  ConfirmMenu,
+  ConfirmNote,
+  DiaryBadge,
+  EmptyState,
+  ErrorText,
+  FieldBlock,
+  FieldLabel,
+  HiddenFileInput,
+  PageTitle,
+  Skeleton,
+  SrOnly,
+  icons,
+  palette,
+  theme,
+} from "@/shared/ui";
 import {
   CalendarPanel,
-  BetReceivedModal,
-  BetRequestModal,
-  CategoryManageModal,
   CategorySection,
-  DependencyBlockModal,
-  GroupActionModals,
-  GroupInfoModal,
-  GroupInviteModal,
   GroupTopBar,
   MemberTabs,
   TodoDetailModal,
@@ -581,70 +569,6 @@ export const AlarmPage = () => {
   );
 };
 
-/**
- * 일기 보기 시트.
- *
- * 달력에서 열든 알림에서 열든 같은 시트입니다. 달력 쪽은 이미 받아 둔 일기를
- * 그대로 넘기고, 알림 쪽은 목록에 `diaryId`만 있으므로 열 때 받아 옵니다 — 둘 중
- * 하나만 넘깁니다. 볼 수 없는 일기면 서버가 막고 그 메시지를 그대로 보여 줍니다.
- */
-const DiaryViewModal = ({
-  diary,
-  diaryId,
-  author,
-  onClose,
-}: {
-  /** 손에 이미 있는 일기. */
-  diary?: Diary | null;
-  /** 아직 내용이 없을 때 받아 올 id. */
-  diaryId?: number | null;
-  author: string;
-  onClose: () => void;
-}) => {
-  const fetched = useDiary(diary ? null : (diaryId ?? null));
-  const shown = diary ?? fetched.data ?? null;
-  // 일기 사진도 `/uploads`라 토큰이 필요합니다.
-  const image = useAssetObjectUrl(shown?.imageUrl ?? null);
-  return (
-    <Modal open sheet onClose={onClose} aria-label="일기">
-      <DiaryPreview>
-        <DiaryPreviewTitle>{author}님의 일기</DiaryPreviewTitle>
-        {fetched.error ? (
-          <ErrorText>{message(fetched.error)}</ErrorText>
-        ) : !shown ? (
-          <DiarySkeleton />
-        ) : (
-          <>
-            <DiaryBadge emotion={shown.emotion} nickname={author} date={formatLongKoreanDate(diaryDate(shown) ?? "")} />
-            {shown.imageUrl ? (
-              <>
-                {image ? <DiaryPhoto src={image} alt="" /> : null}
-                {/* 사진 칸과 본문 칸을 가릅니다. */}
-                <DiaryDivider aria-hidden />
-              </>
-            ) : null}
-            <p>{shown.content}</p>
-          </>
-        )}
-      </DiaryPreview>
-    </Modal>
-  );
-};
-const DiarySkeleton = () => (
-  <DiaryLines role="status">
-    <SrOnly>일기를 불러오는 중</SrOnly>
-    <Skeleton width="140px" height="36px" radius={theme.radius.pill} />
-    {["100%", "92%", "76%"].map(width => (
-      <Skeleton key={width} width={width} height="20px" />
-    ))}
-  </DiaryLines>
-);
-const DiaryLines = styled.div`
-  display: grid;
-  gap: 12px;
-  width: 100%;
-`;
-
 const AlarmColumn = styled.div`
   display: grid;
   gap: 32px;
@@ -682,412 +606,6 @@ const AlarmFilter = styled.button<{ selected: boolean }>`
   background: ${({ selected }) => (selected ? palette.black : palette.gray200)};
   color: ${({ selected }) => (selected ? palette.white : theme.colors.ink)};
 `;
-const BIO_LIMIT = 30;
-const NAME_LIMIT = 20;
-
-/**
- * 라벨 + 회색 입력칸 한 줄.
- *
- * 보기 상태에서는 칸 전체가 편집 진입 버튼이고, 편집 상태에서는 칸 안에서
- * 입력하고 오른쪽 취소/확인으로 끝냅니다. Enter로는 저장하지 않습니다.
- */
-const EditableProfileRow = ({
-  label,
-  value,
-  placeholder,
-  limit,
-  onSave,
-}: {
-  label: string;
-  value: string;
-  placeholder: string;
-  limit: number;
-  onSave: (next: string) => Promise<void>;
-}) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [busy, setBusy] = useState(false);
-  const finish = async () => {
-    setBusy(true);
-    try {
-      await onSave(draft.trim());
-      setEditing(false);
-    } catch {
-      /* 오류 문구는 프로필 화면에서 표시합니다. */
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <FieldBlock>
-      <FieldLabel>{label}</FieldLabel>
-      {editing ? (
-        <FieldRow>
-          <FieldBox as="div">
-            <input
-              autoFocus
-              value={draft}
-              maxLength={limit}
-              placeholder={placeholder}
-              onKeyDown={event => {
-                if (event.key === "Enter") event.preventDefault();
-              }}
-              onChange={event => setDraft(event.target.value)}
-            />
-            <FieldCounter>
-              {draft.length}/{limit}
-            </FieldCounter>
-          </FieldBox>
-          <FieldActions>
-            <Button
-              onClick={() => {
-                setDraft(value);
-                setEditing(false);
-              }}
-            >
-              취소
-            </Button>
-            <Button variant="primary" disabled={busy} onClick={finish}>
-              확인
-            </Button>
-          </FieldActions>
-        </FieldRow>
-      ) : (
-        <FieldBox
-          onClick={() => {
-            setDraft(value);
-            setEditing(true);
-          }}
-        >
-          <FieldValue data-empty={!value}>{value || placeholder}</FieldValue>
-          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
-        </FieldBox>
-      )}
-    </FieldBlock>
-  );
-};
-
-/** 서버가 5MB를 넘기면 거절하므로, 올리기 전에 같은 기준으로 막습니다. */
-const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
-
-/**
- * 프로필 사진 교체.
- *
- * 파일 선택창은 숨긴 `input`으로 열고, 고른 파일을 바로 올립니다. 사진은 되돌릴
- * 초안이 없어 이름·자기소개와 달리 완료 버튼 없이 곧장 저장합니다.
- */
-const ProfileImageAction = ({ onPick }: { onPick: (file: File) => Promise<void> }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <Button disabled={busy} onClick={() => inputRef.current?.click()}>
-        {busy ? "올리는 중..." : "프로필 사진 수정하기"}
-      </Button>
-      <HiddenFileInput
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        onChange={async event => {
-          const file = event.target.files?.[0];
-          // 같은 파일을 다시 골라도 change가 오도록 값을 비웁니다.
-          event.target.value = "";
-          if (!file) return;
-          setBusy(true);
-          try {
-            await onPick(file);
-          } catch {
-            /* 오류 문구는 프로필 화면에서 표시합니다. */
-          } finally {
-            setBusy(false);
-          }
-        }}
-      />
-    </>
-  );
-};
-
-/**
- * 폰트 목록.
- *
- * 네이티브 `select`를 쓰지 않는 이유는 macOS와 iOS가 드롭다운을 OS로 그려
- * `option`의 `font-family`를 무시하기 때문입니다. 폰트를 고르는 자리에서 폰트를
- * 보여주려면 목록을 직접 그려야 합니다.
- *
- * 목록을 여는 순간 여섯 벌을 모두 내려받습니다(배포 환경 brotli 기준 약 3.5MB).
- * 선택이 아니라 열람에 드는 비용이라, 편집에 들어갈 때가 아니라 목록을 펼칠 때
- * 발생하도록 두었습니다.
- */
-const LIST_MAX_HEIGHT = 264;
-const LIST_GAP = 6;
-const LIST_EDGE_MARGIN = 12;
-
-const FontSelect = ({ value, onChange }: { value: FontKey; onChange: (next: FontKey) => void }) => {
-  const [open, setOpen] = useState(false);
-  // 키보드 이동 중인 항목. 선택과 달리 미리보기를 바꾸지 않습니다.
-  const [active, setActive] = useState<FontKey>(value);
-  // 남는 쪽으로 펼치고, 그래도 모자라면 그 높이에 맞춥니다.
-  const [placement, setPlacement] = useState({ drop: "down" as "down" | "up", maxHeight: LIST_MAX_HEIGHT });
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  const close = (focusTrigger = true) => {
-    setOpen(false);
-    if (focusTrigger) triggerRef.current?.focus();
-  };
-  const choose = (next: FontKey) => {
-    onChange(next);
-    setActive(next);
-    close();
-  };
-  const show = () => {
-    setActive(value);
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      // 목록과 트리거 사이 간격, 화면 가장자리 여백을 뺀 실제로 쓸 수 있는 높이입니다.
-      const room = (edge: number) => edge - LIST_GAP - LIST_EDGE_MARGIN;
-      const below = room(window.innerHeight - rect.bottom);
-      const above = room(rect.top);
-      const drop = below < LIST_MAX_HEIGHT && above > below ? "up" : "down";
-      setPlacement({ drop, maxHeight: Math.min(LIST_MAX_HEIGHT, Math.max(120, drop === "up" ? above : below)) });
-    }
-    setOpen(true);
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    listRef.current?.focus();
-    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
-  }, [open]);
-  // 바깥을 누르면 닫습니다. 포커스는 누른 곳에 두는 편이 자연스러워 되돌리지 않습니다.
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
-
-  const move = (step: number) => {
-    const index = FONT_PRESETS.findIndex(preset => preset.key === active);
-    const next = FONT_PRESETS[Math.min(FONT_PRESETS.length - 1, Math.max(0, index + step))];
-    if (next) setActive(next.key);
-  };
-  // 키보드로 이동한 항목이 목록 밖으로 나가지 않게 합니다.
-  useEffect(() => {
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
-  }, [active]);
-  const onKeyDown = (event: ReactKeyboardEvent) => {
-    const keys: Record<string, () => void> = {
-      ArrowDown: () => move(1),
-      ArrowUp: () => move(-1),
-      Home: () => setActive(FONT_PRESETS[0].key),
-      End: () => setActive(FONT_PRESETS[FONT_PRESETS.length - 1].key),
-      Enter: () => choose(active),
-      " ": () => choose(active),
-      Escape: () => close(),
-      Tab: () => close(false),
-    };
-    const handler = keys[event.key];
-    if (!handler) return;
-    if (event.key !== "Tab") event.preventDefault();
-    handler();
-  };
-
-  return (
-    <FontSelectRoot ref={rootRef}>
-      <FontSelectTrigger
-        ref={triggerRef}
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        style={{ fontFamily: fontFamilyStack(value) }}
-        onClick={() => (open ? close() : show())}
-        onKeyDown={event => {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            show();
-          }
-        }}
-      >
-        <span>{resolveFont(value).label}</span>
-        <FontSelectCaret aria-hidden>
-          <img src={icons.arrowUp} alt="" />
-        </FontSelectCaret>
-      </FontSelectTrigger>
-      {open ? (
-        <FontOptionList
-          ref={listRef}
-          role="listbox"
-          aria-label="폰트"
-          tabIndex={-1}
-          data-drop={placement.drop}
-          style={{ maxHeight: placement.maxHeight }}
-          onKeyDown={onKeyDown}
-        >
-          {FONT_PRESETS.map(preset => (
-            <FontOption
-              key={preset.key}
-              type="button"
-              role="option"
-              aria-selected={preset.key === value}
-              data-active={preset.key === active}
-              tabIndex={-1}
-              style={{ fontFamily: fontFamilyStack(preset.key) }}
-              onPointerEnter={() => setActive(preset.key)}
-              onClick={() => choose(preset.key)}
-            >
-              <span>{preset.label}</span>
-              {preset.key === value ? (
-                <FontOptionCheck aria-hidden>
-                  <Glyph>✓</Glyph>
-                </FontOptionCheck>
-              ) : null}
-            </FontOption>
-          ))}
-        </FontOptionList>
-      ) : null}
-    </FontSelectRoot>
-  );
-};
-
-/**
- * 폰트 선택 행.
- *
- * 고른 폰트는 화면 전체에 즉시 반영되지만 저장은 완료 버튼으로만 합니다.
- * 취소하거나 편집 도중 페이지를 벗어나면 직전 선택으로 되돌립니다.
- */
-const FontProfileRow = ({ value, onSave }: { value: FontKey; onSave: (next: FontKey) => Promise<void> }) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<FontKey>(value);
-  const [busy, setBusy] = useState(false);
-  const revert = () => {
-    setDraft(value);
-    applyFont(value);
-    setEditing(false);
-  };
-  // 언마운트 시점의 확정값이 필요해 참조로 들고 있습니다.
-  const committed = useRef(value);
-  useEffect(() => {
-    committed.current = value;
-  }, [value]);
-  // 저장하지 않은 미리보기를 들고 다른 화면으로 넘어가지 않게 합니다.
-  useEffect(() => () => void applyFont(committed.current), []);
-  const finish = async () => {
-    setBusy(true);
-    try {
-      await onSave(draft);
-      applyFont(draft);
-      setEditing(false);
-    } catch {
-      /* 미리보기와 편집 상태를 유지해 다시 시도하거나 취소할 수 있게 둡니다. */
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <FieldBlock>
-      <FieldLabel>폰트 설정</FieldLabel>
-      {editing ? (
-        <FieldRow>
-          <FontSelect
-            value={draft}
-            onChange={next => {
-              setDraft(next);
-              applyFont(next, { persist: false });
-            }}
-          />
-          <FieldActions>
-            <Button onClick={revert}>취소</Button>
-            <Button variant="primary" disabled={busy} onClick={finish}>
-              확인
-            </Button>
-          </FieldActions>
-        </FieldRow>
-      ) : (
-        <FieldBox
-          style={{ fontFamily: fontFamilyStack(value) }}
-          onClick={() => {
-            setDraft(value);
-            setEditing(true);
-          }}
-        >
-          <FieldValue>{resolveFont(value).label}</FieldValue>
-          <FieldChevron src={icons.arrowUp} alt="" aria-hidden />
-        </FieldBox>
-      )}
-    </FieldBlock>
-  );
-};
-
-/**
- * 카테고리 색 바꾸기.
- *
- * 한 번에 한 카테고리만 펼쳐 팔레트를 보여줍니다. 색을 고르면 바로 저장합니다 —
- * 되돌릴 초안이 없어 이름·자기소개와 달리 확인 버튼을 두지 않았습니다.
- */
-const CategoryColorSection = ({ onError }: { onError: (message: string) => void }) => {
-  const { data: categories = [] } = useCategories();
-  const sorted = useMemo(() => sortCategories(categories), [categories]);
-  const update = useUpdateCategory();
-  const [openId, setOpenId] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-  const choose = async (category: Category, color: string) => {
-    setBusy(true);
-    onError("");
-    try {
-      await update.mutateAsync({ id: category.categoryId, body: { name: category.name, color } });
-      setOpenId(null);
-    } catch (reason) {
-      onError(message(reason));
-    } finally {
-      setBusy(false);
-    }
-  };
-  if (!sorted.length) return null;
-  return (
-    <ColorSection>
-      <FieldLabel as="h2">카테고리 색상 변경</FieldLabel>
-      {sorted.map((category, index) => {
-        const accent = categoryAccent(category.color, index);
-        const open = openId === category.categoryId;
-        return (
-          <div key={category.categoryId}>
-            <ColorRow>
-              <CategoryPill name={category.name} accent={accent} own={false} />
-              <ColorEditButton
-                open={open}
-                aria-expanded={open}
-                onClick={() => setOpenId(open ? null : category.categoryId)}
-              >
-                <ColorDot style={{ background: accent }} />
-                <span>색상 편집</span>
-                <Glyph>›</Glyph>
-              </ColorEditButton>
-            </ColorRow>
-            {open ? (
-              <SwatchGrid role="group" aria-label={`${category.name} 색상`}>
-                {CATEGORY_SWATCHES.map(color => (
-                  <Swatch
-                    key={color}
-                    type="button"
-                    aria-label={color}
-                    aria-pressed={color.toLowerCase() === accent.toLowerCase()}
-                    disabled={busy}
-                    style={{ background: color }}
-                    onClick={() => choose(category, color)}
-                  />
-                ))}
-              </SwatchGrid>
-            ) : null}
-          </div>
-        );
-      })}
-    </ColorSection>
-  );
-};
 
 export const ProfilePage = () => {
   const { data: me } = useMe();
@@ -1524,22 +1042,6 @@ const CategoryBoard = styled.div`
     gap: 28px;
   }
 `;
-const DiaryPreview = styled.div`
-  display: grid;
-  gap: 20px;
-  justify-items: start;
-  p {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-`;
-const DiaryPreviewTitle = styled.p`
-  margin: 0;
-  width: 100%;
-  text-align: center;
-  font-size: ${theme.text.h2};
-  color: ${theme.colors.ink};
-`;
 const ProfileTitle = styled.h1`
   margin: 0 0 40px;
   font-size: ${theme.text.h1};
@@ -1554,231 +1056,11 @@ const ProfileColumns = styled.div`
     gap: 40px;
   }
 `;
-const ColorSection = styled.section`
-  display: grid;
-  gap: 20px;
-  padding: 0 20px;
-  @media (min-width: 901px) {
-    /* 디자인에서는 왼쪽 단의 이름 칸 높이에 맞춰 시작합니다. */
-    margin-top: 113px;
-  }
-`;
-const ColorRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-`;
-const ColorEditButton = styled.button<{ open: boolean }>`
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  flex: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  font-size: 18px;
-  color: ${({ open }) => (open ? theme.colors.ink : theme.colors.muted)};
-`;
-const ColorDot = styled.span`
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  flex: none;
-`;
-const SwatchGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(6, 28px);
-  gap: 22px;
-  justify-content: center;
-  margin: 22px 0;
-`;
-const Swatch = styled.button`
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 50%;
-  padding: 0;
-  &[aria-pressed="true"] {
-    box-shadow:
-      0 0 0 3px ${theme.colors.white},
-      0 0 0 5px ${theme.colors.ink};
-  }
-  &:disabled {
-    cursor: progress;
-  }
-`;
 const ProfilePanel = styled.div`
   display: grid;
   justify-items: start;
   gap: 20px;
   max-width: 560px;
-`;
-const FieldBlock = styled.div`
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  padding: 0 20px;
-`;
-const FieldLabel = styled.small`
-  font-size: ${theme.text.h3};
-  color: ${theme.colors.ink};
-`;
-const FieldRow = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-`;
-/** 닫힌 줄과 편집 중인 줄이 같은 너비여야 눌렀을 때 칸이 흔들리지 않습니다. */
-const FIELD_WIDTH = "min(340px, 100%)";
-const FieldBox = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: ${FIELD_WIDTH};
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.panel};
-  padding: 12px 20px;
-  text-align: left;
-  color: ${theme.colors.ink};
-  font-size: ${theme.text.s};
-  input {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    background: transparent;
-    padding: 0;
-    color: inherit;
-    &::placeholder {
-      color: ${theme.colors.muted};
-    }
-  }
-`;
-/**
- * 칸을 채우는 값입니다.
- *
- * `FieldBox > span`으로 늘리면 글자 수 카운터까지 같이 늘어나 칸을 반씩 나눠
- * 가집니다. 늘어나는 쪽만 따로 두고, 카운터는 글자 폭만 차지하게 둡니다.
- */
-const FieldValue = styled.span`
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  /* 아직 입력하지 않은 값은 자리표시자처럼 보이게 둡니다. */
-  &[data-empty="true"] {
-    color: ${theme.colors.muted};
-  }
-`;
-const FieldCounter = styled.span`
-  flex: none;
-  color: ${theme.colors.muted};
-`;
-const FieldChevron = styled.img`
-  flex: none;
-  width: 20px;
-  height: 20px;
-  transform: rotate(90deg);
-`;
-const FieldActions = styled.div`
-  display: flex;
-  gap: 6px;
-  flex: none;
-`;
-const PhotoRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  img,
-  > span {
-    flex: none;
-    width: 100px;
-    height: 100px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    object-fit: cover;
-    background: ${theme.colors.panel};
-    font-size: 44px;
-  }
-  @media (max-width: 600px) {
-    gap: 18px;
-    img,
-    > span {
-      width: 80px;
-      height: 80px;
-      font-size: 34px;
-    }
-  }
-`;
-const FontSelectRoot = styled.div`
-  position: relative;
-  width: ${FIELD_WIDTH};
-`;
-const FontSelectTrigger = styled.button`
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: ${theme.colors.panel};
-  padding: 12px 20px;
-  text-align: left;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-`;
-const FontSelectCaret = styled.span`
-  display: grid;
-  place-items: center;
-  img {
-    width: 20px;
-    height: 20px;
-    transform: rotate(180deg);
-  }
-`;
-const FontOptionList = styled.div`
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + ${LIST_GAP}px);
-  left: 0;
-  right: 0;
-  &[data-drop="up"] {
-    top: auto;
-    bottom: calc(100% + ${LIST_GAP}px);
-  }
-  overflow-y: auto;
-  display: grid;
-  gap: 2px;
-  padding: 0;
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.panel};
-  border-radius: ${theme.radius.sm};
-  box-shadow: ${theme.shadow};
-`;
-const FontOption = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  border: 0;
-  border-radius: ${theme.radius.sm};
-  background: transparent;
-  padding: 8px 20px;
-  text-align: left;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-  &[data-active="true"],
-  &[aria-selected="true"] {
-    background: ${theme.colors.panel};
-  }
-`;
-const FontOptionCheck = styled.span`
-  color: ${theme.colors.blue};
-  font-size: 14px;
 `;
 const LogoutButton = styled.button`
   margin-top: 28px;

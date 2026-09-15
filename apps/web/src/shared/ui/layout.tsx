@@ -17,3 +17,7 @@ export const PageTitle = styled.h1`
 export const HiddenFileInput = styled.input`
   display: none;
 `;
+
+export const DetailEmpty = styled.small`
+  color: ${theme.colors.muted};
+`;
