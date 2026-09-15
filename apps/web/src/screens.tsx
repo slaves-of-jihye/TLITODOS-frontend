@@ -29,7 +29,9 @@ import {
   useMe,
   useNotifications,
   useDeleteDiary,
+  useRefillTodos,
   useSaveDiary,
+  useServerBusy,
   useTodos,
   useUpdateCategory,
   useUpdateFont,
@@ -50,6 +52,7 @@ import type {
 import {
   AppShell,
   BottomNav,
+  BusyBar,
   Button,
   CategoryPill,
   ConfirmChoice,
@@ -61,6 +64,8 @@ import {
   icons,
   Modal,
   palette,
+  Skeleton,
+  SrOnly,
   theme,
 } from "@tlitodos/ui";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
@@ -82,6 +87,7 @@ import {
   GroupInviteModal,
   GroupTopBar,
   MemberTabs,
+  TodoColumnSkeleton,
   TodoDetailModal,
   WorkspaceHeader,
 } from "./components";
@@ -92,6 +98,15 @@ const useHeaderModal = () => {
   const [mode, setMode] = useState<"create" | "join" | null>(null);
   return { mode, openCreate: () => setMode("create"), openJoin: () => setMode("join"), close: () => setMode(null) };
 };
+
+/**
+ * 화면 맨 위에 걸리는 진행 줄.
+ *
+ * 저장·삭제 같은 쓰기는 끝나도 목록을 뒤에서 다시 받아 옵니다. 그 왕복까지가
+ * 사용자가 기다리는 시간이므로 쓰기와 읽기를 가리지 않고 하나로 켭니다. 어느
+ * 화면에서 무엇을 하든 자리가 같도록 한 군데서만 답니다.
+ */
+export const ServerBusyBar = () => <BusyBar busy={useServerBusy()} label="서버와 주고받는 중" />;
 
 const PageNav = ({ active }: { active: "home" | "alarm" | "profile" }) => {
   const navigate = useNavigate();
@@ -143,7 +158,16 @@ const TodoWorkspace = ({
   const [addingCategoryId, setAddingCategoryId] = useState<number | null>(null);
   const [editingTitleId, setEditingTitleId] = useState<number | null>(null);
   const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
-  const createTodo = useCreateTodo();
+  /*
+   * 만든 뒤 목록을 다시 받는 것까지 이 화면이 기다립니다.
+   *
+   * 새 할 일이 목록에 나타날 때까지 빈 줄을 잡아 두어야 하는데, 평소처럼 무효화만
+   * 걸고 지나가면 그 끝을 알 수 없습니다.
+   */
+  const createTodo = useCreateTodo({ invalidate: false });
+  const refillTodos = useRefillTodos();
+  /** 방금 만들어 아직 목록에 없는 할 일의 수. 카테고리별로 셉니다. */
+  const [pendingByCategory, setPendingByCategory] = useState<Record<number, number>>({});
   const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
@@ -183,6 +207,15 @@ const TodoWorkspace = ({
     if (!own) return;
     toggle(todo.todoId);
   };
+  const bumpPending = useCallback(
+    (categoryId: number, step: number) =>
+      setPendingByCategory(current => {
+        const next = (current[categoryId] ?? 0) + step;
+        if (next > 0) return { ...current, [categoryId]: next };
+        return Object.fromEntries(Object.entries(current).filter(([id]) => Number(id) !== categoryId));
+      }),
+    [],
+  );
   const moveToCategory = useCallback(
     async (todo: Todo, categoryId: number) => {
       setMoveError("");
@@ -240,7 +273,7 @@ const TodoWorkspace = ({
               <ErrorText>{message(loadError)}</ErrorText>
             </EmptyState>
           ) : isLoading ? (
-            <EmptyState>할 일을 불러오는 중...</EmptyState>
+            <TodoBoardSkeleton columns={categories.length || 4} />
           ) : !categories.length ? (
             <EmptyState>카테고리를 준비하고 있어요.</EmptyState>
           ) : (
@@ -264,15 +297,22 @@ const TodoWorkspace = ({
                   }}
                   onCreate={async (next, title) => {
                     setAddingCategoryId(null);
-                    await createTodo.mutateAsync({
-                      title,
-                      categoryId: next.categoryId,
-                      importance: "NONE",
-                      hardship: 1,
-                      // 하루짜리 할 일은 시작일과 마감일이 같습니다. 시간은 상세에서 붙입니다.
-                      startDate: selectedDate,
-                      dueDate: selectedDate,
-                    });
+                    bumpPending(next.categoryId, 1);
+                    try {
+                      await createTodo.mutateAsync({
+                        title,
+                        categoryId: next.categoryId,
+                        importance: "NONE",
+                        hardship: 1,
+                        // 하루짜리 할 일은 시작일과 마감일이 같습니다. 시간은 상세에서 붙입니다.
+                        startDate: selectedDate,
+                        dueDate: selectedDate,
+                      });
+                      // 새 목록이 도착해야 자리를 비웁니다. 그전에 비우면 방금 쓴 것이 잠깐 사라집니다.
+                      await refillTodos();
+                    } finally {
+                      bumpPending(next.categoryId, -1);
+                    }
                   }}
                   onRenameTitle={async (todo, title) => {
                     setEditingTitleId(null);
@@ -283,6 +323,7 @@ const TodoWorkspace = ({
                   onEdit={setDetailTodo}
                   onBet={own ? undefined : setBetTodo}
                   drag={own ? drag : undefined}
+                  pending={pendingByCategory[category.categoryId] ?? 0}
                 />
               ))}
             </CategoryBoard>
@@ -330,6 +371,25 @@ const TodoWorkspace = ({
   );
 };
 
+/** 칸마다 다른 줄 수. 자리표시가 네 칸 똑같은 모양으로 늘어서지 않게 합니다. */
+const SKELETON_COLUMN_ROWS = [3, 2, 4, 2];
+
+/**
+ * 아직 오지 않은 할 일 보드.
+ *
+ * 날짜를 옮기면 그 날의 목록을 새로 받아 오는데, 그동안 "불러오는 중"이라고 한 줄만
+ * 적으면 보드가 통째로 접혔다 펴집니다. 같은 자리에 같은 모양을 놓아 두면 도착했을
+ * 때 자리가 그대로라 눈이 따라갈 곳을 잃지 않습니다.
+ */
+const TodoBoardSkeleton = ({ columns }: { columns: number }) => (
+  <CategoryBoard role="status">
+    <SrOnly>할 일을 불러오는 중</SrOnly>
+    {Array.from({ length: columns }, (_, index) => (
+      <TodoColumnSkeleton key={index} rows={SKELETON_COLUMN_ROWS[index % SKELETON_COLUMN_ROWS.length]} />
+    ))}
+  </CategoryBoard>
+);
+
 export const MyHome = () => {
   const header = useHeaderModal();
   return (
@@ -355,7 +415,7 @@ export const GroupHome = () => {
   const id = Number(groupId);
   const navigate = useNavigate();
   const { data: me } = useMe();
-  const { data: group } = useGroup(Number.isFinite(id) ? id : null);
+  const { data: group, isLoading: groupLoading } = useGroup(Number.isFinite(id) ? id : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const members = useMemo(() => {
@@ -378,6 +438,7 @@ export const GroupHome = () => {
       <MemberTabs
         members={members}
         activeUserId={activeId}
+        loading={groupLoading}
         onSelect={next => navigate(next === me?.userId ? `/groups/${id}` : `/groups/${id}/members/${next}`)}
         onShareInvite={() => setInviteOpen(true)}
       />
@@ -456,7 +517,7 @@ export const AlarmPage = () => {
         {error ? (
           <ErrorText>{message(error)}</ErrorText>
         ) : isLoading ? (
-          <AlarmEmpty>알림을 불러오는 중...</AlarmEmpty>
+          <AlarmListSkeleton />
         ) : items.length ? (
           <AlarmList>
             {items.map(item => (
@@ -546,7 +607,7 @@ const DiaryViewModal = ({
         {fetched.error ? (
           <ErrorText>{message(fetched.error)}</ErrorText>
         ) : !shown ? (
-          <AlarmEmpty>일기를 불러오는 중...</AlarmEmpty>
+          <DiarySkeleton />
         ) : (
           <>
             <DiaryBadge emotion={shown.emotion} nickname={author} date={formatLongKoreanDate(diaryDate(shown) ?? "")} />
@@ -564,6 +625,44 @@ const DiaryViewModal = ({
     </Modal>
   );
 };
+/** 아직 오지 않은 알림 목록. 줄 높이가 같아 도착해도 화면이 밀리지 않습니다. */
+const AlarmListSkeleton = () => (
+  <AlarmList role="status">
+    <SrOnly>알림을 불러오는 중</SrOnly>
+    {["78%", "62%", "70%", "54%"].map(width => (
+      <AlarmRowSkeleton key={width}>
+        <Skeleton width="36px" height="36px" radius="50%" />
+        <Skeleton width={width} height="20px" />
+      </AlarmRowSkeleton>
+    ))}
+  </AlarmList>
+);
+const AlarmRowSkeleton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid ${palette.gray200};
+  border-radius: ${theme.radius.sm};
+  padding: 12px 16px;
+`;
+
+/** 아직 오지 않은 일기 한 편. 알림에서 열면 내용을 그때 받아 옵니다. */
+const DiarySkeleton = () => (
+  <DiaryLines role="status">
+    <SrOnly>일기를 불러오는 중</SrOnly>
+    <Skeleton width="140px" height="36px" radius={theme.radius.pill} />
+    {["100%", "92%", "76%"].map(width => (
+      <Skeleton key={width} width={width} height="20px" />
+    ))}
+  </DiaryLines>
+);
+const DiaryLines = styled.div`
+  display: grid;
+  gap: 12px;
+  width: 100%;
+`;
+
 /** 사진은 원래 비율 그대로, 250px까지만 키웁니다. */
 const DiaryPhoto = styled.img`
   max-width: min(250px, 100%);
@@ -1249,7 +1348,7 @@ const DiaryForm = ({
         <DiaryTextAction onClick={() => navigate("/")}>취소</DiaryTextAction>
         <h1>일기</h1>
         <DiaryTextAction disabled={!content.trim() || save.isPending} onClick={submit}>
-          완료
+          {save.isPending ? "저장 중" : "완료"}
         </DiaryTextAction>
       </DiaryTopBar>
       <DiaryBody>
@@ -1370,12 +1469,42 @@ const DiaryForm = ({
   );
 };
 
+/**
+ * 아직 오지 않은 일기 화면.
+ *
+ * 그 날의 일기를 받아 오기 전에 폼을 열면, 이미 쓴 일기가 있어도 빈 칸으로 한 번
+ * 그렸다가 도착한 뒤 키가 바뀌며 통째로 다시 그립니다 — 쓰던 글이 잠깐 사라졌다
+ * 나타난 것처럼 보입니다. 도착할 때까지는 같은 모양의 자리만 둡니다.
+ */
+const DiaryFormSkeleton = ({ selectedDate }: { selectedDate: string }) => (
+  <AppShell>
+    <DiaryTopBar>
+      <DiaryTextAction disabled>취소</DiaryTextAction>
+      <h1>일기</h1>
+      <DiaryTextAction disabled>완료</DiaryTextAction>
+    </DiaryTopBar>
+    <DiaryBody role="status">
+      <SrOnly>일기를 불러오는 중</SrOnly>
+      <DiaryMain>
+        <DiaryDate>{formatLongKoreanDate(selectedDate)}</DiaryDate>
+        <Skeleton height="400px" radius={theme.radius.md} />
+      </DiaryMain>
+      <DiaryRail>
+        <Skeleton height="44px" radius={theme.radius.pill} />
+        <Skeleton height="96px" radius={theme.radius.md} />
+      </DiaryRail>
+    </DiaryBody>
+    <PageNav active="home" />
+  </AppShell>
+);
+
 export const DiaryPage = () => {
   const [search] = useSearchParams();
   const selectedDate = search.get("date") || formatLocalDate(new Date());
   const { data: me } = useMe();
-  const { data: diaries = [] } = useDiaries({ date: selectedDate });
+  const { data: diaries = [], isLoading } = useDiaries({ date: selectedDate });
   const existing = diaries.find(diary => isDiaryForDate(diary, selectedDate));
+  if (isLoading) return <DiaryFormSkeleton selectedDate={selectedDate} />;
   return (
     <DiaryForm
       key={`${selectedDate}-${existing?.diaryId ?? "new"}`}

@@ -1,4 +1,4 @@
-import { css } from "@emotion/react";
+import { css, keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { useEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
@@ -869,4 +869,113 @@ export const ErrorText = styled.p`
   color: ${theme.colors.red};
   font-size: 13px;
   margin: 12px 0;
+`;
+
+/** 눈에는 보이지 않지만 읽어 주는 글자. */
+export const SrOnly = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+`;
+
+/* 왼쪽에서 오른쪽으로 한 번 훑고 지나가는 빛. */
+const sweep = keyframes`
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+`;
+
+/**
+ * 아직 오지 않은 내용이 앉을 자리.
+ *
+ * "불러오는 중"이라고 한 줄 적는 대신, 들어올 것과 같은 크기의 회색 덩이를
+ * 미리 놓습니다. 내용이 도착해도 자리가 그대로라 화면이 튀지 않고, 무엇이
+ * 오는 중인지도 모양으로 보입니다. gray/200 위를 흰 빛이 훑고 지나가 멈춘
+ * 화면이 아님을 알립니다 — 움직임을 줄여 달라고 한 기기에서는 덩이만 둡니다.
+ */
+export const Skeleton = styled.span<{ width?: string; height?: string; radius?: string }>`
+  display: block;
+  flex: none;
+  width: ${({ width = "100%" }) => width};
+  height: ${({ height = "16px" }) => height};
+  border-radius: ${({ radius }) => radius ?? theme.radius.sm};
+  background-color: ${palette.gray200};
+  /* 양 끝은 투명한 흰색입니다. 그냥 transparent로 두면 회색 테가 생기는 브라우저가 있습니다. */
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: ${sweep} 1.3s linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    background-image: none;
+    animation: none;
+  }
+`;
+
+/* 끝에 닿으면 반대편에서 다시 들어오는 토막. 얼마나 남았는지는 알 수 없으니 길이로 말하지 않습니다. */
+const slide = keyframes`
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+`;
+
+/**
+ * 화면 맨 위에 걸리는 진행 줄.
+ *
+ * 저장·삭제 같은 쓰기가 끝나도 목록은 뒤에서 다시 받아 옵니다(`useDetachedInvalidate`).
+ * 그 사이 화면은 옛 값을 들고 멈춰 있는 것처럼 보이므로, 아직 오가는 중임을
+ * 여기서 한 줄로 알립니다. 어느 화면에서 무엇을 저장하든 자리가 같아 눈이
+ * 찾아갈 곳이 하나입니다.
+ *
+ * 늘 자리에 두고 투명도만 바꿉니다. 짧게 끝나는 요청에 줄이 깜빡이지 않도록
+ * 사라질 때만 조금 늦게 걷습니다.
+ */
+export const BusyBar = ({ busy, label = "처리 중" }: { busy: boolean; label?: string }) => (
+  <BusyTrack busy={busy} role="status" aria-hidden={!busy}>
+    {busy ? <SrOnly>{label}</SrOnly> : null}
+    <i aria-hidden />
+  </BusyTrack>
+);
+const BusyTrack = styled.div<{ busy: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* 모달(100)보다 위입니다 — 시트 안에서 저장할 때도 보여야 합니다. */
+  z-index: 120;
+  height: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  background: ${palette.gray200};
+  opacity: ${({ busy }) => (busy ? 1 : 0)};
+  transition: opacity 0.2s ease ${({ busy }) => (busy ? "0s" : "0.18s")};
+  > i {
+    display: block;
+    width: 25%;
+    height: 100%;
+    background: ${theme.colors.ink};
+    animation: ${slide} 1.1s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    > i {
+      width: 100%;
+      animation: none;
+      opacity: 0.35;
+    }
+  }
 `;

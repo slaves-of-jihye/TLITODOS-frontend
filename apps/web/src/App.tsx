@@ -2,13 +2,14 @@ import { HashRouter, Route, Routes } from "react-router-dom";
 import { FontSync } from "./app/FontSync";
 import { useSessionStore } from "./app/sessionStore";
 import { InstallPrompt, LoginModal } from "./components";
-import { AlarmPage, DiaryPage, GroupHome, MyHome, NotFoundPage, ProfilePage } from "./screens";
+import { AlarmPage, DiaryPage, GroupHome, MyHome, NotFoundPage, ProfilePage, ServerBusyBar } from "./screens";
 
 function App() {
   const accessToken = useSessionStore(state => state.accessToken);
   return (
     <HashRouter>
       {accessToken ? <FontSync /> : null}
+      {accessToken ? <ServerBusyBar /> : null}
       {accessToken ? <InstallPrompt /> : null}
       {accessToken ? (
         <Routes>
