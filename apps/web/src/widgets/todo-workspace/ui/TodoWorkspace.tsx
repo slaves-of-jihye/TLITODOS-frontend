@@ -26,8 +26,18 @@ import { DependencyBlockModal, useTodoCompletion } from "@/features/todo-complet
 import { TodoDeleteModal } from "@/features/todo-delete";
 import { TrashDropZone, useTodoDrag } from "@/features/todo-drag";
 import { useAssetObjectUrl } from "@/shared/api";
-import { errorMessage, formatLocalDate, monthKey } from "@/shared/lib";
+import { errorMessage, formatLocalDate, monthKey, parseLocalDate } from "@/shared/lib";
 import { DEFAULT_AVATAR, DiaryBadge, EmptyState, ErrorText, palette, theme } from "@/shared/ui";
+
+/**
+ * 주소로 받은 날짜를 믿기 전에 한 번 거릅니다.
+ *
+ * 주소창은 누구나 고칠 수 있고, `2026-02-31` 같은 값은 형태만 맞습니다.
+ * 되짚어 적었을 때 그대로 나오는 날짜만 통과시키고 나머지는 없는 셈 칩니다 —
+ * 날짜 하나 때문에 화면이 서는 것보다 오늘을 펴는 편이 낫습니다.
+ */
+const validDate = (value: string | undefined) =>
+  value && formatLocalDate(parseLocalDate(value)) === value ? value : null;
 
 export const TodoWorkspace = ({
   own,
@@ -36,6 +46,7 @@ export const TodoWorkspace = ({
   ownerName,
   ownerBio,
   ownerImageUrl,
+  initialDate,
 }: {
   own: boolean;
   ownerId?: number;
@@ -45,11 +56,19 @@ export const TodoWorkspace = ({
   ownerBio?: string;
   /** 남의 화면일 때 그 사람의 프로필 사진 경로. */
   ownerImageUrl?: string | null;
+  /**
+   * 처음 펼칠 날. 넘기지 않으면 오늘입니다.
+   *
+   * 알림에서 남의 보드로 건너올 때, 그 할 일이 서 있는 날까지 데려다 주려고
+   * 씁니다. 처음 한 번만 봅니다 — 그 뒤로 날짜를 옮기는 것은 사람의 몫이라,
+   * 나중에 값이 바뀌어도 보고 있던 날을 빼앗지 않습니다.
+   */
+  initialDate?: string;
 }) => {
   const navigate = useNavigate();
   const today = formatLocalDate(new Date());
-  const [selectedDate, setSelectedDate] = useState(today);
-  const [month, setMonth] = useState(() => new Date());
+  const [selectedDate, setSelectedDate] = useState(() => validDate(initialDate) ?? today);
+  const [month, setMonth] = useState(() => parseLocalDate(validDate(initialDate) ?? today));
   const { data: me } = useMe();
   const targetUserId = ownerId ?? null;
   const categoriesQuery = useCategories(groupId, targetUserId);

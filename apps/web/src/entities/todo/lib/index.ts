@@ -2,6 +2,7 @@
 export {
   buildDailyStatuses,
   coversDate,
+  dateOnly,
   dependencyCandidates,
   dependentIds,
   formatDeadline,

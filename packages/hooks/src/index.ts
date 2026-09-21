@@ -59,6 +59,8 @@ export const queryKeys = {
     ["diaries", date, groupId, userId] as const,
   /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
   diary: (id: number) => ["diary", id] as const,
+  /** 한 건은 `["todos"]` 밑에 두지 않습니다 — `writeBack.todos`가 그 접두사를 `Todo[]`로 덮습니다. */
+  todo: (id: number) => ["todo", id] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
   /**
    * 종류별 안 읽음 표시. 일부러 `["notifications"]` 밑에 둡니다.
@@ -126,6 +128,55 @@ export const useGroup = (groupId: number | null, enabled = true) => {
     queryFn: () => api.groups.get(groupId!),
     enabled: enabled && groupId !== null,
   });
+};
+
+/**
+ * 이 사람의 보드를 열려면 어느 그룹으로 들어가야 하는지 찾아 줍니다.
+ *
+ * 남의 보드는 그룹 안에서만 봅니다(`/groups/{groupId}/members/{userId}`). 그런데
+ * 알림은 누가 무엇을 했는지만 담고 어느 그룹인지는 담지 않아, 알림에서 그 사람의
+ * 달력으로 건너가려면 여기서 되짚어야 합니다.
+ *
+ * 앞에서부터 한 그룹씩 확인하고 찾는 즉시 멈춥니다 — 그룹 목록에는 멤버가 없어
+ * 상세를 받아 봐야 알 수 있는데, 대개 첫 그룹에서 끝납니다. 받아 온 것은 그룹
+ * 화면이 쓰는 캐시에 그대로 앉으므로, 넘어간 다음 화면이 다시 받지 않습니다.
+ *
+ * 함께 있는 그룹이 여럿이면 앞의 것으로 갑니다. 어느 쪽이든 같은 사람의 같은
+ * 보드라 고를 이유가 없습니다. 하나도 없으면 `null`입니다.
+ */
+export const useFindMemberGroup = () => {
+  const api = useApi();
+  const cache = useQueryClient();
+  return useCallback(
+    async (userId: number) => {
+      const groups = await cache.fetchQuery({ queryKey: queryKeys.groups, queryFn: api.groups.list });
+      for (const group of groups) {
+        const detail = await cache.fetchQuery({
+          queryKey: queryKeys.group(group.groupId),
+          queryFn: () => api.groups.get(group.groupId),
+        });
+        if (detail.members.some(member => member.userId === userId)) return group.groupId;
+      }
+      return null;
+    },
+    [api, cache],
+  );
+};
+
+/**
+ * 할 일 한 건을 필요할 때 받아 옵니다.
+ *
+ * 알림이 들고 오는 것은 제목과 세부사항뿐이라, 그 할 일이 어느 날의 것인지는
+ * 여기서 물어봐야 압니다. 그리는 것이 아니라 어디로 갈지 정하려고 쓰는 값이라
+ * 훅이 아니라 부를 수 있는 함수로 돌려줍니다.
+ */
+export const useFetchTodo = () => {
+  const api = useApi();
+  const cache = useQueryClient();
+  return useCallback(
+    (todoId: number) => cache.fetchQuery({ queryKey: queryKeys.todo(todoId), queryFn: () => api.todos.get(todoId) }),
+    [api, cache],
+  );
 };
 
 export const useCategories = (groupId: number | null = null, userId: number | null = null, enabled = true) => {
