@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { resolveFont, useMe, useUpdateFont, useUpdateProfile } from "@/entities/user";
 import { CategoryColorSection } from "@/features/category-color";
 import { FontProfileRow } from "@/features/font-select";
+import { HourCycleProfileRow } from "@/features/hour-cycle";
 import {
   BIO_LIMIT,
   EditableProfileRow,
@@ -82,6 +83,7 @@ export const ProfilePage = () => {
             onSave={bio => save({ bio })}
           />
           <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
+          <HourCycleProfileRow />
           {error ? <ErrorText>{error}</ErrorText> : null}
           <LogoutButton
             onClick={async () => {

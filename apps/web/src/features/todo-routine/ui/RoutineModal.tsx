@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import type { RoutineRepeat } from "@/entities/todo";
 import { ROUTINE_REPEATS, WEEKDAYS, repeatUsesWeekdays, weekdayOf } from "@/entities/todo";
 import { randomId } from "@/shared/lib";
+import { useHourCycle } from "@/shared/model";
 import {
   ErrorText,
   Modal,
@@ -68,6 +69,7 @@ export const RoutineModal = ({
   });
   const [panel, setPanel] = useState<"start" | "end" | "time" | "repeat" | "weekdays" | null>("repeat");
   const [busy, setBusy] = useState(false);
+  const hourCycle = useHourCycle();
   // 같은 시트가 열려 있는 동안은 재시도해도 같은 키를 씁니다.
   const requestId = useRef(randomId());
   const toggle = (next: "start" | "end" | "time" | "repeat" | "weekdays") => () =>
@@ -99,7 +101,7 @@ export const RoutineModal = ({
           {panel === "end" ? <SheetCalendar value={value.end} onChange={end => setValue({ ...value, end })} /> : null}
           <SheetRow type="button" aria-expanded={panel === "time"} onClick={toggle("time")}>
             <span>시간 설정</span>
-            <span>{formatSheetTime(value.time)}</span>
+            <span>{formatSheetTime(value.time, hourCycle)}</span>
           </SheetRow>
           {panel === "time" ? <TimeChooser value={value.time} onChange={time => setValue({ ...value, time })} /> : null}
           <SheetRow type="button" aria-expanded={panel === "repeat"} onClick={toggle("repeat")}>

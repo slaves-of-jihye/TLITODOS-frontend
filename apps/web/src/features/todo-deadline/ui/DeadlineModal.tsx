@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useHourCycle } from "@/shared/model";
 import {
   Modal,
   SheetCalendar,
@@ -37,6 +38,7 @@ export const DeadlineModal = ({
   onClose: () => void;
 }) => {
   const [panel, setPanel] = useState<"start" | "date" | "time" | null>("date");
+  const hourCycle = useHourCycle();
   return (
     <Modal open={open} sheet onClose={onClose} aria-label="마감기한 설정하기">
       <SheetForm>
@@ -78,7 +80,7 @@ export const DeadlineModal = ({
             onClick={() => setPanel(panel === "time" ? null : "time")}
           >
             <span>시간 설정</span>
-            <span>{formatSheetTime(value.time)}</span>
+            <span>{formatSheetTime(value.time, hourCycle)}</span>
           </SheetRow>
           {panel === "time" ? <TimeChooser value={value.time} onChange={time => onChange({ ...value, time })} /> : null}
         </SheetRows>

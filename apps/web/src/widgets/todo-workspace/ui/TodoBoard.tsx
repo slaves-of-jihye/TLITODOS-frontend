@@ -2,9 +2,10 @@ import styled from "@emotion/styled";
 import type { TodoDrag } from "@/features/todo-drag";
 import type { Category, Todo } from "@/shared/api";
 import { categoryAccent } from "@/entities/category";
-import { TodoColumnSkeleton, TodoList, TodoRowSkeleton } from "@/entities/todo";
+import { TodoColumnSkeleton, TodoList, TodoRowSkeleton, formatDeadline } from "@/entities/todo";
 import { TodoDraftRow } from "@/features/todo-create";
 import { CATEGORY_DROP_ATTRIBUTE, DraggableRow } from "@/features/todo-drag";
+import { useHourCycle } from "@/shared/model";
 import { CategoryBoard } from "./boardStyles";
 import { CategoryPill, SrOnly, TodoRow as SharedTodoRow, theme } from "@/shared/ui";
 
@@ -44,6 +45,7 @@ export const CategorySection = ({
   pending?: number;
 }) => {
   const accent = categoryAccent(category.color, index);
+  const hourCycle = useHourCycle();
   const isTarget = Boolean(drag?.activeId) && drag?.overId === category.categoryId;
   return (
     <CategoryColumn
@@ -64,6 +66,7 @@ export const CategorySection = ({
               todo={todo}
               accent={accent}
               own={own}
+              deadline={formatDeadline(todo, hourCycle)}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
               onBet={onBet ? () => onBet(todo) : undefined}

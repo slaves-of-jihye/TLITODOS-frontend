@@ -1,7 +1,17 @@
 import styled from "@emotion/styled";
 import { palette, theme } from "@tlitodos/ui";
+import { useHourCycle } from "@/shared/model";
 
+/**
+ * 시각을 고르는 판.
+ *
+ * 프로필에서 고른 시간 체계를 그대로 따릅니다. 24시간제로 읽는 사람에게
+ * 오전/오후를 고르게 하고 1~12만 늘어놓으면, 읽을 때와 고를 때가 서로 다른
+ * 셈법이 되어 머릿속에서 한 번 옮겨야 합니다. 24시간제에서는 오전/오후 줄이
+ * 통째로 빠지고 0~23이 그대로 놓입니다.
+ */
 export const TimeChooser = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
+  const wide = useHourCycle() === "H24";
   const [hour = "", minute = "00"] = value ? value.split(":") : [];
   const hourNumber = value ? Number(hour) : null;
   const meridiem = hourNumber === null ? null : hourNumber < 12 ? "AM" : "PM";
@@ -10,38 +20,50 @@ export const TimeChooser = ({ value, onChange }: { value: string; onChange: (nex
     const base = nextHour % 12;
     onChange(`${String(nextMeridiem === "AM" ? base : base + 12).padStart(2, "0")}:${nextMinute}`);
   };
+  /** 24시간제에서 시를 고르는 길. 오전/오후를 거치지 않습니다. */
+  const composeWide = (nextHour: number, nextMinute: string) =>
+    onChange(`${String(nextHour).padStart(2, "0")}:${nextMinute}`);
+  const pickHour = (nextHour: number, nextMinute = minute) =>
+    wide ? composeWide(nextHour, nextMinute) : compose(meridiem ?? "AM", nextHour, nextMinute);
+  const pickMinute = (nextMinute: string) =>
+    wide ? composeWide(hourNumber ?? 0, nextMinute) : compose(meridiem ?? "AM", displayHour ?? 12, nextMinute);
   return (
     <TimePanel>
       <TimeBlock>
-        <TimeLabel>오전/오후 선택하기</TimeLabel>
+        <TimeLabel>{wide ? "시각 설정하기" : "오전/오후 선택하기"}</TimeLabel>
         <TimePills>
           <TimePill type="button" selected={value === ""} onClick={() => onChange("")}>
             설정하지 않음
           </TimePill>
-          {(["AM", "PM"] as const).map(key => (
-            <TimePill
-              key={key}
-              type="button"
-              selected={meridiem === key}
-              onClick={() => compose(key, displayHour ?? 12, minute)}
-            >
-              {key === "AM" ? "오전(AM)" : "오후(PM)"}
-            </TimePill>
-          ))}
+          {wide
+            ? null
+            : (["AM", "PM"] as const).map(key => (
+                <TimePill
+                  key={key}
+                  type="button"
+                  selected={meridiem === key}
+                  onClick={() => compose(key, displayHour ?? 12, minute)}
+                >
+                  {key === "AM" ? "오전(AM)" : "오후(PM)"}
+                </TimePill>
+              ))}
         </TimePills>
       </TimeBlock>
       <TimeColumns>
         <TimeBlock>
           <TimeLabel>시(hour) 선택하기</TimeLabel>
           <TimeGrid>
-            {Array.from({ length: 12 }, (_, index) => index + 1).map(item => (
+            {(wide
+              ? Array.from({ length: 24 }, (_, index) => index)
+              : Array.from({ length: 12 }, (_, index) => index + 1)
+            ).map(item => (
               <TimeCell
                 key={item}
                 type="button"
-                selected={displayHour === item}
-                onClick={() => compose(meridiem ?? "AM", item, minute)}
+                selected={wide ? hourNumber === item : displayHour === item}
+                onClick={() => pickHour(item)}
               >
-                {item}
+                {wide ? String(item).padStart(2, "0") : item}
               </TimeCell>
             ))}
           </TimeGrid>
@@ -54,7 +76,7 @@ export const TimeChooser = ({ value, onChange }: { value: string; onChange: (nex
                 key={item}
                 type="button"
                 selected={value !== "" && minute === item}
-                onClick={() => compose(meridiem ?? "AM", displayHour ?? 12, item)}
+                onClick={() => pickMinute(item)}
               >
                 {item}
               </TimeCell>
