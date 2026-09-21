@@ -221,26 +221,29 @@ export const formatClock = (time: string, cycle: HourCycle = DEFAULT_HOUR_CYCLE)
 /**
  * 할 일 줄에 붙는 마감 한마디. 없으면 `null`이고, 그러면 아무것도 그리지 않습니다.
  *
- * 얼마나 멀리 있는지에 따라 앞을 덜어 냅니다 — 오늘이면 시각만, 이번 달 안이면
- * 며칠인지까지, 그 밖이면 몇 월인지까지. 지금 보고 있는 날이 아니라 오늘을
- * 기준으로 삼습니다: `오늘`이라는 말은 달력을 어디로 넘겼든 오늘을 가리킵니다.
+ * 얼마나 멀리 있는지에 따라 앞을 덜어 냅니다 — 같은 날이면 시각만, 같은 달 안이면
+ * 며칠인지까지, 그 밖이면 몇 월인지까지.
  *
- * 시각이 없는 할 일은 날짜밖에 할 말이 없습니다. 그래서 마감이 오늘이면 남는
- * 말이 없어 아무것도 띄우지 않습니다 — 만들 때 마감을 따로 잡지 않으면 그날이
+ * 기준은 보고 있는 날(`onDate`)입니다. 달력을 10월 1일로 넘겨 그날 마감인 할 일을
+ * 보고 있다면 이미 10월 1일을 읽고 있는 것이니 `오후 2시까지`면 충분합니다 —
+ * 실제 오늘을 기준으로 삼으면 눈앞의 날짜를 한 번 더 적게 됩니다.
+ *
+ * 시각이 없는 할 일은 날짜밖에 할 말이 없습니다. 그래서 마감이 보고 있는 날이면
+ * 남는 말이 없어 아무것도 띄우지 않습니다 — 만들 때 마감을 따로 잡지 않으면 그날이
  * 그대로 마감이 되므로, 그러지 않으면 보통의 할 일마다 빨간 글씨가 붙습니다.
  */
 export const formatDeadline = (
   todo: Pick<Todo, "dueDate" | "time">,
   cycle: HourCycle = DEFAULT_HOUR_CYCLE,
-  today = formatLocalDate(new Date()),
+  onDate = formatLocalDate(new Date()),
 ) => {
   const due = dateOnly(todo.dueDate);
   if (!due) return null;
   const clock = todo.time ? formatClock(todo.time, cycle) : "";
-  if (due === today) return clock ? `${clock}까지` : null;
+  if (due === onDate) return clock ? `${clock}까지` : null;
   const date = parseLocalDate(due);
-  const now = parseLocalDate(today);
-  const sameMonth = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  const seen = parseLocalDate(onDate);
+  const sameMonth = date.getFullYear() === seen.getFullYear() && date.getMonth() === seen.getMonth();
   const day = `${sameMonth ? "" : `${date.getMonth() + 1}월 `}${date.getDate()}일`;
   return clock ? `${day} ${clock}까지` : `${day}까지`;
 };

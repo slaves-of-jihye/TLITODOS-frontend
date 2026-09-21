@@ -212,6 +212,7 @@ export const TodoWorkspace = ({
                     selectedTodos.filter(todo => todo.categoryId === category.categoryId),
                     selectedTodos,
                   )}
+                  selectedDate={selectedDate}
                   own={own}
                   adding={addingCategoryId === category.categoryId}
                   onAdd={next => setAddingCategoryId(next.categoryId)}

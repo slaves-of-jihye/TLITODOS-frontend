@@ -13,6 +13,7 @@ export const CategorySection = ({
   category,
   index,
   todos,
+  selectedDate,
   own,
   adding,
   onAdd,
@@ -28,6 +29,8 @@ export const CategorySection = ({
   category: Category;
   index: number;
   todos: Todo[];
+  /** 지금 보고 있는 날. 마감을 얼마나 자세히 적을지가 여기에 달려 있습니다. */
+  selectedDate: string;
   own: boolean;
   /** 이 카테고리에 인라인 입력 줄이 열려 있는지. */
   adding?: boolean;
@@ -66,7 +69,7 @@ export const CategorySection = ({
               todo={todo}
               accent={accent}
               own={own}
-              deadline={formatDeadline(todo, hourCycle)}
+              deadline={formatDeadline(todo, hourCycle, selectedDate)}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
               onBet={onBet ? () => onBet(todo) : undefined}
