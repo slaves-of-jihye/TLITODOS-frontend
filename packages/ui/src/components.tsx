@@ -913,6 +913,71 @@ export const ErrorText = styled.p`
   margin: 12px 0;
 `;
 
+/**
+ * 한 가지를 묻고 답을 받는 작은 창.
+ *
+ * 되돌릴 수 없는 일은 보통 누른 버튼 아래 드롭다운(`ConfirmMenu`)으로 묻지만,
+ * 물음이 어느 버튼에서 시작된 것이 아닐 때 — 끌어다 버린 자리, 시트를 닫으려는
+ * 몸짓 — 는 매달 자리가 없어 화면 한가운데로 부릅니다. 그런 물음은 모두 같은
+ * 모양이어야 해서, 틀은 여기 한 곳에 둡니다. 답은 부르는 쪽이 `children`으로
+ * 넣는 버튼들입니다 — 둘일 수도, 셋일 수도 있습니다.
+ */
+export const ConfirmDialog = ({
+  open,
+  title,
+  note,
+  error,
+  children,
+  onClose,
+  "aria-label": ariaLabel,
+}: {
+  open: boolean;
+  title: ReactNode;
+  note?: ReactNode;
+  error?: string;
+  children: ReactNode;
+  /** 바깥을 눌러 물러날 수 있는지. 답하는 중이라면 넘기지 않습니다. */
+  onClose?: () => void;
+  "aria-label": string;
+}) => (
+  <Modal compact open={open} onClose={onClose} aria-label={ariaLabel}>
+    <ConfirmDialogBody>
+      <ConfirmDialogTitle>{title}</ConfirmDialogTitle>
+      {note ? <ConfirmDialogNote>{note}</ConfirmDialogNote> : null}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      <ConfirmDialogActions>{children}</ConfirmDialogActions>
+    </ConfirmDialogBody>
+  </Modal>
+);
+
+const ConfirmDialogBody = styled.div`
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  text-align: center;
+`;
+
+const ConfirmDialogTitle = styled.p`
+  margin: 0;
+  font-size: ${theme.text.h3};
+  color: ${theme.colors.ink};
+  overflow-wrap: anywhere;
+`;
+
+const ConfirmDialogNote = styled.p`
+  margin: 0;
+  font-size: ${theme.text.s};
+  color: ${theme.colors.muted};
+`;
+
+const ConfirmDialogActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+`;
+
 /** 눈에는 보이지 않지만 읽어 주는 글자. */
 export const SrOnly = styled.span`
   position: absolute;
