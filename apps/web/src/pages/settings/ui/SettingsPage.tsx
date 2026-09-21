@@ -20,7 +20,7 @@ import { useSessionStore } from "@/shared/model";
 import { AppShell, DEFAULT_AVATAR, ErrorText, FieldBlock, FieldLabel, theme } from "@/shared/ui";
 import { PageNav } from "@/widgets/page-nav";
 
-export const ProfilePage = () => {
+export const SettingsPage = () => {
   const { data: me } = useMe();
   const update = useUpdateProfile();
   const updateFont = useUpdateFont();
@@ -58,9 +58,9 @@ export const ProfilePage = () => {
   };
   return (
     <AppShell>
-      <ProfileTitle>나의 프로필</ProfileTitle>
-      <ProfileColumns>
-        <ProfilePanel>
+      <SettingsTitle>설정</SettingsTitle>
+      <SettingsColumns>
+        <SettingsPanel>
           <FieldBlock>
             <FieldLabel>프로필 사진</FieldLabel>
             <PhotoRow>
@@ -101,20 +101,20 @@ export const ProfilePage = () => {
           >
             로그아웃
           </LogoutButton>
-        </ProfilePanel>
+        </SettingsPanel>
         <CategoryColorSection onError={setError} />
-      </ProfileColumns>
-      <PageNav active="profile" />
+      </SettingsColumns>
+      <PageNav active="settings" />
     </AppShell>
   );
 };
 
-const ProfileTitle = styled.h1`
+const SettingsTitle = styled.h1`
   margin: 0 0 40px;
   font-size: ${theme.text.h1};
 `;
 
-const ProfileColumns = styled.div`
+const SettingsColumns = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 560px) minmax(0, 410px);
   gap: 12px;
@@ -125,7 +125,7 @@ const ProfileColumns = styled.div`
   }
 `;
 
-const ProfilePanel = styled.div`
+const SettingsPanel = styled.div`
   display: grid;
   justify-items: start;
   gap: 20px;

@@ -1,10 +1,10 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AlarmPage } from "@/pages/alarm";
 import { DiaryPage } from "@/pages/diary";
 import { GroupHome } from "@/pages/group";
 import { MyHome } from "@/pages/home";
 import { NotFoundPage } from "@/pages/not-found";
-import { ProfilePage } from "@/pages/profile";
+import { SettingsPage } from "@/pages/settings";
 import { FontSync } from "@/features/font-select";
 import { LoginModal } from "@/features/auth-google";
 import { InstallPrompt } from "@/features/pwa-install";
@@ -29,7 +29,9 @@ function App() {
         <Routes>
           <Route path="/" element={<MyHome />} />
           <Route path="/alarm" element={<AlarmPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          {/* 설정으로 이름이 바뀌기 전 주소. 저장해 둔 링크가 막히지 않게 넘겨 줍니다. */}
+          <Route path="/profile" element={<Navigate to="/settings" replace />} />
           <Route path="/diary" element={<DiaryPage />} />
           <Route path="/groups/:groupId" element={<GroupHome />} />
           <Route path="/groups/:groupId/members/:userId" element={<GroupHome />} />
