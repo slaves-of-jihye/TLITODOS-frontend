@@ -14,6 +14,7 @@ import {
   useMarkNotificationRead,
   useNotificationUnreadStatus,
   useNotifications,
+  useReadAllTodoCompleted,
 } from "@/entities/notification";
 import { BetReceivedModal } from "@/features/bet-answer";
 import { DiaryViewModal } from "@/features/diary-view";
@@ -37,7 +38,18 @@ export const AlarmPage = () => {
    */
   const { data: unread } = useNotificationUnreadStatus();
   const markRead = useMarkNotificationRead();
+  const readAll = useReadAllTodoCompleted();
   const items = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
+  /*
+   * 할 일 완료 알림만 한 번에 넘길 수 있습니다.
+   *
+   * 서버가 그 갈래만 받아서(`todo-completed/read-all`) 다른 갈래를 보고 있을 때는
+   * 누를 것이 없고, 남은 것이 없을 때도 누를 일이 없습니다. 눌러도 아무 일이
+   * 없는 버튼을 세워 두느니 그때만 내놓습니다 — 같은 이유로 확인은 묻지 않습니다:
+   * 읽음은 지우는 것이 아니라 표시를 거두는 것이고, 줄을 눌러도 같은 일이
+   * 일어납니다.
+   */
+  const canReadAll = filter === "TODO_COMPLETED" && Boolean(unread?.TODO_COMPLETED);
   return (
     <AppShell>
       <AlarmColumn>
@@ -63,6 +75,13 @@ export const AlarmPage = () => {
             </AlarmFilter>
           ))}
         </AlarmFilters>
+        {canReadAll ? (
+          <AlarmBulkRow>
+            <Button type="button" disabled={readAll.isPending} onClick={() => readAll.mutate()}>
+              {readAll.isPending ? "확인하는 중..." : "전체 확인"}
+            </Button>
+          </AlarmBulkRow>
+        ) : null}
         {error ? (
           <ErrorText>{errorMessage(error)}</ErrorText>
         ) : isLoading ? (
@@ -151,6 +170,19 @@ const AlarmFilters = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
+`;
+
+/*
+ * 갈래 칩에 딸린 버튼이라 칸 사이 간격(32px)만큼 떼지 않고 바짝 붙입니다.
+ *
+ * 목록 위 오른쪽 끝에 세웁니다 — 왼쪽 끝은 칩과 같은 출발선이라 칩 하나가 더
+ * 늘어난 것처럼 보이고, 이건 고르는 것이 아니라 하는 것입니다.
+ */
+const AlarmBulkRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  width: 100%;
+  margin-top: -20px;
 `;
 
 const AlarmFilter = styled.button<{ selected: boolean }>`

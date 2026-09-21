@@ -27,6 +27,7 @@ import type {
   NotificationsPage,
   NotificationType,
   NotificationUnreadStatus,
+  NotificationsReadAllResponse,
   RefreshTokenRequest,
   RoutineCreateRequest,
   RoutineCreateResponse,
@@ -235,6 +236,9 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
       unreadStatus: () => request<NotificationUnreadStatus>("/api/v1/notifications/unread-status"),
       markRead: (notificationId: number) =>
         request<unknown>(`/api/v1/notifications/${notificationId}/read`, { method: "PATCH" }),
+      /** 안 읽은 `TODO_COMPLETED` 알림만 한 번에 읽음으로 넘깁니다. 다른 갈래는 그대로입니다. */
+      readAllTodoCompleted: () =>
+        request<NotificationsReadAllResponse>("/api/v1/notifications/todo-completed/read-all", { method: "PATCH" }),
     },
     bets: {
       /** 내가 걸었거나 내가 대상인 내기. */
