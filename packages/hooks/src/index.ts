@@ -213,6 +213,12 @@ export const useNotifications = (type: NotificationType | null = null, enabled =
  * 목록은 고른 갈래만 받아 오므로, 다른 갈래에 안 읽은 것이 있는지는 목록으로 알
  * 수 없습니다. 이 한 번의 요청이 세 갈래를 모두 답해 주고, 읽음 상태는 건드리지
  * 않습니다.
+ *
+ * 1분마다 다시 물어봅니다. 알림은 남이 만드는 것이라 이쪽에서 무효화를 걸 계기가
+ * 없고, 서버가 밀어 주는 길도 없습니다 — 아래 네비게이션의 점은 화면 어디에
+ * 있든 떠야 하므로, 무언가를 눌러야만 새로 아는 표시는 표시 구실을 못 합니다.
+ * 탭이 뒤로 가 있는 동안에는 타이머가 멈추고(`refetchIntervalInBackground` 기본값),
+ * 돌아오면 1분을 기다리지 않고 바로 한 번 받아 옵니다.
  */
 export const useNotificationUnreadStatus = (enabled = true) => {
   const api = useApi();
@@ -220,6 +226,8 @@ export const useNotificationUnreadStatus = (enabled = true) => {
     queryKey: queryKeys.notificationUnread,
     queryFn: api.notifications.unreadStatus,
     enabled,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 };
 

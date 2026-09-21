@@ -661,17 +661,20 @@ const DateLabel = styled.span<{ selected: boolean; today: boolean }>`
 
 export const BottomNav = ({
   active,
+  alarm = false,
   onNavigate,
 }: {
-  active: "home" | "alarm" | "profile";
-  onNavigate: (next: "home" | "alarm" | "profile") => void;
+  active: "home" | "alarm" | "settings";
+  /** 안 읽은 알림이 남아 있는지. 종 위에 점 하나로만 알립니다. */
+  alarm?: boolean;
+  onNavigate: (next: "home" | "alarm" | "settings") => void;
 }) => (
   <Nav>
     {(
       [
         ["home", icons.home, "홈"],
         ["alarm", icons.bell, "알림"],
-        ["profile", icons.profile, "프로필"],
+        ["settings", icons.profile, "설정"],
       ] as const
     ).map(([key, src, label]) => (
       <NavButton key={key} onClick={() => onNavigate(key)} aria-label={label}>
@@ -680,6 +683,13 @@ export const BottomNav = ({
           style={{ maskImage: `url(${src})`, WebkitMaskImage: `url(${src})` }}
           aria-hidden
         />
+        {/* 점은 모양일 뿐이라, 읽어 주는 말은 탭 이름에 붙여 따로 답니다. */}
+        {key === "alarm" && alarm ? (
+          <>
+            <NavDot aria-hidden />
+            <SrOnly>안 읽은 알림 있음</SrOnly>
+          </>
+        ) : null}
       </NavButton>
     ))}
   </Nav>
@@ -713,6 +723,7 @@ const Nav = styled.nav`
   }
 `;
 const NavButton = styled.button`
+  position: relative;
   display: grid;
   place-items: center;
   width: 44px;
@@ -720,6 +731,23 @@ const NavButton = styled.button`
   border: 0;
   border-radius: 50%;
   background: transparent;
+`;
+/*
+ * 종 오른쪽 위에 얹는 점.
+ *
+ * 아이콘 자체는 마스크라 안에 무엇을 넣을 수 없어 버튼 위에 따로 놓습니다.
+ * 흰 테두리를 두르는 것은 아이콘의 진한 획과 맞닿아도 점이 뭉개지지 않게
+ * 하려는 것입니다. 알림 화면의 갈래 칩에 붙는 점과 같은 크기·같은 색입니다.
+ */
+const NavDot = styled.i`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${theme.colors.red};
+  box-shadow: 0 0 0 2px ${palette.white};
 `;
 /**
  * 아이콘을 마스크로 얹어 색을 코드에서 정합니다.
