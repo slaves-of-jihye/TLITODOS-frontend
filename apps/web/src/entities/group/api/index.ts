@@ -2,6 +2,7 @@
 export {
   useCreateGroup,
   useDeleteGroup,
+  useFindMemberGroup,
   useGroup,
   useGroups,
   useJoinGroup,

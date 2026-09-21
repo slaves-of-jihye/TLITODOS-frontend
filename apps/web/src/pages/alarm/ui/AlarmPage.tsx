@@ -1,5 +1,6 @@
 import styled from "@emotion/styled";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Bet, NotificationType } from "@/shared/api";
 import {
   ALARM_FILTERS,
@@ -16,6 +17,7 @@ import {
   useNotifications,
   useReadAllTodoCompleted,
 } from "@/entities/notification";
+import { useFindMemberGroup } from "@/entities/group";
 import { BetReceivedModal } from "@/features/bet-answer";
 import { DiaryViewModal } from "@/features/diary-view";
 import { errorMessage } from "@/shared/lib";
@@ -39,6 +41,35 @@ export const AlarmPage = () => {
   const { data: unread } = useNotificationUnreadStatus();
   const markRead = useMarkNotificationRead();
   const readAll = useReadAllTodoCompleted();
+  const navigate = useNavigate();
+  const findMemberGroup = useFindMemberGroup();
+  /** 보드를 여는 중인 알림. 그룹을 되짚는 동안 그 줄만 눌린 티가 나게 합니다. */
+  const [opening, setOpening] = useState<number | null>(null);
+  const [openError, setOpenError] = useState("");
+  /*
+   * 할 일 완료 알림은 그 사람의 달력으로 건너갑니다.
+   *
+   * 남의 보드는 그룹 안에서만 보는데 알림에는 어느 그룹인지가 없어, 함께 있는
+   * 그룹을 먼저 찾습니다. 못 찾으면 넘어가지 않고 그 자리에 이유를 적습니다 —
+   * 그룹에서 나간 뒤에 온 알림이 그럴 수 있고, 아무 일도 없이 멈추는 것보다
+   * 왜 안 되는지가 보이는 편이 낫습니다.
+   */
+  const openActorBoard = async (notificationId: number, actor: { userId: number; name: string }) => {
+    setOpening(notificationId);
+    setOpenError("");
+    try {
+      const groupId = await findMemberGroup(actor.userId);
+      if (groupId === null) {
+        setOpenError(`${actor.name || "친구"}님과 함께 있는 그룹을 찾지 못했습니다.`);
+        return;
+      }
+      navigate(`/groups/${groupId}/members/${actor.userId}`);
+    } catch (reason) {
+      setOpenError(errorMessage(reason));
+    } finally {
+      setOpening(null);
+    }
+  };
   const items = useMemo(() => data?.pages.flatMap(page => page.items) ?? [], [data]);
   /*
    * 할 일 완료 알림만 한 번에 넘길 수 있습니다.
@@ -82,6 +113,7 @@ export const AlarmPage = () => {
             </Button>
           </AlarmBulkRow>
         ) : null}
+        {openError ? <ErrorText>{openError}</ErrorText> : null}
         {error ? (
           <ErrorText>{errorMessage(error)}</ErrorText>
         ) : isLoading ? (
@@ -104,6 +136,10 @@ export const AlarmPage = () => {
                   if (item.type === "BET_REQUESTED" && item.bet) {
                     setOpenBet({ bet: item.bet, actor: item.actor.name || "친구" });
                   }
+                  // 할 일 완료 알림은 그 사람의 달력으로 넘어갑니다.
+                  if (item.type === "TODO_COMPLETED") {
+                    void openActorBoard(item.notificationId, item.actor);
+                  }
                 }}
               >
                 <ActorAvatar url={item.actor.profileImageUrl} />
@@ -116,6 +152,7 @@ export const AlarmPage = () => {
                     <small>{item.todo.description}</small>
                   ) : null}
                 </div>
+                {opening === item.notificationId ? <SrOnly>보드를 여는 중</SrOnly> : null}
                 {item.readAt === null ? <AlarmDot aria-label="읽지 않음" /> : null}
               </AlarmRow>
             ))}
