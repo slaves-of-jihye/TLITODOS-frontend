@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useGroup } from "@/entities/group";
 import { useMe } from "@/entities/user";
 import { GroupInviteModal } from "@/features/group-invite";
@@ -14,6 +14,9 @@ export const GroupHome = () => {
   const { groupId, userId } = useParams();
   const id = Number(groupId);
   const navigate = useNavigate();
+  // 알림에서 건너올 때 그 할 일이 서 있는 날을 달고 옵니다.
+  const [search] = useSearchParams();
+  const initialDate = search.get("date") ?? undefined;
   const { data: me } = useMe();
   const { data: group, isLoading: groupLoading } = useGroup(Number.isFinite(id) ? id : null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -60,6 +63,7 @@ export const GroupHome = () => {
           ownerBio={active?.bio}
           ownerImageUrl={active?.profileImageUrl}
           groupId={id}
+          initialDate={initialDate}
         />
       )}
       <PageNav active="home" />

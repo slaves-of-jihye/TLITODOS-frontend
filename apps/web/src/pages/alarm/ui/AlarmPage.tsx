@@ -1,7 +1,7 @@
 import styled from "@emotion/styled";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Bet, NotificationType } from "@/shared/api";
+import type { AppNotification, Bet, NotificationType, Todo } from "@/shared/api";
 import {
   ALARM_FILTERS,
   ActorAvatar,
@@ -18,11 +18,26 @@ import {
   useReadAllTodoCompleted,
 } from "@/entities/notification";
 import { useFindMemberGroup } from "@/entities/group";
+import { coversDate, dateOnly, useFetchTodo } from "@/entities/todo";
 import { BetReceivedModal } from "@/features/bet-answer";
 import { DiaryViewModal } from "@/features/diary-view";
-import { errorMessage } from "@/shared/lib";
+import { errorMessage, formatLocalDate } from "@/shared/lib";
 import { AppShell, Button, ErrorText, PageTitle, SrOnly, palette, theme } from "@/shared/ui";
 import { PageNav } from "@/widgets/page-nav";
+
+/**
+ * 그 할 일을 보러 갈 날.
+ *
+ * 할 일은 시작일부터 마감일까지 매일 같은 자리에 서 있으므로 고를 날이 여럿입니다.
+ * 오늘이 그 안에 들면 오늘로 갑니다 — 보러 가는 사람의 기준점이고, 달력을 괜히
+ * 옮겨 두면 돌아올 곳을 잃습니다. 밖이면 마감일로 갑니다: 그 할 일이 마지막으로
+ * 서 있는 날이고, 지난 것이든 앞으로 올 것이든 "언제까지였나"가 먼저 궁금합니다.
+ */
+const boardDate = (todo: Todo) => {
+  const today = formatLocalDate(new Date());
+  if (coversDate(todo, today)) return today;
+  return dateOnly(todo.dueDate) ?? dateOnly(todo.startDate) ?? today;
+};
 
 export const AlarmPage = () => {
   const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
@@ -43,6 +58,7 @@ export const AlarmPage = () => {
   const readAll = useReadAllTodoCompleted();
   const navigate = useNavigate();
   const findMemberGroup = useFindMemberGroup();
+  const fetchTodo = useFetchTodo();
   /** 보드를 여는 중인 알림. 그룹을 되짚는 동안 그 줄만 눌린 티가 나게 합니다. */
   const [opening, setOpening] = useState<number | null>(null);
   const [openError, setOpenError] = useState("");
@@ -54,16 +70,24 @@ export const AlarmPage = () => {
    * 그룹에서 나간 뒤에 온 알림이 그럴 수 있고, 아무 일도 없이 멈추는 것보다
    * 왜 안 되는지가 보이는 편이 낫습니다.
    */
-  const openActorBoard = async (notificationId: number, actor: { userId: number; name: string }) => {
-    setOpening(notificationId);
+  const openActorBoard = async (item: AppNotification) => {
+    setOpening(item.notificationId);
     setOpenError("");
     try {
-      const groupId = await findMemberGroup(actor.userId);
+      /*
+       * 어느 그룹으로 들어갈지와 며칠로 갈지는 서로 기다릴 일이 없어 함께 물어봅니다.
+       *
+       * 알림이 들고 오는 할 일은 제목과 세부사항뿐이라 날짜는 따로 받아 와야 합니다.
+       */
+      const [groupId, todo] = await Promise.all([
+        findMemberGroup(item.actor.userId),
+        item.todo ? fetchTodo(item.todo.todoId) : Promise.resolve(null),
+      ]);
       if (groupId === null) {
-        setOpenError(`${actor.name || "친구"}님과 함께 있는 그룹을 찾지 못했습니다.`);
+        setOpenError(`${item.actor.name || "친구"}님과 함께 있는 그룹을 찾지 못했습니다.`);
         return;
       }
-      navigate(`/groups/${groupId}/members/${actor.userId}`);
+      navigate(`/groups/${groupId}/members/${item.actor.userId}${todo ? `?date=${boardDate(todo)}` : ""}`);
     } catch (reason) {
       setOpenError(errorMessage(reason));
     } finally {
@@ -138,7 +162,7 @@ export const AlarmPage = () => {
                   }
                   // 할 일 완료 알림은 그 사람의 달력으로 넘어갑니다.
                   if (item.type === "TODO_COMPLETED") {
-                    void openActorBoard(item.notificationId, item.actor);
+                    void openActorBoard(item);
                   }
                 }}
               >
