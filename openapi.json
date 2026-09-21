@@ -251,11 +251,11 @@
         },
         "responses": {
           "200": {
-            "description": "Updated public profile fields.",
+            "description": "Updated profile. The same shape GET returns.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserProfileUpdateResponse"
+                  "$ref": "#/components/schemas/User"
                 }
               }
             }
@@ -3808,6 +3808,7 @@
         "type": "object",
         "required": [
           "notificationId",
+          "groupId",
           "type",
           "actor",
           "todo",
@@ -3819,6 +3820,13 @@
         "properties": {
           "notificationId": {
             "type": "integer"
+          },
+          "groupId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Group the notification came from, for opening that member's board. Null on rows stored before the field existed."
           },
           "type": {
             "$ref": "#/components/schemas/NotificationType"
@@ -4165,18 +4173,38 @@
         "type": "object",
         "required": [
           "todoId",
+          "userId",
           "title",
-          "description"
+          "description",
+          "startDate",
+          "dueDate"
         ],
         "properties": {
           "todoId": {
             "type": "integer"
+          },
+          "userId": {
+            "type": "integer",
+            "description": "Todo owner. The actor of the notification."
           },
           "title": {
             "type": "string"
           },
           "description": {
             "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "First day of the todo, as YYYY-MM-DD."
+          },
+          "dueDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Last day of the todo, inclusive."
           }
         },
         "description": "Todo summary embedded in a notification."
@@ -4698,6 +4726,8 @@
           "name",
           "profileImageUrl",
           "bio",
+          "font",
+          "timeFormat",
           "isDiscordLinked",
           "discordAlertEnabled"
         ],
@@ -4718,37 +4748,18 @@
           "bio": {
             "type": "string"
           },
+          "font": {
+            "type": "string",
+            "description": "Font key the client renders the app with."
+          },
+          "timeFormat": {
+            "$ref": "#/components/schemas/TimeFormat"
+          },
           "isDiscordLinked": {
             "type": "boolean"
           },
           "discordAlertEnabled": {
             "type": "boolean"
-          }
-        }
-      },
-      "UserProfileUpdateResponse": {
-        "type": "object",
-        "required": [
-          "userId",
-          "name",
-          "profileImageUrl",
-          "bio"
-        ],
-        "properties": {
-          "userId": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "profileImageUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "bio": {
-            "type": "string"
           }
         }
       },

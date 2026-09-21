@@ -8,7 +8,6 @@ export {
   useDailyTodoStatuses,
   useDeleteRoutine,
   useDeleteTodo,
-  useFetchTodo,
   useInvalidateTodos,
   useRefillTodos,
   useSetDependencies,

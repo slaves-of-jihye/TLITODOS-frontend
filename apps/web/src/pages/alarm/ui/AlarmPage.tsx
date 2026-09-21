@@ -1,7 +1,7 @@
 import styled from "@emotion/styled";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { AppNotification, Bet, NotificationType, Todo } from "@/shared/api";
+import type { AppNotification, Bet, NotificationType, TodoPreview } from "@/shared/api";
 import {
   ALARM_FILTERS,
   ActorAvatar,
@@ -18,7 +18,7 @@ import {
   useReadAllTodoCompleted,
 } from "@/entities/notification";
 import { useFindMemberGroup } from "@/entities/group";
-import { coversDate, dateOnly, useFetchTodo } from "@/entities/todo";
+import { coversDate, dateOnly } from "@/entities/todo";
 import { BetReceivedModal } from "@/features/bet-answer";
 import { DiaryViewModal } from "@/features/diary-view";
 import { errorMessage, formatLocalDate } from "@/shared/lib";
@@ -33,7 +33,7 @@ import { PageNav } from "@/widgets/page-nav";
  * 옮겨 두면 돌아올 곳을 잃습니다. 밖이면 마감일로 갑니다: 그 할 일이 마지막으로
  * 서 있는 날이고, 지난 것이든 앞으로 올 것이든 "언제까지였나"가 먼저 궁금합니다.
  */
-const boardDate = (todo: Todo) => {
+const boardDate = (todo: TodoPreview) => {
   const today = formatLocalDate(new Date());
   if (coversDate(todo, today)) return today;
   return dateOnly(todo.dueDate) ?? dateOnly(todo.startDate) ?? today;
@@ -58,7 +58,6 @@ export const AlarmPage = () => {
   const readAll = useReadAllTodoCompleted();
   const navigate = useNavigate();
   const findMemberGroup = useFindMemberGroup();
-  const fetchTodo = useFetchTodo();
   /** 보드를 여는 중인 알림. 그룹을 되짚는 동안 그 줄만 눌린 티가 나게 합니다. */
   const [opening, setOpening] = useState<number | null>(null);
   const [openError, setOpenError] = useState("");
@@ -71,23 +70,27 @@ export const AlarmPage = () => {
    * 왜 안 되는지가 보이는 편이 낫습니다.
    */
   const openActorBoard = async (item: AppNotification) => {
+    const date = item.todo ? `?date=${boardDate(item.todo)}` : "";
+    const open = (groupId: number) => navigate(`/groups/${groupId}/members/${item.actor.userId}${date}`);
+    if (item.groupId !== null) {
+      open(item.groupId);
+      return;
+    }
+    /*
+     * 그룹을 모르는 줄만 되짚습니다.
+     *
+     * 알림이 어느 그룹에서 왔는지 들고 오기 전에 쌓인 것들입니다. 그런 줄이 다
+     * 지나가면 이 갈래와 `useFindMemberGroup`은 함께 걷어낼 수 있습니다.
+     */
     setOpening(item.notificationId);
     setOpenError("");
     try {
-      /*
-       * 어느 그룹으로 들어갈지와 며칠로 갈지는 서로 기다릴 일이 없어 함께 물어봅니다.
-       *
-       * 알림이 들고 오는 할 일은 제목과 세부사항뿐이라 날짜는 따로 받아 와야 합니다.
-       */
-      const [groupId, todo] = await Promise.all([
-        findMemberGroup(item.actor.userId),
-        item.todo ? fetchTodo(item.todo.todoId) : Promise.resolve(null),
-      ]);
+      const groupId = await findMemberGroup(item.actor.userId);
       if (groupId === null) {
         setOpenError(`${item.actor.name || "친구"}님과 함께 있는 그룹을 찾지 못했습니다.`);
         return;
       }
-      navigate(`/groups/${groupId}/members/${item.actor.userId}${todo ? `?date=${boardDate(todo)}` : ""}`);
+      open(groupId);
     } catch (reason) {
       setOpenError(errorMessage(reason));
     } finally {
