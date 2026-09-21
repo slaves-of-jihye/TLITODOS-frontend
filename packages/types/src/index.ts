@@ -21,6 +21,8 @@ export interface User {
   discordAlertEnabled: boolean;
   /** 선택한 폰트 키. 서버가 아직 내려주지 않으면 로컬에 남은 선택을 씁니다. */
   font?: string | null;
+  /** `12H` 또는 `24H`. 폰트와 같이, 서버가 내려주지 않으면 로컬에 남은 선택을 씁니다. */
+  timeFormat?: string | null;
 }
 
 export interface LoginResponse {
@@ -305,6 +307,14 @@ export interface UserFontUpdateRequest {
 export interface UserFontUpdateResponse {
   userId: number;
   font: string;
+}
+export interface TimeFormatSettingRequest {
+  /** `@tlitodos/core`의 `HourCycle`. 순환 의존을 피하려고 여기서는 문자열로 둡니다. */
+  timeFormat: string;
+}
+export interface TimeFormatSettingResponse {
+  success: boolean;
+  timeFormat: string;
 }
 export interface GroupCreateRequest {
   name: string;

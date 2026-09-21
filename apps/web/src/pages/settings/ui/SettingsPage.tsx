@@ -2,7 +2,7 @@ import styled from "@emotion/styled";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { resolveFont, useMe, useUpdateFont, useUpdateProfile } from "@/entities/user";
+import { resolveFont, useMe, useUpdateFont, useUpdateProfile, useUpdateTimeFormat } from "@/entities/user";
 import { CategoryColorSection } from "@/features/category-color";
 import { FontProfileRow } from "@/features/font-select";
 import { HourCycleProfileRow } from "@/features/hour-cycle";
@@ -24,6 +24,7 @@ export const SettingsPage = () => {
   const { data: me } = useMe();
   const update = useUpdateProfile();
   const updateFont = useUpdateFont();
+  const updateTimeFormat = useUpdateTimeFormat();
   const api = useApi();
   const refreshToken = useSessionStore(s => s.refreshToken);
   const clear = useSessionStore(s => s.clearSession);
@@ -83,7 +84,7 @@ export const SettingsPage = () => {
             onSave={bio => save({ bio })}
           />
           <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
-          <HourCycleProfileRow />
+          <HourCycleProfileRow onSave={next => guard(() => updateTimeFormat.mutateAsync({ timeFormat: next }))} />
           {error ? <ErrorText>{error}</ErrorText> : null}
           <LogoutButton
             onClick={async () => {

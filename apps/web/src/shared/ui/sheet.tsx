@@ -124,6 +124,6 @@ export const formatSheetTime = (value: string, cycle: HourCycle = DEFAULT_HOUR_C
   if (!value) return "설정하지 않음";
   const [hour = "0", minute = "00"] = value.split(":");
   const hourNumber = Number(hour);
-  if (cycle === "H24") return `${String(hourNumber).padStart(2, "0")}:${minute}`;
+  if (cycle === "24H") return `${String(hourNumber).padStart(2, "0")}:${minute}`;
   return `${hourNumber < 12 ? "AM" : "PM"} ${String(hourNumber % 12 || 12).padStart(2, "0")}:${minute}`;
 };

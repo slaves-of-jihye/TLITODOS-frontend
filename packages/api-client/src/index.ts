@@ -44,6 +44,8 @@ import type {
   User,
   UserFontUpdateRequest,
   UserFontUpdateResponse,
+  TimeFormatSettingRequest,
+  TimeFormatSettingResponse,
   UserProfileUpdateResponse,
   UserUpdateRequest,
 } from "@tlitodos/types";
@@ -162,6 +164,8 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
         request<UserProfileUpdateResponse>("/api/v1/users/me", { method: "PATCH", body }),
       updateFont: (body: UserFontUpdateRequest) =>
         request<UserFontUpdateResponse>("/api/v1/users/me/font", { method: "PATCH", body }),
+      updateTimeFormat: (body: TimeFormatSettingRequest) =>
+        request<TimeFormatSettingResponse>("/api/v1/users/me/time-format", { method: "PATCH", body }),
     },
     groups: {
       list: () => request<GroupListItem[]>("/api/v1/groups"),

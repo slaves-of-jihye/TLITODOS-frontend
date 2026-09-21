@@ -192,16 +192,24 @@ export const formatLongKoreanDate = (value: string) => {
 /**
  * 시간을 12시간제로 읽을지 24시간제로 읽을지.
  *
+ * 값은 서버가 쓰는 철자(`12H`/`24H`)를 그대로 씁니다 — 중간에 옮겨 적는 자리를
+ * 두면 어느 쪽이 진짜인지 매번 되짚어야 합니다.
+ *
  * 디자인은 처음부터 오전/오후로 그려져 있어 기본은 12시간제입니다 — 아무것도
  * 고르지 않은 사람의 화면은 지금까지와 같아야 하니까요.
  */
-export type HourCycle = "H12" | "H24";
+export type HourCycle = "12H" | "24H";
 
-export const DEFAULT_HOUR_CYCLE: HourCycle = "H12";
+export const DEFAULT_HOUR_CYCLE: HourCycle = "12H";
 
-/** 모르는 값(옛 저장값, 손댄 저장소)은 기본값으로 떨어집니다. */
+/**
+ * 모르는 값(손댄 저장소, 서버가 모르는 값)은 기본값으로 떨어집니다.
+ *
+ * `H24`도 받습니다. 서버에 자리가 생기기 전 이 기기에 남겨 두던 철자라, 걸러
+ * 내면 24시간제로 쓰던 사람이 앱을 다시 열었을 때 말없이 12시간제로 돌아갑니다.
+ */
 export const resolveHourCycle = (value: string | null | undefined): HourCycle =>
-  value === "H24" ? "H24" : DEFAULT_HOUR_CYCLE;
+  value === "24H" || value === "H24" ? "24H" : DEFAULT_HOUR_CYCLE;
 
 /**
  * 말로 읽는 시각. `오후 2시`, `14시 30분`처럼 문장에 섞어 쓰는 형태입니다.
@@ -214,7 +222,7 @@ export const formatClock = (time: string, cycle: HourCycle = DEFAULT_HOUR_CYCLE)
   const hours = Number(hour);
   const minutes = Number(minute);
   const tail = minutes ? ` ${minutes}분` : "";
-  if (cycle === "H24") return `${hours}시${tail}`;
+  if (cycle === "24H") return `${hours}시${tail}`;
   return `${hours < 12 ? "오전" : "오후"} ${hours % 12 || 12}시${tail}`;
 };
 

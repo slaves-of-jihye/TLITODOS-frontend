@@ -546,6 +546,49 @@
         }
       }
     },
+    "/api/v1/users/me/time-format": {
+      "patch": {
+        "tags": [
+          "authorization"
+        ],
+        "summary": "Update time format preference",
+        "description": "Stores whether the client renders times as 12- or 24-hour. Saved todo times and time zones are untouched — this changes how they are read, not what they are. The default is 12H.",
+        "operationId": "update_time_format_api_v1_users_me_time_format_patch",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeFormatSettingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Preference stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TimeFormatSettingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/groups": {
       "get": {
         "tags": [
@@ -3873,6 +3916,42 @@
               "GRIUN_FROMSOL",
               "PAPERLOGY"
             ]
+          }
+        }
+      },
+      "TimeFormat": {
+        "type": "string",
+        "enum": [
+          "12H",
+          "24H"
+        ],
+        "description": "How times are rendered. 12H shows 오전/오후, 24H shows 0-23."
+      },
+      "TimeFormatSettingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "timeFormat"
+        ],
+        "properties": {
+          "timeFormat": {
+            "$ref": "#/components/schemas/TimeFormat"
+          }
+        }
+      },
+      "TimeFormatSettingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "timeFormat"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "timeFormat": {
+            "$ref": "#/components/schemas/TimeFormat"
           }
         }
       },
