@@ -240,6 +240,21 @@ export const useMarkNotificationRead = () => {
   });
 };
 
+/**
+ * 안 읽은 할 일 완료 알림을 한 번에 넘깁니다.
+ *
+ * 줄마다 누르는 것과 같은 자리를 지웁니다 — 무효화도 같은 접두사라, 목록과 갈래
+ * 칩의 점, 아래 네비게이션의 점이 함께 다시 받아 옵니다. 서버가 다른 갈래와 이미
+ * 읽은 줄은 건드리지 않으므로, 돌려주는 수가 곧 이번에 넘어간 개수입니다.
+ */
+export const useReadAllTodoCompleted = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: () => api.notifications.readAllTodoCompleted(),
+    onSuccess: () => invalidate(["notifications"]),
+  });
+};
 export const useCreateGroup = () => {
   const api = useApi();
   const invalidate = useDetachedInvalidate();

@@ -503,6 +503,39 @@
         }
       }
     },
+    "/api/v1/notifications/todo-completed/read-all": {
+      "patch": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Mark every unread todo-completion notification read",
+        "description": "Marks all of the caller's unread TODO_COMPLETED notifications read in one call and answers with how many were changed. Other kinds and already-read rows are left alone, so the count is the number this call actually turned over.",
+        "operationId": "read_all_todo_completed_api_v1_notifications_todo_completed_read_all_patch",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notifications marked read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationsReadAllResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
     "/api/v1/users/me/font": {
       "patch": {
         "tags": [
@@ -3830,6 +3863,23 @@
           "BET_REQUESTED": {
             "type": "boolean",
             "description": "A bet request is unread."
+          }
+        }
+      },
+      "NotificationsReadAllResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "updatedCount"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "updatedCount": {
+            "type": "integer",
+            "description": "How many notifications this call turned from unread to read. Zero when there was nothing left."
           }
         }
       },
