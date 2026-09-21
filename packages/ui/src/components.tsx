@@ -674,7 +674,7 @@ export const BottomNav = ({
       [
         ["home", icons.home, "홈"],
         ["alarm", icons.bell, "알림"],
-        ["settings", icons.profile, "설정"],
+        ["settings", icons.settings, "설정"],
       ] as const
     ).map(([key, src, label]) => (
       <NavButton key={key} onClick={() => onNavigate(key)} aria-label={label}>

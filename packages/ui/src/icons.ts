@@ -9,7 +9,7 @@ const base = "icons/ui";
 export const icons = {
   home: `${base}/home.svg`,
   bell: `${base}/bell.svg`,
-  profile: `${base}/profile.svg`,
+  settings: `${base}/settings.svg`,
   plus: `${base}/plus.svg`,
   arrowUp: `${base}/arrow-up.svg`,
   check: `${base}/check.svg`,
