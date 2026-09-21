@@ -6,6 +6,7 @@ import { MyHome } from "@/pages/home";
 import { NotFoundPage } from "@/pages/not-found";
 import { SettingsPage } from "@/pages/settings";
 import { FontSync } from "@/features/font-select";
+import { HourCycleSync } from "@/features/hour-cycle";
 import { LoginModal } from "@/features/auth-google";
 import { InstallPrompt } from "@/features/pwa-install";
 import { useSessionStore } from "@/shared/model";
@@ -23,6 +24,7 @@ function App() {
   return (
     <HashRouter>
       {accessToken ? <FontSync /> : null}
+      {accessToken ? <HourCycleSync /> : null}
       {accessToken ? <ServerBusyBar /> : null}
       {accessToken ? <InstallPrompt /> : null}
       {accessToken ? (

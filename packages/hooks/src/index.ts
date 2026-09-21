@@ -27,6 +27,7 @@ import type {
   TodoPatchRequest,
   User,
   UserFontUpdateRequest,
+  TimeFormatSettingRequest,
   UserUpdateRequest,
 } from "@tlitodos/types";
 
@@ -323,6 +324,26 @@ export const useUpdateFont = () => {
     mutationFn: (body: UserFontUpdateRequest) => api.users.updateFont(body),
     onSuccess: ({ font }) => {
       writeBack.me({ font });
+      invalidate(queryKeys.me);
+    },
+  });
+};
+/**
+ * 시간 표기 방식을 서버에 남깁니다.
+ *
+ * 폰트와 같은 길입니다 — 응답 값을 `me`에 써 넣고 다시 받아 옵니다. 화면에 바로
+ * 보이는 것은 이 요청이 아니라 로컬 저장소 쪽이 맡습니다: 기기에 남은 선택이
+ * 부팅 첫 그림부터 적용되어야 하고, 서버가 아직 이 필드를 내려주지 않아도
+ * 고른 대로 보여야 하기 때문입니다.
+ */
+export const useUpdateTimeFormat = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  const writeBack = useWriteBack();
+  return useMutation({
+    mutationFn: (body: TimeFormatSettingRequest) => api.users.updateTimeFormat(body),
+    onSuccess: ({ timeFormat }) => {
+      writeBack.me({ timeFormat });
       invalidate(queryKeys.me);
     },
   });

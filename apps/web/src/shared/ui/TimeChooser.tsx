@@ -11,7 +11,7 @@ import { useHourCycle } from "@/shared/model";
  * 통째로 빠지고 0~23이 그대로 놓입니다.
  */
 export const TimeChooser = ({ value, onChange }: { value: string; onChange: (next: string) => void }) => {
-  const wide = useHourCycle() === "H24";
+  const wide = useHourCycle() === "24H";
   const [hour = "", minute = "00"] = value ? value.split(":") : [];
   const hourNumber = value ? Number(hour) : null;
   const meridiem = hourNumber === null ? null : hourNumber < 12 ? "AM" : "PM";
