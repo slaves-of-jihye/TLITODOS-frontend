@@ -186,7 +186,8 @@ self.addEventListener("fetch", event => {
     event.respondWith(cacheFirst(event, FONT_CACHE, false));
     return;
   }
-  if (path.startsWith("icons/") || path === "manifest.webmanifest") {
+  // images/ 도 여기입니다 — 그룹 칩의 표식이 아이콘들과 같은 처지라, 오프라인에서도 떠야 합니다.
+  if (path.startsWith("icons/") || path.startsWith("images/") || path === "manifest.webmanifest") {
     event.respondWith(cacheFirst(event, SHELL_CACHE, true));
   }
 });

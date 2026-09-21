@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useGroups } from "@/entities/group";
-import { Button, HeaderRow, ViewChip } from "@/shared/ui";
+import { Button, HeaderRow, ViewChip, brandMark } from "@/shared/ui";
 
 export const WorkspaceHeader = ({
   activeGroupId,
@@ -19,6 +19,7 @@ export const WorkspaceHeader = ({
         <ViewChip
           key={group.groupId}
           active={activeGroupId === group.groupId}
+          avatar={brandMark}
           onClick={() => navigate(`/groups/${group.groupId}`)}
         >
           {group.name}

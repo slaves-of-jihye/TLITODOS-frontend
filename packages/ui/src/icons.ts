@@ -20,3 +20,12 @@ export const icons = {
   calendar: `${base}/calendar.svg`,
   routine: `${base}/routine.svg`,
 } as const;
+
+/**
+ * 서비스의 표식. 탭 아이콘으로 쓰는 그림 그대로입니다.
+ *
+ * 사람에게는 프로필 사진이 있지만 그룹에는 없어, 그룹 칩은 기본 아바타 자리를
+ * 이것으로 채웁니다 — 사람 자리에 서는 새싹과 갈라져 보여야 사람 칩과 그룹 칩을
+ * 눈으로 구분할 수 있습니다. 아이콘들과 같은 이유로 문서 기준 상대 경로입니다.
+ */
+export const brandMark = "images/favicon.png";
