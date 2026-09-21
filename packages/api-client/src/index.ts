@@ -47,7 +47,6 @@ import type {
   UserFontUpdateResponse,
   TimeFormatSettingRequest,
   TimeFormatSettingResponse,
-  UserProfileUpdateResponse,
   UserUpdateRequest,
 } from "@tlitodos/types";
 
@@ -161,8 +160,7 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
     },
     users: {
       me: () => request<User>("/api/v1/users/me"),
-      updateMe: (body: UserUpdateRequest | FormData) =>
-        request<UserProfileUpdateResponse>("/api/v1/users/me", { method: "PATCH", body }),
+      updateMe: (body: UserUpdateRequest | FormData) => request<User>("/api/v1/users/me", { method: "PATCH", body }),
       updateFont: (body: UserFontUpdateRequest) =>
         request<UserFontUpdateResponse>("/api/v1/users/me/font", { method: "PATCH", body }),
       updateTimeFormat: (body: TimeFormatSettingRequest) =>

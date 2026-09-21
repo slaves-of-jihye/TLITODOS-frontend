@@ -19,10 +19,10 @@ export interface User {
   bio: string;
   isDiscordLinked: boolean;
   discordAlertEnabled: boolean;
-  /** 선택한 폰트 키. 서버가 아직 내려주지 않으면 로컬에 남은 선택을 씁니다. */
-  font?: string | null;
-  /** `12H` 또는 `24H`. 폰트와 같이, 서버가 내려주지 않으면 로컬에 남은 선택을 씁니다. */
-  timeFormat?: string | null;
+  /** 선택한 폰트 키. `@tlitodos/core`의 `FontKey`입니다. */
+  font: string;
+  /** `12H` 또는 `24H`. `@tlitodos/core`의 `HourCycle`입니다. */
+  timeFormat: string;
 }
 
 export interface LoginResponse {
@@ -37,13 +37,6 @@ export interface TokenRefreshResponse {
   refreshToken: string;
   expiresAt: string;
   refreshExpiresAt: string;
-}
-
-export interface UserProfileUpdateResponse {
-  userId: number;
-  name: string;
-  profileImageUrl: string | null;
-  bio: string;
 }
 
 export interface GroupListItem {
@@ -138,8 +131,12 @@ export interface Todo {
 /** 알림에 딸려 오는 할 일 요약. */
 export interface TodoPreview {
   todoId: number;
+  /** 할 일 주인. 알림을 만든 사람과 같습니다. */
+  userId: number;
   title: string;
   description: string;
+  startDate: string;
+  dueDate: string | null;
 }
 
 /** `GET /api/v1/todos/daily-status`가 그 달의 날마다 하나씩 돌려주는 요약입니다. */
@@ -254,6 +251,8 @@ export interface BetStatusRequest {
 /** `Notification`은 DOM 전역 이름과 겹쳐 `AppNotification`으로 둡니다. */
 export interface AppNotification {
   notificationId: number;
+  /** 이 알림이 온 그룹. 필드가 생기기 전에 쌓인 줄은 `null`입니다. */
+  groupId: number | null;
   type: NotificationType;
   actor: NotificationActor;
   todo: TodoPreview | null;

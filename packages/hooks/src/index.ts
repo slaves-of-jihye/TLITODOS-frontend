@@ -59,8 +59,6 @@ export const queryKeys = {
     ["diaries", date, groupId, userId] as const,
   /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
   diary: (id: number) => ["diary", id] as const,
-  /** 한 건은 `["todos"]` 밑에 두지 않습니다 — `writeBack.todos`가 그 접두사를 `Todo[]`로 덮습니다. */
-  todo: (id: number) => ["todo", id] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
   /**
    * 종류별 안 읽음 표시. 일부러 `["notifications"]` 밑에 둡니다.
@@ -159,22 +157,6 @@ export const useFindMemberGroup = () => {
       }
       return null;
     },
-    [api, cache],
-  );
-};
-
-/**
- * 할 일 한 건을 필요할 때 받아 옵니다.
- *
- * 알림이 들고 오는 것은 제목과 세부사항뿐이라, 그 할 일이 어느 날의 것인지는
- * 여기서 물어봐야 압니다. 그리는 것이 아니라 어디로 갈지 정하려고 쓰는 값이라
- * 훅이 아니라 부를 수 있는 함수로 돌려줍니다.
- */
-export const useFetchTodo = () => {
-  const api = useApi();
-  const cache = useQueryClient();
-  return useCallback(
-    (todoId: number) => cache.fetchQuery({ queryKey: queryKeys.todo(todoId), queryFn: () => api.todos.get(todoId) }),
     [api, cache],
   );
 };
@@ -399,8 +381,8 @@ export const useUpdateFont = () => {
  *
  * 폰트와 같은 길입니다 — 응답 값을 `me`에 써 넣고 다시 받아 옵니다. 화면에 바로
  * 보이는 것은 이 요청이 아니라 로컬 저장소 쪽이 맡습니다: 기기에 남은 선택이
- * 부팅 첫 그림부터 적용되어야 하고, 서버가 아직 이 필드를 내려주지 않아도
- * 고른 대로 보여야 하기 때문입니다.
+ * 부팅 첫 그림부터, 그러니까 `GET /users/me`가 답하기 전부터 적용되어야 하기
+ * 때문입니다.
  */
 export const useUpdateTimeFormat = () => {
   const api = useApi();

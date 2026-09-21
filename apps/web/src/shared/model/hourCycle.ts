@@ -11,9 +11,6 @@ const STORAGE_KEY = "tlitodos.hourCycle";
  * `GET /users/me`로 오므로 매 접속마다 12시간제로 한 번 그렸다가 바뀝니다. 마지막
  * 선택을 기기에 남겨 두고 첫 그림부터 적용한 뒤, 응답이 오면 보정합니다.
  *
- * 서버가 아직 이 필드를 내려주지 않아도 고른 대로 보입니다 — 사본이 그대로 남고
- * 보정할 값이 오지 않을 뿐입니다.
- *
  * `localStorage`는 있다고 믿지 않습니다 — 세션 저장과 같은 이유입니다.
  */
 const readStored = (): HourCycle => {

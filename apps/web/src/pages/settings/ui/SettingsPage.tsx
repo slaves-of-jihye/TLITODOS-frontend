@@ -31,7 +31,7 @@ export const SettingsPage = () => {
   const cache = useQueryClient();
   const navigate = useNavigate();
   const [error, setError] = useState("");
-  // 서버가 아직 폰트를 내려주지 않는 동안에는 이 기기에 남은 선택을 기준으로 삼습니다.
+  // `me`가 오기 전 한 그림 동안은 이 기기에 남은 선택을 기준으로 삼습니다.
   const font = resolveFont(me?.font ?? readStoredFont()).key;
   const guard = async (run: () => Promise<unknown>) => {
     setError("");
