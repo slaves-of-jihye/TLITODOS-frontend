@@ -18,6 +18,7 @@ import type { RoutineValue } from "@/features/todo-routine";
 import { DeadlineModal } from "@/features/todo-deadline";
 import { RoutineModal } from "@/features/todo-routine";
 import { TODO_TITLE_LIMIT } from "@/shared/config";
+import { useHourCycle } from "@/shared/model";
 import { dateOnly, errorMessage } from "@/shared/lib";
 import {
   Button,
@@ -109,6 +110,7 @@ export const TodoDetailModal = ({
   const [confirming, setConfirming] = useState<"todo" | "routine" | null>(null);
   /** 고친 것을 두고 나가려 할 때 뜨는 물음. */
   const [askingClose, setAskingClose] = useState(false);
+  const hourCycle = useHourCycle();
   const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
@@ -337,7 +339,7 @@ export const TodoDetailModal = ({
                   <DetailChosen>
                     {formatSheetDate(deadline.start)}
                     {deadline.date !== deadline.start ? ` ~ ${formatSheetDate(deadline.date)}` : ""} ·{" "}
-                    {formatSheetTime(deadline.time)}
+                    {formatSheetTime(deadline.time, hourCycle)}
                   </DetailChosen>
                   {todo.routineId ? (
                     <ConfirmMenu

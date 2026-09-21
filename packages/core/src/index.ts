@@ -189,6 +189,65 @@ export const formatLongKoreanDate = (value: string) => {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${weekday}요일`;
 };
 
+/**
+ * 시간을 12시간제로 읽을지 24시간제로 읽을지.
+ *
+ * 디자인은 처음부터 오전/오후로 그려져 있어 기본은 12시간제입니다 — 아무것도
+ * 고르지 않은 사람의 화면은 지금까지와 같아야 하니까요.
+ */
+export type HourCycle = "H12" | "H24";
+
+export const DEFAULT_HOUR_CYCLE: HourCycle = "H12";
+
+/** 모르는 값(옛 저장값, 손댄 저장소)은 기본값으로 떨어집니다. */
+export const resolveHourCycle = (value: string | null | undefined): HourCycle =>
+  value === "H24" ? "H24" : DEFAULT_HOUR_CYCLE;
+
+/**
+ * 말로 읽는 시각. `오후 2시`, `14시 30분`처럼 문장에 섞어 쓰는 형태입니다.
+ *
+ * 정각이면 분을 붙이지 않습니다 — `오후 2시 0분까지`라고 말하는 사람은 없습니다.
+ * 숫자를 채워 쓰는 `09:30` 꼴은 시트의 `formatSheetTime`이 따로 맡습니다.
+ */
+export const formatClock = (time: string, cycle: HourCycle = DEFAULT_HOUR_CYCLE) => {
+  const [hour = "0", minute = "00"] = time.split(":");
+  const hours = Number(hour);
+  const minutes = Number(minute);
+  const tail = minutes ? ` ${minutes}분` : "";
+  if (cycle === "H24") return `${hours}시${tail}`;
+  return `${hours < 12 ? "오전" : "오후"} ${hours % 12 || 12}시${tail}`;
+};
+
+/**
+ * 할 일 줄에 붙는 마감 한마디. 없으면 `null`이고, 그러면 아무것도 그리지 않습니다.
+ *
+ * 얼마나 멀리 있는지에 따라 앞을 덜어 냅니다 — 같은 날이면 시각만, 같은 달 안이면
+ * 며칠인지까지, 그 밖이면 몇 월인지까지.
+ *
+ * 기준은 보고 있는 날(`onDate`)입니다. 달력을 10월 1일로 넘겨 그날 마감인 할 일을
+ * 보고 있다면 이미 10월 1일을 읽고 있는 것이니 `오후 2시까지`면 충분합니다 —
+ * 실제 오늘을 기준으로 삼으면 눈앞의 날짜를 한 번 더 적게 됩니다.
+ *
+ * 시각이 없는 할 일은 날짜밖에 할 말이 없습니다. 그래서 마감이 보고 있는 날이면
+ * 남는 말이 없어 아무것도 띄우지 않습니다 — 만들 때 마감을 따로 잡지 않으면 그날이
+ * 그대로 마감이 되므로, 그러지 않으면 보통의 할 일마다 빨간 글씨가 붙습니다.
+ */
+export const formatDeadline = (
+  todo: Pick<Todo, "dueDate" | "time">,
+  cycle: HourCycle = DEFAULT_HOUR_CYCLE,
+  onDate = formatLocalDate(new Date()),
+) => {
+  const due = dateOnly(todo.dueDate);
+  if (!due) return null;
+  const clock = todo.time ? formatClock(todo.time, cycle) : "";
+  if (due === onDate) return clock ? `${clock}까지` : null;
+  const date = parseLocalDate(due);
+  const seen = parseLocalDate(onDate);
+  const sameMonth = date.getFullYear() === seen.getFullYear() && date.getMonth() === seen.getMonth();
+  const day = `${sameMonth ? "" : `${date.getMonth() + 1}월 `}${date.getDate()}일`;
+  return clock ? `${day} ${clock}까지` : `${day}까지`;
+};
+
 export const getTodoTitle = (selectedDate: string, today = formatLocalDate(new Date())) => {
   if (selectedDate === today) return "오늘의 TODO!";
   const date = parseLocalDate(selectedDate);

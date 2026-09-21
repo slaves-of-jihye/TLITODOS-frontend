@@ -4,6 +4,7 @@ export {
   coversDate,
   dependencyCandidates,
   dependentIds,
+  formatDeadline,
   getTodoTitle,
   prerequisiteIds,
   repeatUsesWeekdays,

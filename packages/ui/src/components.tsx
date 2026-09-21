@@ -401,6 +401,7 @@ export const TodoRow = ({
   todo,
   accent,
   own,
+  deadline,
   onToggle,
   onEdit,
   onBet,
@@ -408,6 +409,11 @@ export const TodoRow = ({
   todo: Todo;
   accent: string;
   own: boolean;
+  /**
+   * 세부사항 옆에 붙는 마감 한마디. 언제까지인지는 읽는 사람의 오늘과 시간 체계에
+   * 따라 달라지므로, 문구는 부르는 쪽에서 지어 넘깁니다(`formatDeadline`).
+   */
+  deadline?: string | null;
   onToggle?: () => void;
   onEdit?: () => void;
   /** 남의 할 일에 내기를 걸 때. 넘기지 않으면 덮개를 띄우지 않습니다. */
@@ -430,7 +436,12 @@ export const TodoRow = ({
        */}
       <TodoTextButton disabled={own ? !onEdit : !onBet} onClick={own ? onEdit : onBet}>
         <strong>{todo.title}</strong>
-        {detail ? <small>{detail}</small> : null}
+        {detail || deadline ? (
+          <TodoSubline>
+            {detail ? <small>{detail}</small> : null}
+            {deadline ? <TodoDeadline>{deadline}</TodoDeadline> : null}
+          </TodoSubline>
+        ) : null}
       </TodoTextButton>
       {/* 남의 할 일에만, 아직 끝나지 않은 것에만 덮개가 올라옵니다. */}
       {!own && !todo.isCompleted && onBet ? (
@@ -505,6 +516,33 @@ const TodoTextButton = styled.button`
   }
   &:disabled {
     cursor: default;
+  }
+`;
+/*
+ * 세부사항과 마감이 한 줄에 섭니다.
+ *
+ * 마감은 앞이 아니라 뒤에 둡니다 — 줄을 훑을 때 먼저 읽혀야 하는 것은 무슨
+ * 일인지이고, 언제까지인지는 그다음입니다. 좁아지면 마감이 아래로 내려가되
+ * 줄어들지는 않습니다: 세부사항은 잘려도 뜻이 남지만 `2시까지`는 잘리면
+ * 남는 것이 없습니다.
+ */
+const TodoSubline = styled.span`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+`;
+const TodoDeadline = styled.small`
+  flex: none;
+  /*
+   * 마감은 경고입니다. 본문 회색과 같은 크기로, 색만 다르게 둡니다.
+   *
+   * 선택자를 두 번 겹쳐 무게를 싣습니다 — 감싸는 버튼이 small 전체를 회색으로
+   * 칠하고 있어, 클래스 하나로는 그 자손 선택자를 이기지 못합니다.
+   */
+  && {
+    color: ${theme.colors.red};
   }
 `;
 const BetOverlay = styled.button`
