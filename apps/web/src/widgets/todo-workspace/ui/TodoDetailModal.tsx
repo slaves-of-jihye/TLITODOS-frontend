@@ -22,6 +22,7 @@ import { dateOnly, errorMessage } from "@/shared/lib";
 import {
   Button,
   ConfirmChoice,
+  ConfirmDialog,
   ConfirmMenu,
   ConfirmNote,
   DetailEmpty,
@@ -106,6 +107,8 @@ export const TodoDetailModal = ({
   }));
   /** 열려 있는 삭제 확인 드롭다운. 한 번에 하나만 엽니다. */
   const [confirming, setConfirming] = useState<"todo" | "routine" | null>(null);
+  /** 고친 것을 두고 나가려 할 때 뜨는 물음. */
+  const [askingClose, setAskingClose] = useState(false);
   const dismissConfirm = useCallback(() => setConfirming(null), []);
   const removing = deleteTodo.isPending || deleteRoutine.isPending;
   const ordered = sortCategories(categories);
@@ -166,6 +169,8 @@ export const TodoDetailModal = ({
       setError(errorMessage(reason));
     } finally {
       setBusy(false);
+      // 성공했으면 시트째 닫히고, 실패했으면 물음을 걷고 시트에 남은 오류를 보입니다.
+      setAskingClose(false);
     }
   };
   /** 이 회차 하나만 지웁니다 — 루틴 정의와 다른 날짜의 회차는 그대로 남습니다. */
@@ -194,9 +199,22 @@ export const TodoDetailModal = ({
       setConfirming(null);
     }
   };
+  /*
+   * 나가려는 몸짓을 한 번 받아 둡니다.
+   *
+   * 시트는 모아 두었다가 한 번에 보내므로, 닫는 것이 곧 버리는 것입니다. 바깥을
+   * 한 번 잘못 누르면 고친 것이 전부 사라지는데 되돌릴 방법은 없으니, 보낼 것이
+   * 남아 있으면 그대로 닫지 않고 묻습니다. 보내는 중이라면 아예 듣지 않습니다 —
+   * 요청이 나간 뒤에 시트를 닫으면 어디까지 저장됐는지 알 수 없게 됩니다.
+   */
+  const requestClose = () => {
+    if (busy || removing) return;
+    if (dirty) setAskingClose(true);
+    else onClose();
+  };
   return (
     <>
-      <Modal open={open} sheet onClose={onClose} aria-label="할 일 상세">
+      <Modal open={open} sheet onClose={requestClose} aria-label="할 일 상세">
         {todo ? (
           <DetailSheet>
             {/*
@@ -409,6 +427,30 @@ export const TodoDetailModal = ({
           </DetailSheet>
         ) : null}
       </Modal>
+      <ConfirmDialog
+        open={open && askingClose}
+        onClose={busy ? undefined : () => setAskingClose(false)}
+        aria-label="수정한 내용 저장"
+        title="수정한 내용이 있습니다. 저장하시겠습니까?"
+        note="저장하지 않고 닫으면 고친 내용이 사라집니다."
+      >
+        <Button variant="soft" disabled={busy} onClick={() => setAskingClose(false)}>
+          취소
+        </Button>
+        <Button
+          variant="danger"
+          disabled={busy}
+          onClick={() => {
+            setAskingClose(false);
+            onClose();
+          }}
+        >
+          저장하지 않고 닫기
+        </Button>
+        <Button variant="primary" disabled={busy} onClick={save}>
+          {busy ? "저장 중..." : "저장하고 닫기"}
+        </Button>
+      </ConfirmDialog>
       <DeadlineModal
         open={deadlineOpen}
         value={deadline}
