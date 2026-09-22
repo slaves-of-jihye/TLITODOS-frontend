@@ -47,6 +47,7 @@ export const TodoWorkspace = ({
   ownerBio,
   ownerImageUrl,
   initialDate,
+  openDiary,
 }: {
   own: boolean;
   ownerId?: number;
@@ -64,6 +65,13 @@ export const TodoWorkspace = ({
    * 나중에 값이 바뀌어도 보고 있던 날을 빼앗지 않습니다.
    */
   initialDate?: string;
+  /**
+   * 걸리자마자 일기 보기 시트를 펴 둘지.
+   *
+   * 일기를 고치고 저장해 돌아왔을 때 방금 쓴 것을 그대로 보여 주려고 씁니다.
+   * 한 번 닫으면 다시 열리지 않습니다.
+   */
+  openDiary?: boolean;
 }) => {
   const navigate = useNavigate();
   const today = formatLocalDate(new Date());
@@ -111,6 +119,15 @@ export const TodoWorkspace = ({
   const updateTodo = useUpdateTodo();
   const [manage, setManage] = useState<Category | null>(null);
   const [diaryPreview, setDiaryPreview] = useState<Diary | null>(null);
+  /*
+   * 저장하고 돌아온 길에 한 번 펴 줍니다.
+   *
+   * 일기는 보드보다 늦게 도착하므로 걸리는 순간에는 아직 손에 없습니다. 효과로
+   * 나중에 넣는 대신 "아직 펼 차례가 남았는가"만 들고 있다가, 도착한 것을 그릴 때
+   * 함께 읽습니다 — 그리는 값은 상태에서 끌어내면 되지 효과로 밀어 넣을 일이
+   * 아닙니다. 닫으면 차례를 거두어 다시 열리지 않습니다.
+   */
+  const [diaryPending, setDiaryPending] = useState(Boolean(openDiary));
   /** 내기를 걸려고 고른 남의 할 일. */
   const [betTodo, setBetTodo] = useState<Todo | null>(null);
   /** 끌어 옮기는 중인 할 일의 새 카테고리. 서버가 답하기 전에도 옮겨 둡니다. */
@@ -179,6 +196,12 @@ export const TodoWorkspace = ({
   // 그룹 멤버 목록도 사진 경로를 함께 주므로 남의 화면에서도 그 사람의 사진을 씁니다.
   const ownerImage = useAssetObjectUrl(own ? me?.profileImageUrl : ownerImageUrl);
   const bio = own ? me?.bio : ownerBio;
+  /** 지금 펴 둘 일기. 눌러서 편 것이 없으면 저장하고 돌아온 길의 것을 봅니다. */
+  const shownDiary = diaryPreview ?? (diaryPending ? (selectedDiary ?? null) : null);
+  const closeDiary = () => {
+    setDiaryPreview(null);
+    setDiaryPending(false);
+  };
   return (
     <>
       <WorkspaceGrid>
@@ -196,8 +219,14 @@ export const TodoWorkspace = ({
               <DiaryBadge
                 emotion={selectedDiary?.emotion}
                 nickname={selectedDiary ? "일기" : "일기쓰기"}
+                /*
+                 * 이미 쓴 일기는 먼저 보여 주고, 고치는 것은 그 안에서 고릅니다.
+                 *
+                 * 아직 없는 날은 볼 것이 없으므로 곧장 입력 폼으로 갑니다 —
+                 * 빈 화면을 한 번 거치게 할 이유가 없습니다.
+                 */
                 onClick={() =>
-                  own ? navigate(`/diary?date=${selectedDate}`) : selectedDiary && setDiaryPreview(selectedDiary)
+                  selectedDiary ? setDiaryPreview(selectedDiary) : own && navigate(`/diary?date=${selectedDate}`)
                 }
               />
             ) : null}
@@ -299,8 +328,14 @@ export const TodoWorkspace = ({
         <DragPreview style={{ left: drag.preview.x, top: drag.preview.y }}>{drag.preview.title}</DragPreview>
       ) : null}
       {/* Figma group 섹션의 `modal / diary`입니다. 닫기 버튼이 없어 뒤 배경을 눌러 닫습니다. */}
-      {diaryPreview ? (
-        <DiaryViewModal diary={diaryPreview} author={ownerName || "친구"} onClose={() => setDiaryPreview(null)} />
+      {shownDiary ? (
+        <DiaryViewModal
+          diary={shownDiary}
+          author={own ? me?.name || "나" : ownerName || "친구"}
+          // 고칠 수 있는 것은 내 일기뿐입니다. 남의 것에는 버튼 자체가 서지 않습니다.
+          onEdit={own ? () => navigate(`/diary?date=${selectedDate}`) : undefined}
+          onClose={closeDiary}
+        />
       ) : null}
       {/* BetModal is intentionally kept out of the active MVP build. */}
     </>
