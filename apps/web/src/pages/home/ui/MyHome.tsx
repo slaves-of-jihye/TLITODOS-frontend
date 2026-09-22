@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { GroupActionModals } from "@/features/group-join";
 import { AppShell } from "@/shared/ui";
 import { PageNav } from "@/widgets/page-nav";
@@ -20,10 +21,18 @@ const useHeaderModal = () => {
 
 export const MyHome = () => {
   const header = useHeaderModal();
+  /*
+   * 일기를 저장하고 돌아온 길.
+   *
+   * 그 날로 보드를 열고 일기 시트도 함께 펴 줍니다 — 홈은 늘 오늘로 열리므로
+   * 날짜를 들려 보내지 않으면 다른 날에 쓴 일기가 어디로 갔는지 알 수 없습니다.
+   */
+  const [search] = useSearchParams();
+  const savedDiaryDate = search.get("diary") ?? undefined;
   return (
     <AppShell>
       <WorkspaceHeader onCreate={header.openCreate} onJoin={header.openJoin} />
-      <TodoWorkspace own groupId={null} />
+      <TodoWorkspace own groupId={null} initialDate={savedDiaryDate} openDiary={Boolean(savedDiaryDate)} />
       <PageNav active="home" />
       <GroupActionModals mode={header.mode} onClose={header.close} />
     </AppShell>

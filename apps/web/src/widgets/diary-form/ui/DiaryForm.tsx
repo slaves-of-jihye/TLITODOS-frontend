@@ -75,7 +75,14 @@ export const DiaryForm = ({
         body = { date: selectedDate, content, emotion: emotion || null, visibility };
       }
       await save.mutateAsync({ id: existing?.diaryId, body });
-      navigate("/");
+      /*
+       * 방금 쓴 것을 그대로 펴 둔 채 돌아갑니다.
+       *
+       * 고치러 온 길이 보기 시트였으므로 저장하면 그 자리로 돌아가야 말이 됩니다.
+       * 새로 쓴 때도 마찬가지입니다 — 쓴 것이 어떻게 보이는지가 바로 궁금합니다.
+       * 홈은 오늘로 열리므로 날짜도 함께 들려 보냅니다.
+       */
+      navigate(`/?diary=${selectedDate}`);
     } catch (reason) {
       setError(errorMessage(reason));
     }
