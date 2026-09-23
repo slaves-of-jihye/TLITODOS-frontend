@@ -7,6 +7,7 @@ export {
   dependentIds,
   formatDeadline,
   getTodoTitle,
+  isOverdue,
   prerequisiteIds,
   repeatUsesWeekdays,
   ROUTINE_REPEATS,

@@ -227,6 +227,18 @@ export const formatClock = (time: string, cycle: HourCycle = DEFAULT_HOUR_CYCLE)
 };
 
 /**
+ * 기한이 지난 할 일인지.
+ *
+ * 마감일이 오늘보다 앞이면 지난 것입니다. 오늘이면 아직 남았습니다 — 그날 안에
+ * 하면 되니까요. `formatDeadline`과 달리 보고 있는 날이 아니라 진짜 오늘로 잽니다:
+ * "지났다"는 달력을 어디로 넘겼든 지금을 기준으로 하는 말입니다.
+ */
+export const isOverdue = (todo: Pick<Todo, "startDate" | "dueDate">, today = formatLocalDate(new Date())) => {
+  const due = dateOnly(todo.dueDate) ?? dateOnly(todo.startDate);
+  return due !== null && due < today;
+};
+
+/**
  * 할 일 줄에 붙는 마감 한마디. 없으면 `null`이고, 그러면 아무것도 그리지 않습니다.
  *
  * 얼마나 멀리 있는지에 따라 앞을 덜어 냅니다 — 같은 날이면 시각만, 같은 달 안이면
