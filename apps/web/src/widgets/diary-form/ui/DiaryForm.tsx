@@ -40,7 +40,7 @@ export const DiaryForm = ({
   const [emotion, setEmotion] = useState(existing?.emotion ?? "");
   const [emotionOpen, setEmotionOpen] = useState(false);
   const [content, setContent] = useState(existing?.content ?? "");
-  // 서버에서 GROUP(일부 공개)은 보류라 작성자만 보게 됩니다. 화면은 공개/비밀 두 갈래만 씁니다.
+  // 일부 공개(GROUP)는 만들지 않기로 했습니다. 화면은 공개/비밀 두 갈래만 씁니다.
   const [visibility, setVisibility] = useState<UiVisibility>(existing?.visibility === "PUBLIC" ? "PUBLIC" : "PRIVATE");
   const [image, setImage] = useState<File | null>(null);
   const imageInput = useRef<HTMLInputElement>(null);
@@ -127,8 +127,8 @@ export const DiaryForm = ({
               <Button variant={visibility === "PUBLIC" ? "primary" : "soft"} onClick={() => setVisibility("PUBLIC")}>
                 전체 공개
               </Button>
-              {/* 일부 공개는 MVP 범위 밖입니다. 자리만 두고 막아 둡니다. */}
-              <Button disabled title="일부 공개는 MVP 이후 제공됩니다.">
+              {/* 만들지 않기로 한 갈래입니다. 디자인에 자리가 있어 남겨 두되 막아 둡니다. */}
+              <Button disabled title="일부 공개는 제공하지 않습니다.">
                 일부 공개
               </Button>
               <Button variant={visibility === "PRIVATE" ? "primary" : "soft"} onClick={() => setVisibility("PRIVATE")}>
