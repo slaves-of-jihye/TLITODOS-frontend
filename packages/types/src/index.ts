@@ -232,8 +232,12 @@ export interface NotificationActor {
 export interface Bet {
   betId: number;
   todoId: number;
+  /** 내기가 걸린 할 일. 목록이 통째로 들고 오므로 따로 받아 올 것이 없습니다. */
+  todo: TodoPreview;
   content: string;
   requesterId: number;
+  /** 내기를 건 사람의 이름. 계정이 사라졌으면 `null`입니다. */
+  requesterName: string | null;
   status: BetStatus;
   proofImageUrl: string | null;
   isVerified: boolean;
@@ -244,6 +248,15 @@ export interface BetCreateRequest {
   content: string;
 }
 /** 받은 내기에 대한 답. 둘 중 하나만 보냅니다. */
+export interface BetProofResponse {
+  success: boolean;
+  betId: number;
+  proofImageUrl: string;
+}
+export interface BetVerifyRequest {
+  /** 인정하면 `true`. `false`면 상태는 그대로 두고 다시 올려 달라는 뜻입니다. */
+  approved: boolean;
+}
 export interface BetStatusRequest {
   status: Extract<BetStatus, "ACCEPTED" | "REJECTED">;
 }

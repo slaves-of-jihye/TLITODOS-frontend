@@ -17,9 +17,13 @@ import {
   useNotifications,
   useReadAllTodoCompleted,
 } from "@/entities/notification";
+import { BET_STAGE_LABEL, betStage, useBets } from "@/entities/bet";
 import { useFindMemberGroup } from "@/entities/group";
 import { coversDate, dateOnly } from "@/entities/todo";
+import { useMe } from "@/entities/user";
 import { BetReceivedModal } from "@/features/bet-answer";
+import { BetProofModal } from "@/features/bet-proof";
+import { BetVerifyModal } from "@/features/bet-verify";
 import { DiaryViewModal } from "@/features/diary-view";
 import { errorMessage, formatLocalDate } from "@/shared/lib";
 import { AppShell, Button, ErrorText, PageTitle, SrOnly, palette, theme } from "@/shared/ui";
@@ -39,14 +43,89 @@ const boardDate = (todo: TodoPreview) => {
   return dateOnly(todo.dueDate) ?? dateOnly(todo.startDate) ?? today;
 };
 
+/**
+ * 알림 갈래 셋에 내기 칸 하나를 더한 것이 이 화면의 칩 줄입니다.
+ *
+ * 내기는 알림이 아닙니다 — 알림은 그때 일어난 일을 한 줄 남길 뿐이고, 내기는
+ * 수락하고 인증하고 확인하기까지 며칠을 걸쳐 오갑니다. 그런데 오가는 상대가 같고
+ * 들여다보는 이유도 같아서, 화면을 새로 만들기보다 여기 한 칸을 더 둡니다.
+ */
+const BETS_TAB = "BETS" as const;
+type AlarmTab = NotificationType | typeof BETS_TAB;
+
+/**
+ * 내기 한 줄.
+ *
+ * 무엇을 걸었는지가 가장 크고, 어느 할 일에 걸린 것인지가 그 아래에 붙습니다.
+ * 받은 내기에는 건 사람의 이름도 함께 답니다 — 보낸 내기에서 `requesterName`은
+ * 내 이름이라 상대를 가리키지 못하고, 할 일 주인의 이름은 목록에 없습니다.
+ *
+ * 오른쪽 끝에는 지금 내 차례인지가 섭니다: 차례가 아닌 줄은 무엇을 기다리는
+ * 중인지 적기만 하고, 내 차례인 줄에만 누를 것이 있습니다.
+ */
+const BetListRow = ({
+  bet,
+  myUserId,
+  onProve,
+  onCheck,
+  onAnswer,
+}: {
+  bet: Bet;
+  myUserId: number;
+  onProve: () => void;
+  onCheck: () => void;
+  onAnswer: () => void;
+}) => {
+  const stage = betStage(bet, myUserId);
+  /** 내가 건 것인지 나에게 온 것인지. 같은 목록에 두 방향이 섞여 있습니다. */
+  const received = bet.requesterId !== myUserId;
+  const when = dateOnly(bet.todo.dueDate) ?? dateOnly(bet.todo.startDate) ?? "";
+  const line = [received ? bet.requesterName : null, `${when} ${bet.todo.title}`.trim()].filter(Boolean).join(" · ");
+  const action =
+    stage === "ANSWER"
+      ? { label: "답하기", run: onAnswer }
+      : stage === "PROVE"
+        ? { label: "인증하기", run: onProve }
+        : stage === "CHECK"
+          ? { label: "확인하기", run: onCheck }
+          : null;
+  return (
+    <BetRow {...(action ? { as: "button" as const, type: "button" as const, onClick: action.run } : {})}>
+      <div>
+        {/*
+         * 어느 쪽에서 온 내기인지 먼저 밝힙니다.
+         *
+         * 차례 표시만으로는 갈리지 않습니다 — `인증을 기다리는 중`은 내가 건
+         * 내기에서도, 내가 받은 내기에서도 나올 수 있는 말입니다.
+         */}
+        <BetDirection received={received}>{received ? "받은 내기" : "보낸 내기"}</BetDirection>
+        <strong>{bet.content}</strong>
+        <small>{line}</small>
+      </div>
+      {action ? <BetAction aria-hidden>{action.label}</BetAction> : <BetWaiting>{BET_STAGE_LABEL[stage]}</BetWaiting>}
+      {action ? <SrOnly>{BET_STAGE_LABEL[stage]}</SrOnly> : null}
+    </BetRow>
+  );
+};
+
 export const AlarmPage = () => {
-  const [filter, setFilter] = useState<NotificationType>("TODO_COMPLETED");
+  const [filter, setFilter] = useState<AlarmTab>("TODO_COMPLETED");
+  const onBets = filter === BETS_TAB;
   /** 열어 둔 일기. 알림에 딸려 온 작성자 이름은 일기 응답에 없어 함께 들고 있습니다. */
   const [openDiary, setOpenDiary] = useState<{ diaryId: number; actor: string } | null>(null);
   /** 열어 둔 내기. 알림이 내기를 통째로 담아 오므로 따로 받아 올 것이 없습니다. */
   const [openBet, setOpenBet] = useState<{ bet: Bet; actor: string } | null>(null);
   const label = ALARM_FILTERS.find(item => item.key === filter)?.label ?? "";
-  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(filter);
+  // 내기 칸에 서 있는 동안에는 알림 목록을 받아 오지 않습니다.
+  const { data, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useNotifications(
+    onBets ? null : filter,
+    !onBets,
+  );
+  const { data: bets = [], isLoading: betsLoading, error: betsError } = useBets(onBets);
+  const { data: me } = useMe();
+  /** 사진을 올리려고 연 내기와, 사진을 보려고 연 내기. */
+  const [proving, setProving] = useState<Bet | null>(null);
+  const [checking, setChecking] = useState<Bet | null>(null);
   /*
    * 갈래마다 안 읽은 알림이 남아 있는지.
    *
@@ -132,6 +211,16 @@ export const AlarmPage = () => {
               ) : null}
             </AlarmFilter>
           ))}
+          {/* 내기 칸에는 점이 붙지 않습니다 — `unread-status`는 알림 세 갈래만 셉니다. */}
+          <AlarmFilter
+            type="button"
+            role="tab"
+            aria-selected={onBets}
+            selected={onBets}
+            onClick={() => setFilter(BETS_TAB)}
+          >
+            주고받은 내기
+          </AlarmFilter>
         </AlarmFilters>
         {canReadAll ? (
           <AlarmBulkRow>
@@ -141,7 +230,28 @@ export const AlarmPage = () => {
           </AlarmBulkRow>
         ) : null}
         {openError ? <ErrorText>{openError}</ErrorText> : null}
-        {error ? (
+        {onBets ? (
+          betsError ? (
+            <ErrorText>{errorMessage(betsError)}</ErrorText>
+          ) : betsLoading ? (
+            <AlarmListSkeleton />
+          ) : bets.length && me ? (
+            <AlarmList>
+              {bets.map(bet => (
+                <BetListRow
+                  key={bet.betId}
+                  bet={bet}
+                  myUserId={me.userId}
+                  onProve={() => setProving(bet)}
+                  onCheck={() => setChecking(bet)}
+                  onAnswer={() => setOpenBet({ bet, actor: bet.requesterName || "친구" })}
+                />
+              ))}
+            </AlarmList>
+          ) : (
+            <AlarmEmpty>주고받은 내기가 없습니다.</AlarmEmpty>
+          )
+        ) : error ? (
           <ErrorText>{errorMessage(error)}</ErrorText>
         ) : isLoading ? (
           <AlarmListSkeleton />
@@ -196,6 +306,8 @@ export const AlarmPage = () => {
       {openDiary ? (
         <DiaryViewModal diaryId={openDiary.diaryId} author={openDiary.actor} onClose={() => setOpenDiary(null)} />
       ) : null}
+      <BetProofModal bet={proving} onClose={() => setProving(null)} />
+      <BetVerifyModal bet={checking} onClose={() => setChecking(null)} />
       <BetReceivedModal
         key={openBet?.bet.betId ?? 0}
         bet={openBet?.bet ?? null}
@@ -207,6 +319,74 @@ export const AlarmPage = () => {
     </AppShell>
   );
 };
+
+/*
+ * 내기 줄. 알림 줄과 같은 카드 모양이되 아바타 자리가 없습니다 — 내기는 사람이
+ * 아니라 할 일에 붙는 것이고, 목록은 상대의 사진을 들고 오지 않습니다.
+ *
+ * 누를 것이 있는 줄만 `button`으로 그립니다. 기다리는 줄까지 버튼으로 두면 눌러도
+ * 아무 일이 없는 것을 눌러 보게 됩니다.
+ */
+const BetRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: ${theme.radius.sm};
+  background: ${palette.white};
+  padding: 16px 20px;
+  text-align: left;
+  color: ${theme.colors.ink};
+  > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+  strong {
+    font-size: ${theme.text.s};
+    overflow-wrap: anywhere;
+  }
+  small {
+    font-size: ${theme.text.xs};
+    color: ${theme.colors.muted};
+    overflow-wrap: anywhere;
+  }
+`;
+
+/**
+ * 받은 내기인지 보낸 내기인지.
+ *
+ * 받은 쪽은 내가 답하거나 해내야 하는 것이라 채워서 눈에 걸리게 두고, 보낸 쪽은
+ * 상대가 움직일 차례가 많아 테두리만 둡니다.
+ */
+const BetDirection = styled.span<{ received: boolean }>`
+  justify-self: start;
+  border: 1px solid ${({ received }) => (received ? "transparent" : palette.gray300)};
+  border-radius: ${theme.radius.pill};
+  background: ${({ received }) => (received ? palette.gray200 : "transparent")};
+  padding: 2px 10px;
+  font-size: ${theme.text.xs};
+  color: ${({ received }) => (received ? theme.colors.ink : theme.colors.muted)};
+`;
+
+/** 내 차례라는 표시. 줄 전체가 눌리므로 이 자리는 버튼이 아니라 글자입니다. */
+const BetAction = styled.span`
+  flex: none;
+  border-radius: ${theme.radius.pill};
+  background: ${palette.black};
+  padding: 8px 16px;
+  font-size: ${theme.text.xs};
+  color: ${palette.white};
+`;
+
+const BetWaiting = styled.span`
+  flex: none;
+  font-size: ${theme.text.xs};
+  color: ${theme.colors.muted};
+  white-space: nowrap;
+`;
 
 const AlarmColumn = styled.div`
   display: grid;

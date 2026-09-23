@@ -11,6 +11,7 @@ import type { ApiClient } from "@tlitodos/api-client";
 import type {
   BetCreateRequest,
   BetStatusRequest,
+  BetVerifyRequest,
   Category,
   CategoryPatchRequest,
   CategoryRequest,
@@ -59,6 +60,7 @@ export const queryKeys = {
     ["diaries", date, groupId, userId] as const,
   /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
   diary: (id: number) => ["diary", id] as const,
+  bets: ["bets"] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
   /**
    * 종류별 안 읽음 표시. 일부러 `["notifications"]` 밑에 둡니다.
@@ -602,6 +604,48 @@ export const useDeleteDiary = () => {
 };
 
 /**
+ * 내가 걸었거나 내가 대상인 내기 전부.
+ *
+ * 수락한 뒤의 내기는 알림으로는 다시 볼 수 없습니다 — 알림은 그때 일어난 일을
+ * 한 줄 남길 뿐이라 지금 어디까지 왔는지는 말해 주지 않습니다. 인증과 확인이
+ * 오가는 동안 들여다볼 자리가 있어야 해서 목록을 따로 받아 옵니다.
+ */
+export const useBets = (enabled = true) => {
+  const api = useApi();
+  return useQuery({ queryKey: queryKeys.bets, queryFn: api.bets.list, enabled });
+};
+
+/**
+ * 해냈다는 사진을 올립니다. 할 일 주인이 하는 일입니다.
+ *
+ * 올리고 나면 상대가 확인할 차례이므로, 목록을 다시 받아 그 줄의 차례가 넘어간
+ * 것이 바로 보이게 합니다.
+ */
+export const useUploadBetProof = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: ({ betId, body }: { betId: number; body: FormData }) => api.bets.uploadProof(betId, body),
+    onSuccess: () => invalidate(queryKeys.bets),
+  });
+};
+
+/**
+ * 올라온 사진을 인정하거나 되돌립니다. 내기를 건 사람이 하는 일입니다.
+ *
+ * 인정하면 내기가 `VERIFIED`로 끝납니다. 되돌리면 상태는 그대로라, 상대가 사진을
+ * 다시 올릴 수 있습니다.
+ */
+export const useVerifyBet = () => {
+  const api = useApi();
+  const invalidate = useDetachedInvalidate();
+  return useMutation({
+    mutationFn: ({ betId, body }: { betId: number; body: BetVerifyRequest }) => api.bets.verify(betId, body),
+    onSuccess: () => invalidate(queryKeys.bets),
+  });
+};
+
+/**
  * 친구의 할 일에 내기를 겁니다.
  *
  * 상대에게는 알림으로 갑니다. 목록은 그 알림이 이미 캐시에 있으니 함께 무효화해
@@ -613,7 +657,7 @@ export const useCreateBet = () => {
   return useMutation({
     mutationFn: ({ todoId, body }: { todoId: number; body: BetCreateRequest }) => api.bets.create(todoId, body),
     onSuccess: () => {
-      invalidate(["bets"]);
+      invalidate(queryKeys.bets);
       invalidate(["notifications"]);
     },
   });
@@ -626,7 +670,7 @@ export const useSetBetStatus = () => {
   return useMutation({
     mutationFn: ({ betId, body }: { betId: number; body: BetStatusRequest }) => api.bets.setStatus(betId, body),
     onSuccess: () => {
-      invalidate(["bets"]);
+      invalidate(queryKeys.bets);
       invalidate(["notifications"]);
     },
   });

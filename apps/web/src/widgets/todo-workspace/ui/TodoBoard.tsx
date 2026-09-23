@@ -2,7 +2,7 @@ import styled from "@emotion/styled";
 import type { TodoDrag } from "@/features/todo-drag";
 import type { Category, Todo } from "@/shared/api";
 import { categoryAccent } from "@/entities/category";
-import { TodoColumnSkeleton, TodoList, TodoRowSkeleton, formatDeadline } from "@/entities/todo";
+import { TodoColumnSkeleton, TodoList, TodoRowSkeleton, formatDeadline, isOverdue } from "@/entities/todo";
 import { TodoDraftRow } from "@/features/todo-create";
 import { CATEGORY_DROP_ATTRIBUTE, DraggableRow } from "@/features/todo-drag";
 import { useHourCycle } from "@/shared/model";
@@ -70,6 +70,8 @@ export const CategorySection = ({
               accent={accent}
               own={own}
               deadline={formatDeadline(todo, hourCycle, selectedDate)}
+              // 기한이 지난 할 일에는 내기를 걸 수 없습니다 — 결과가 이미 나온 일입니다.
+              betClosed={isOverdue(todo)}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
               onBet={onBet ? () => onBet(todo) : undefined}

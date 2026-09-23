@@ -405,6 +405,7 @@ export const TodoRow = ({
   onToggle,
   onEdit,
   onBet,
+  betClosed,
 }: {
   todo: Todo;
   accent: string;
@@ -418,6 +419,13 @@ export const TodoRow = ({
   onEdit?: () => void;
   /** 남의 할 일에 내기를 걸 때. 넘기지 않으면 덮개를 띄우지 않습니다. */
   onBet?: () => void;
+  /**
+   * 기한이 지나 내기를 걸 수 없는 줄인지.
+   *
+   * `onBet` 자체를 거두지 않고 따로 받습니다 — 덮개를 아예 없애면 왜 못 거는지
+   * 알 길이 없어, 덮개는 그대로 뜨되 이유를 적고 눌리지 않게 합니다.
+   */
+  betClosed?: boolean;
 }) => {
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
@@ -434,7 +442,11 @@ export const TodoRow = ({
        * 길밖에 없습니다. 마우스로는 덮개가 먼저 덮여 있어 이 버튼까지 닿지
        * 않으니 두 길이 겹치지 않습니다.
        */}
-      <TodoTextButton disabled={own ? !onEdit : !onBet} onClick={own ? onEdit : onBet}>
+      {/* 손가락에는 hover가 없어 줄 자체가 내기로 이어지는데, 걸 수 없는 줄은 그 길도 막습니다. */}
+      <TodoTextButton
+        disabled={own ? !onEdit : !onBet || betClosed}
+        onClick={own ? onEdit : betClosed ? undefined : onBet}
+      >
         <strong>{todo.title}</strong>
         {detail || deadline ? (
           <TodoSubline>
@@ -445,8 +457,8 @@ export const TodoRow = ({
       </TodoTextButton>
       {/* 남의 할 일에만, 아직 끝나지 않은 것에만 덮개가 올라옵니다. */}
       {!own && !todo.isCompleted && onBet ? (
-        <BetOverlay type="button" onClick={onBet}>
-          내기 요청하기
+        <BetOverlay type="button" closed={Boolean(betClosed)} onClick={betClosed ? undefined : onBet}>
+          {betClosed ? "기한이 지나 내기할 수 없어요" : "내기 요청하기"}
         </BetOverlay>
       ) : null}
     </TodoItem>
@@ -460,7 +472,8 @@ const TodoItem = styled.div<{ interactive: boolean }>`
   padding: 6px 8px;
   border-radius: ${theme.radius.sm};
   transition: background 0.16s ease;
-  &:hover > button:last-child:not(:disabled) {
+  /* 걸 수 없는 줄에서도 덮개는 떠야 합니다 — 이유를 읽을 자리가 거기뿐입니다. */
+  &:hover > button:last-child {
     opacity: 1;
   }
   /*
@@ -545,13 +558,15 @@ const TodoDeadline = styled.small`
     color: ${theme.colors.red};
   }
 `;
-const BetOverlay = styled.button`
+const BetOverlay = styled.button<{ closed: boolean }>`
   position: absolute;
   inset: 0;
   border: 0;
   border-radius: ${theme.radius.sm};
   background: rgba(255, 255, 255, 0.86);
-  color: ${theme.colors.ink};
+  /* 걸 수 있는 줄은 검은 글씨로 권하고, 닫힌 줄은 옅은 회색으로 알리기만 합니다. */
+  color: ${({ closed }) => (closed ? theme.colors.muted : theme.colors.ink)};
+  cursor: ${({ closed }) => (closed ? "default" : "pointer")};
   opacity: 0;
   transition: opacity 0.18s;
   &:disabled {

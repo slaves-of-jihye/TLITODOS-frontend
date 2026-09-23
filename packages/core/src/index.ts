@@ -1,4 +1,4 @@
-import type { Category, DailyTodoStatus, Diary, Importance, Recurrence, Todo } from "@tlitodos/types";
+import type { Bet, Category, DailyTodoStatus, Diary, Importance, Recurrence, Todo } from "@tlitodos/types";
 
 /**
  * 카테고리 색. Figma `component` 프레임의 category 배리언트에서 읽었습니다.
@@ -224,6 +224,18 @@ export const formatClock = (time: string, cycle: HourCycle = DEFAULT_HOUR_CYCLE)
   const tail = minutes ? ` ${minutes}분` : "";
   if (cycle === "24H") return `${hours}시${tail}`;
   return `${hours < 12 ? "오전" : "오후"} ${hours % 12 || 12}시${tail}`;
+};
+
+/**
+ * 기한이 지난 할 일인지.
+ *
+ * 마감일이 오늘보다 앞이면 지난 것입니다. 오늘이면 아직 남았습니다 — 그날 안에
+ * 하면 되니까요. `formatDeadline`과 달리 보고 있는 날이 아니라 진짜 오늘로 잽니다:
+ * "지났다"는 달력을 어디로 넘겼든 지금을 기준으로 하는 말입니다.
+ */
+export const isOverdue = (todo: Pick<Todo, "startDate" | "dueDate">, today = formatLocalDate(new Date())) => {
+  const due = dateOnly(todo.dueDate) ?? dateOnly(todo.startDate);
+  return due !== null && due < today;
 };
 
 /**
@@ -524,6 +536,58 @@ export const stashFills = (marks: { accent: string; done: boolean }[], seed: str
   const extra = new Set(order.slice(0, spare));
 
   return used.flatMap((mark, index) => Array<string>(share + (extra.has(index) ? 1 : 0)).fill(mark.accent));
+};
+
+/**
+ * 내기가 지금 어느 칸에 있는지, 보고 있는 사람 기준으로.
+ *
+ * 같은 내기라도 두 사람에게 다른 차례입니다 — 한쪽이 사진을 올릴 동안 다른 쪽은
+ * 기다립니다. 그래서 상태만으로는 무엇을 보여줄지 정할 수 없고, 내가 건 쪽인지
+ * 걸린 쪽인지를 함께 봐야 합니다.
+ *
+ * `GET /bets`는 내가 걸었거나 내가 대상인 것만 돌려주므로, 요청자가 내가 아니면
+ * 그 할 일은 내 것입니다 — 할 일을 따로 받아 와 주인을 확인할 필요가 없습니다.
+ *
+ * 사진은 할 일 주인이 올리고 건 사람이 확인합니다: 내기는 그 할 일을 해냈는지에
+ * 걸린 것이라, 해낸 사람이 보이고 건 사람이 인정합니다.
+ */
+export type BetStage =
+  /** 내가 걸었고, 상대의 답을 기다립니다. */
+  | "WAITING_ANSWER"
+  /** 나에게 온 요청. 수락할지 거절할지 고릅니다. */
+  | "ANSWER"
+  /** 수락된 내 할 일. 해냈다는 사진을 올릴 차례입니다. */
+  | "PROVE"
+  /** 사진을 올렸고, 상대가 확인해 주기를 기다립니다. */
+  | "WAITING_CHECK"
+  /** 내가 건 내기. 상대가 사진을 올리기를 기다립니다. */
+  | "WAITING_PROOF"
+  /** 사진이 올라왔습니다. 인정할 차례입니다. */
+  | "CHECK"
+  /** 거절된 내기. */
+  | "REJECTED"
+  /** 확인까지 끝난 내기. */
+  | "DONE";
+
+export const betStage = (bet: Pick<Bet, "status" | "requesterId" | "proofImageUrl">, myUserId: number): BetStage => {
+  const mine = bet.requesterId === myUserId;
+  if (bet.status === "REJECTED") return "REJECTED";
+  if (bet.status === "VERIFIED") return "DONE";
+  if (bet.status === "PENDING") return mine ? "WAITING_ANSWER" : "ANSWER";
+  if (bet.proofImageUrl) return mine ? "CHECK" : "WAITING_CHECK";
+  return mine ? "WAITING_PROOF" : "PROVE";
+};
+
+/** 차례를 사람이 읽는 한마디로. 버튼이 붙는 칸은 따로 문구를 답니다. */
+export const BET_STAGE_LABEL: Record<BetStage, string> = {
+  WAITING_ANSWER: "상대의 답을 기다리는 중",
+  ANSWER: "답할 차례",
+  PROVE: "인증할 차례",
+  WAITING_CHECK: "확인을 기다리는 중",
+  WAITING_PROOF: "인증을 기다리는 중",
+  CHECK: "확인할 차례",
+  REJECTED: "거절됨",
+  DONE: "끝난 내기",
 };
 
 export const unresolvedDependencies = (todo: Todo, allTodos: Todo[]) =>

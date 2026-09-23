@@ -2,6 +2,8 @@ import type {
   Bet,
   BetCreateRequest,
   BetStatusRequest,
+  BetProofResponse,
+  BetVerifyRequest,
   Category,
   CategoryPatchRequest,
   CategoryRequest,
@@ -246,6 +248,11 @@ export const createApiClient = ({ baseUrl, getAccessToken, refreshAccessToken, o
         request<Bet>(`/api/v1/todos/${todoId}/bets`, { method: "POST", body }),
       setStatus: (betId: number, body: BetStatusRequest) =>
         request<Bet>(`/api/v1/bets/${betId}/status`, { method: "PATCH", body }),
+      /** 해냈다는 사진. `image` 한 칸짜리 multipart입니다. */
+      uploadProof: (betId: number, body: FormData) =>
+        request<BetProofResponse>(`/api/v1/bets/${betId}/proof`, { method: "POST", body }),
+      verify: (betId: number, body: BetVerifyRequest) =>
+        request<Bet>(`/api/v1/bets/${betId}/verify`, { method: "PATCH", body }),
     },
     diaries: {
       list: (query?: { date?: string | null; userId?: number | null; groupId?: number | null }) =>
