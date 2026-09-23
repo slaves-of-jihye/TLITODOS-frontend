@@ -232,8 +232,12 @@ export interface NotificationActor {
 export interface Bet {
   betId: number;
   todoId: number;
+  /** 내기가 걸린 할 일. 목록이 통째로 들고 오므로 따로 받아 올 것이 없습니다. */
+  todo: TodoPreview;
   content: string;
   requesterId: number;
+  /** 내기를 건 사람의 이름. 계정이 사라졌으면 `null`입니다. */
+  requesterName: string | null;
   status: BetStatus;
   proofImageUrl: string | null;
   isVerified: boolean;

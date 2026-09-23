@@ -19,7 +19,7 @@ import {
 } from "@/entities/notification";
 import { BET_STAGE_LABEL, betStage, useBets } from "@/entities/bet";
 import { useFindMemberGroup } from "@/entities/group";
-import { coversDate, dateOnly, useTodo } from "@/entities/todo";
+import { coversDate, dateOnly } from "@/entities/todo";
 import { useMe } from "@/entities/user";
 import { BetReceivedModal } from "@/features/bet-answer";
 import { BetProofModal } from "@/features/bet-proof";
@@ -56,10 +56,12 @@ type AlarmTab = NotificationType | typeof BETS_TAB;
 /**
  * 내기 한 줄.
  *
- * 무엇을 걸었는지가 가장 크고, 어느 할 일에 걸린 것인지가 그 아래에 붙습니다 —
- * 목록은 `todoId`만 들고 오므로 이름은 따로 물어봅니다. 오른쪽 끝에는 지금 내
- * 차례인지가 섭니다: 차례가 아닌 줄은 무엇을 기다리는 중인지 적기만 하고, 내
- * 차례인 줄에만 누를 것이 있습니다.
+ * 무엇을 걸었는지가 가장 크고, 어느 할 일에 걸린 것인지가 그 아래에 붙습니다.
+ * 받은 내기에는 건 사람의 이름도 함께 답니다 — 보낸 내기에서 `requesterName`은
+ * 내 이름이라 상대를 가리키지 못하고, 할 일 주인의 이름은 목록에 없습니다.
+ *
+ * 오른쪽 끝에는 지금 내 차례인지가 섭니다: 차례가 아닌 줄은 무엇을 기다리는
+ * 중인지 적기만 하고, 내 차례인 줄에만 누를 것이 있습니다.
  */
 const BetListRow = ({
   bet,
@@ -77,7 +79,8 @@ const BetListRow = ({
   const stage = betStage(bet, myUserId);
   /** 내가 건 것인지 나에게 온 것인지. 같은 목록에 두 방향이 섞여 있습니다. */
   const received = bet.requesterId !== myUserId;
-  const { data: todo } = useTodo(bet.todoId);
+  const when = dateOnly(bet.todo.dueDate) ?? dateOnly(bet.todo.startDate) ?? "";
+  const line = [received ? bet.requesterName : null, `${when} ${bet.todo.title}`.trim()].filter(Boolean).join(" · ");
   const action =
     stage === "ANSWER"
       ? { label: "답하기", run: onAnswer }
@@ -97,7 +100,7 @@ const BetListRow = ({
          */}
         <BetDirection received={received}>{received ? "받은 내기" : "보낸 내기"}</BetDirection>
         <strong>{bet.content}</strong>
-        <small>{todo ? `${dateOnly(todo.dueDate) ?? dateOnly(todo.startDate) ?? ""} ${todo.title}`.trim() : ""}</small>
+        <small>{line}</small>
       </div>
       {action ? <BetAction aria-hidden>{action.label}</BetAction> : <BetWaiting>{BET_STAGE_LABEL[stage]}</BetWaiting>}
       {action ? <SrOnly>{BET_STAGE_LABEL[stage]}</SrOnly> : null}
@@ -241,7 +244,7 @@ export const AlarmPage = () => {
                   myUserId={me.userId}
                   onProve={() => setProving(bet)}
                   onCheck={() => setChecking(bet)}
-                  onAnswer={() => setOpenBet({ bet, actor: "친구" })}
+                  onAnswer={() => setOpenBet({ bet, actor: bet.requesterName || "친구" })}
                 />
               ))}
             </AlarmList>

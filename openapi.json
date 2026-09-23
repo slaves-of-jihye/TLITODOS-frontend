@@ -2934,6 +2934,8 @@
           "todoId",
           "content",
           "requesterId",
+          "requesterName",
+          "todo",
           "status",
           "proofImageUrl",
           "isVerified"
@@ -2945,11 +2947,21 @@
           "todoId": {
             "type": "integer"
           },
+          "todo": {
+            "$ref": "#/components/schemas/TodoPreview"
+          },
           "content": {
             "type": "string"
           },
           "requesterId": {
             "type": "integer"
+          },
+          "requesterName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of whoever asked for the bet. Null when that account is gone."
           },
           "status": {
             "$ref": "#/components/schemas/BetStatus"

@@ -61,8 +61,6 @@ export const queryKeys = {
   /** 한 건은 `["diaries"]` 밑에 두지 않습니다 — `writeBack.diaries`가 그 접두사를 `Diary[]`로 덮습니다. */
   diary: (id: number) => ["diary", id] as const,
   bets: ["bets"] as const,
-  /** 한 건은 `["todos"]` 밑에 두지 않습니다 — `writeBack.todos`가 그 접두사를 `Todo[]`로 덮습니다. */
-  todo: (id: number) => ["todo", id] as const,
   notifications: (type: NotificationType | null) => ["notifications", type] as const,
   /**
    * 종류별 안 읽음 표시. 일부러 `["notifications"]` 밑에 둡니다.
@@ -612,22 +610,6 @@ export const useDeleteDiary = () => {
  * 한 줄 남길 뿐이라 지금 어디까지 왔는지는 말해 주지 않습니다. 인증과 확인이
  * 오가는 동안 들여다볼 자리가 있어야 해서 목록을 따로 받아 옵니다.
  */
-/**
- * 할 일 한 건. 목록에 없는 할 일을 이름으로 부르려 할 때 씁니다.
- *
- * 내기 목록은 `todoId`만 들고 오는데, 어느 할 일에 걸린 내기인지 번호로는 알 수
- * 없습니다. 줄마다 한 번씩 물어보게 되지만 내기는 몇 개 되지 않고, 같은 할 일에
- * 걸린 내기가 여럿이면 캐시가 한 번으로 줄여 줍니다.
- */
-export const useTodo = (todoId: number | null) => {
-  const api = useApi();
-  return useQuery({
-    queryKey: queryKeys.todo(todoId ?? -1),
-    queryFn: () => api.todos.get(todoId!),
-    enabled: todoId !== null,
-  });
-};
-
 export const useBets = (enabled = true) => {
   const api = useApi();
   return useQuery({ queryKey: queryKeys.bets, queryFn: api.bets.list, enabled });
