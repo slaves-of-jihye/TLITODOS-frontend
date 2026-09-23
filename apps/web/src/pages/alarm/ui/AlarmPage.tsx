@@ -75,6 +75,8 @@ const BetListRow = ({
   onAnswer: () => void;
 }) => {
   const stage = betStage(bet, myUserId);
+  /** 내가 건 것인지 나에게 온 것인지. 같은 목록에 두 방향이 섞여 있습니다. */
+  const received = bet.requesterId !== myUserId;
   const { data: todo } = useTodo(bet.todoId);
   const action =
     stage === "ANSWER"
@@ -87,6 +89,13 @@ const BetListRow = ({
   return (
     <BetRow {...(action ? { as: "button" as const, type: "button" as const, onClick: action.run } : {})}>
       <div>
+        {/*
+         * 어느 쪽에서 온 내기인지 먼저 밝힙니다.
+         *
+         * 차례 표시만으로는 갈리지 않습니다 — `인증을 기다리는 중`은 내가 건
+         * 내기에서도, 내가 받은 내기에서도 나올 수 있는 말입니다.
+         */}
+        <BetDirection received={received}>{received ? "받은 내기" : "보낸 내기"}</BetDirection>
         <strong>{bet.content}</strong>
         <small>{todo ? `${dateOnly(todo.dueDate) ?? dateOnly(todo.startDate) ?? ""} ${todo.title}`.trim() : ""}</small>
       </div>
@@ -341,6 +350,22 @@ const BetRow = styled.div`
     color: ${theme.colors.muted};
     overflow-wrap: anywhere;
   }
+`;
+
+/**
+ * 받은 내기인지 보낸 내기인지.
+ *
+ * 받은 쪽은 내가 답하거나 해내야 하는 것이라 채워서 눈에 걸리게 두고, 보낸 쪽은
+ * 상대가 움직일 차례가 많아 테두리만 둡니다.
+ */
+const BetDirection = styled.span<{ received: boolean }>`
+  justify-self: start;
+  border: 1px solid ${({ received }) => (received ? "transparent" : palette.gray300)};
+  border-radius: ${theme.radius.pill};
+  background: ${({ received }) => (received ? palette.gray200 : "transparent")};
+  padding: 2px 10px;
+  font-size: ${theme.text.xs};
+  color: ${({ received }) => (received ? theme.colors.ink : theme.colors.muted)};
 `;
 
 /** 내 차례라는 표시. 줄 전체가 눌리므로 이 자리는 버튼이 아니라 글자입니다. */
