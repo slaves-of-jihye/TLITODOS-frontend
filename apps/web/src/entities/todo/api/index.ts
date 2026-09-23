@@ -11,6 +11,7 @@ export {
   useInvalidateTodos,
   useRefillTodos,
   useSetDependencies,
+  useTodo,
   useTodos,
   useUncompleteTodo,
   useUpdateTodo,

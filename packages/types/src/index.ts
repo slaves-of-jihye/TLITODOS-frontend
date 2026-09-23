@@ -244,6 +244,15 @@ export interface BetCreateRequest {
   content: string;
 }
 /** 받은 내기에 대한 답. 둘 중 하나만 보냅니다. */
+export interface BetProofResponse {
+  success: boolean;
+  betId: number;
+  proofImageUrl: string;
+}
+export interface BetVerifyRequest {
+  /** 인정하면 `true`. `false`면 상태는 그대로 두고 다시 올려 달라는 뜻입니다. */
+  approved: boolean;
+}
 export interface BetStatusRequest {
   status: Extract<BetStatus, "ACCEPTED" | "REJECTED">;
 }
