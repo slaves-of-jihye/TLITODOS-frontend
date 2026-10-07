@@ -6,6 +6,7 @@ import { resolveFont, useMe, useUpdateFont, useUpdateProfile, useUpdateTimeForma
 import { CategoryColorSection } from "@/features/category-color";
 import { FontProfileRow } from "@/features/font-select";
 import { HourCycleProfileRow } from "@/features/hour-cycle";
+import { ThemeProfileRow } from "@/features/theme-select";
 import {
   BIO_LIMIT,
   EditableProfileRow,
@@ -85,6 +86,7 @@ export const SettingsPage = () => {
           />
           <FontProfileRow value={font} onSave={next => guard(() => updateFont.mutateAsync({ font: next }))} />
           <HourCycleProfileRow onSave={next => guard(() => updateTimeFormat.mutateAsync({ timeFormat: next }))} />
+          <ThemeProfileRow />
           {error ? <ErrorText>{error}</ErrorText> : null}
           <LogoutButton
             onClick={async () => {

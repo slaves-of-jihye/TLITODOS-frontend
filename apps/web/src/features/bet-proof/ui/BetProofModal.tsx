@@ -120,7 +120,7 @@ const SheetSubmitWide = styled.button`
   border-radius: ${theme.radius.pill};
   background: ${theme.colors.ink};
   padding: 14px 20px;
-  color: white;
+  color: ${theme.colors.white};
   font-size: ${theme.text.s};
   &:disabled {
     opacity: 0.45;

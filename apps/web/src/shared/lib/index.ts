@@ -7,6 +7,7 @@
  */
 export * from "@tlitodos/core";
 export * from "./fontPreference";
+export * from "./themePreference";
 export * from "./serviceWorker";
 export * from "./errorMessage";
 export * from "./weekdayTone";

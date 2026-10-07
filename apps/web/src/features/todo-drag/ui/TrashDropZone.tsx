@@ -52,7 +52,7 @@ const TrashZone = styled.div<{ visible: boolean; over: boolean }>`
 const TrashIcon = styled.span<{ over: boolean }>`
   width: ${({ over }) => (over ? "34px" : "26px")};
   height: ${({ over }) => (over ? "34px" : "26px")};
-  background: ${({ over }) => (over ? palette.white : theme.colors.red)};
+  background: ${({ over }) => (over ? palette.onAccent : theme.colors.red)};
   -webkit-mask: url(${icons.trash}) center / contain no-repeat;
   mask: url(${icons.trash}) center / contain no-repeat;
   transition:
@@ -64,5 +64,5 @@ const TrashIcon = styled.span<{ over: boolean }>`
 const TrashLabel = styled.small<{ over: boolean }>`
   font-size: ${theme.text.xs};
   white-space: nowrap;
-  color: ${({ over }) => (over ? palette.white : theme.colors.muted)};
+  color: ${({ over }) => (over ? palette.onAccent : theme.colors.muted)};
 `;
