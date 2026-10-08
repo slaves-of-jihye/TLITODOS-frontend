@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Todo } from "@tlitodos/types";
 import { stashFills } from "@tlitodos/core";
 import { icons } from "./icons";
-import { palette, theme, uiGlyphFont } from "./theme";
+import { extraTokens, palette, theme, uiGlyphFont } from "./theme";
 
 /** 아이콘으로 쓰는 문장부호를 감쌉니다. 이유는 `uiGlyphFont` 주석에 있습니다. */
 export const Glyph = styled.span`
@@ -81,14 +81,14 @@ export const hoverScrollbarX = css`
     }
     &:hover::-webkit-scrollbar-thumb,
     &:focus-within::-webkit-scrollbar-thumb {
-      background: rgba(29, 29, 29, 0.22);
+      background: ${extraTokens.scrollThumb};
     }
     @supports not selector(::-webkit-scrollbar) {
       scrollbar-width: thin;
       scrollbar-color: transparent transparent;
       &:hover,
       &:focus-within {
-        scrollbar-color: rgba(29, 29, 29, 0.22) transparent;
+        scrollbar-color: ${extraTokens.scrollThumb} transparent;
       }
     }
   }
@@ -109,7 +109,7 @@ export const AppShell = styled.div`
   /* 아래 여백은 네비게이션 높이에 16px을 더한 값입니다 — 마지막 내용이 가리지 않게. */
   padding: 76px 7% calc(${theme.layout.nav} + 16px);
   position: relative;
-  background: white;
+  background: ${palette.white};
   @media (max-width: 800px) {
     padding: 24px 18px calc(96px + env(safe-area-inset-bottom));
   }
@@ -134,7 +134,7 @@ export const Button = styled.button<{ variant?: "primary" | "soft" | "dark" | "g
       : variant === "ghost"
         ? "transparent"
         : variant === "danger"
-          ? "#fff0f3"
+          ? extraTokens.dangerTint
           : palette.gray100};
   color: ${({ variant = "soft" }) =>
     variant === "primary" || variant === "dark"
@@ -210,7 +210,7 @@ const Avatar = styled.img`
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  background: white;
+  background: ${palette.white};
 `;
 const AvatarFallback = styled.span`
   width: 40px;
@@ -218,7 +218,7 @@ const AvatarFallback = styled.span`
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: white;
+  background: ${palette.white};
 `;
 
 /**
@@ -290,7 +290,7 @@ const ClusterCheck = styled.span`
   width: 40%;
   height: 40%;
   transform: translate(-50%, -50%);
-  background: ${palette.white};
+  background: ${palette.onAccent};
   -webkit-mask: url(${icons.check}) center / contain no-repeat;
   mask: url(${icons.check}) center / contain no-repeat;
 `;
@@ -299,7 +299,7 @@ const ClusterCount = styled.span`
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  color: ${palette.white};
+  color: ${palette.onAccent};
   font-size: ${theme.text.s};
   line-height: 1;
 `;
@@ -563,7 +563,7 @@ const BetOverlay = styled.button<{ closed: boolean }>`
   inset: 0;
   border: 0;
   border-radius: ${theme.radius.sm};
-  background: rgba(255, 255, 255, 0.86);
+  background: ${extraTokens.veil};
   /* 걸 수 있는 줄은 검은 글씨로 권하고, 닫힌 줄은 옅은 회색으로 알리기만 합니다. */
   color: ${({ closed }) => (closed ? theme.colors.muted : theme.colors.ink)};
   cursor: ${({ closed }) => (closed ? "default" : "pointer")};
@@ -968,7 +968,7 @@ const Dialog = styled.div<{ login: boolean; sheet: boolean; compact: boolean }>`
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: ${({ sheet }) => (sheet ? "40px 40px 0 0" : theme.radius.lg)};
-  background: white;
+  background: ${palette.white};
   padding: ${({ sheet, compact }) => (sheet ? "60px" : compact ? "32px 28px" : "54px 60px")};
   box-shadow: ${theme.shadow};
   h2 {
@@ -1100,7 +1100,7 @@ export const Skeleton = styled.span<{ width?: string; height?: string; radius?: 
   background-image: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.7) 50%,
+    ${extraTokens.sweep} 50%,
     rgba(255, 255, 255, 0) 100%
   );
   background-size: 200% 100%;

@@ -53,7 +53,7 @@ const InstallBanner = styled.aside`
   align-items: center;
   border: 1px solid ${palette.gray200};
   border-radius: ${theme.radius.md};
-  background: white;
+  background: ${palette.white};
   padding: 16px 18px;
   box-shadow: ${theme.shadow};
   img {

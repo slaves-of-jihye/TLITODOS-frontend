@@ -412,7 +412,7 @@ const EmotionRow = styled.div`
   button {
     border: 1px solid ${theme.colors.line};
     border-radius: 12px;
-    background: white;
+    background: ${theme.colors.white};
     padding: 10px 14px;
     font-size: 20px;
   }

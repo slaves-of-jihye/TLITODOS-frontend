@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/images/favicon.png" />
+    <script>
+      // 번들이 오기 전에 화면 모드를 먼저 정해, 다크 사용자가 흰 화면을 보지 않게 합니다.
+      // 저장 키와 풀이 규칙은 shared/lib/themePreference.ts와 같아야 합니다.
+      (function () {
+        var mode = "system";
+        try {
+          mode = localStorage.getItem("tlitodos.theme") || "system";
+        } catch (e) {}
+        var dark = mode === "dark" || (mode !== "light" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+        var root = document.documentElement;
+        root.dataset.theme = dark ? "dark" : "light";
+        root.style.colorScheme = dark ? "dark" : "light";
+        if (dark) root.style.background = "#16181d";
+      })();
+    </script>
     <title>tlitodos</title>
     <meta name="description" content="오늘 할 일과 하루의 기록을 한곳에서 관리해 보세요." />
     <meta name="theme-color" content="#ffffff" />
