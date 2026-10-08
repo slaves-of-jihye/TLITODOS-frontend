@@ -109,7 +109,7 @@ export const AppShell = styled.div`
   /* 아래 여백은 네비게이션 높이에 16px을 더한 값입니다 — 마지막 내용이 가리지 않게. */
   padding: 76px 7% calc(${theme.layout.nav} + 16px);
   position: relative;
-  background: white;
+  background: ${palette.white};
   @media (max-width: 800px) {
     padding: 24px 18px calc(96px + env(safe-area-inset-bottom));
   }
@@ -210,7 +210,7 @@ const Avatar = styled.img`
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
-  background: white;
+  background: ${palette.white};
 `;
 const AvatarFallback = styled.span`
   width: 40px;
@@ -218,7 +218,7 @@ const AvatarFallback = styled.span`
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: white;
+  background: ${palette.white};
 `;
 
 /**
@@ -968,7 +968,7 @@ const Dialog = styled.div<{ login: boolean; sheet: boolean; compact: boolean }>`
   max-height: calc(100vh - 44px);
   overflow: auto;
   border-radius: ${({ sheet }) => (sheet ? "40px 40px 0 0" : theme.radius.lg)};
-  background: white;
+  background: ${palette.white};
   padding: ${({ sheet, compact }) => (sheet ? "60px" : compact ? "32px 28px" : "54px 60px")};
   box-shadow: ${theme.shadow};
   h2 {

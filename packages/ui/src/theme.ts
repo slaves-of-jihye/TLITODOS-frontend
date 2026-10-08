@@ -180,6 +180,21 @@ export const globalStyles = css`
     color-scheme: dark;
     ${declarations(darkTokens)}
   }
+  /*
+   * 파일에 검정이 박혀 있는 아이콘은 다크에서 바탕에 묻힙니다. 색이 정해진 것(파랑 편집,
+   * 빨강 휴지통, 회색 안내 아이콘)은 모드와 상관없이 읽히므로 그대로 두고, 검정인 다섯 개만
+   * 반전합니다. 마스크로 그리는 아이콘(내비게이션 등)은 코드에서 색을 주므로 해당하지 않습니다.
+   */
+  :root[data-theme="dark"]
+    img:is(
+      [src$="/arrow-up.svg"],
+      [src$="/calendar.svg"],
+      [src$="/routine.svg"],
+      [src$="/more.svg"],
+      [src$="/plus.svg"]
+    ) {
+    filter: invert(1);
+  }
   * {
     box-sizing: border-box;
   }
@@ -192,6 +207,8 @@ export const globalStyles = css`
   }
   html {
     -webkit-text-size-adjust: 100%;
+    /* 스크롤 끝에서 바탕이 비쳐도 현재 모드의 색이도록 body에만 맡기지 않습니다. */
+    background: ${palette.white};
   }
   body {
     background: ${palette.white};
