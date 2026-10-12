@@ -342,9 +342,6 @@ export const TodoWorkspace = ({
   );
 };
 
-/** 위에 붙는 칩 줄(HeaderRow·MemberBar) 아래에서 두 열이 멈추는 높이. */
-const PANE_TOP = "64px";
-
 const WorkspaceGrid = styled.main`
   display: grid;
   /* 두 단 모두 줄어들 수 있게 둡니다. 좁은 폭에서 1100px를 넘겨 넘치지 않도록. */
@@ -352,20 +349,19 @@ const WorkspaceGrid = styled.main`
   gap: ${theme.layout.columnGap};
   align-items: start;
   /*
-   * PC 폭에서는 달력과 할 일이 각자의 스크롤을 갖습니다.
+   * PC 폭에서는 할 일 열이 달력 열과 같은 높이 안에서 따로 스크롤됩니다.
    *
-   * 한 장의 페이지로 두면 할 일이 길어질수록 달력이 위로 밀려 올라가, 날짜를 바꾸려면
-   * 다시 올라가야 합니다. 두 열을 모두 화면에 붙이고 남는 높이 안에서 따로 굴립니다.
-   * 아래는 고정 내비게이션이 차지하는 만큼 비웁니다 — AppShell의 아래 여백과 같은 값입니다.
-   * 한 단으로 쌓이는 폭에서는 붙일 이유가 없어 페이지가 그대로 굴러갑니다.
+   * 한 장의 페이지로 두면 할 일이 길어질수록 달력 아래로 한참 늘어납니다. 줄의 높이는
+   * 달력이 정하고, 할 일 열은 contain: size로 자기 내용을 높이 계산에서 빼 그 높이를
+   * 그대로 받아 안에서 굴립니다. 페이지(배경) 쪽은 보통대로 굴러갑니다.
+   * 한 단으로 쌓이는 폭에서는 나란할 높이가 없어 페이지 전체가 굴러갑니다.
    */
   @media (min-width: 901px) {
-    > * {
-      position: sticky;
-      top: ${PANE_TOP};
-      max-height: calc(100dvh - ${PANE_TOP} - ${theme.layout.nav} - 16px);
+    > :last-child {
+      align-self: stretch;
+      contain: size;
       overflow-y: auto;
-      /* 한 열 끝까지 굴린 뒤의 힘이 다른 열이나 페이지로 번지지 않게 합니다. */
+      /* 끝까지 굴린 뒤의 힘이 페이지로 번지지 않게 합니다. */
       overscroll-behavior: contain;
       scrollbar-width: thin;
     }
