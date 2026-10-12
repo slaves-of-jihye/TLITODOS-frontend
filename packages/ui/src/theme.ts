@@ -218,6 +218,7 @@ export const globalStyles = css`
     font-size: ${typeScale.s};
     line-height: ${lineHeight};
     overflow-x: hidden;
+    overflow-y: auto;
     -webkit-font-smoothing: antialiased;
   }
   /* 손글씨 폰트에는 굵기가 없어 bold가 합성 굵게로 뭉개집니다. 크기로 위계를 냅니다. */
