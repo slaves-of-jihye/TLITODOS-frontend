@@ -1,6 +1,6 @@
 import { css, keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { Todo } from "@tlitodos/types";
 import { stashFills } from "@tlitodos/core";
@@ -428,6 +428,15 @@ export const TodoRow = ({
   betClosed?: boolean;
 }) => {
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
+  // 첫 줄: 마감 · 중요도 · 루틴. 있는 것만 구분선으로 이어 붙입니다.
+  const metaItems: ReactNode[] = [];
+  if (deadline) metaItems.push(<TodoDeadline>{deadline}</TodoDeadline>);
+  if (todo.importance === "HIGH" || todo.importance === "LOW") {
+    metaItems.push(
+      <ImportanceBadge level={todo.importance}>{todo.importance === "HIGH" ? "높음" : "낮음"}</ImportanceBadge>,
+    );
+  }
+  if (todo.isRoutine || todo.routineId != null) metaItems.push(<RoutineBadge>루틴</RoutineBadge>);
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
   const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
@@ -448,12 +457,17 @@ export const TodoRow = ({
         onClick={own ? onEdit : betClosed ? undefined : onBet}
       >
         <strong>{todo.title}</strong>
-        {detail || deadline ? (
-          <TodoSubline>
-            {detail ? <small>{detail}</small> : null}
-            {deadline ? <TodoDeadline>{deadline}</TodoDeadline> : null}
-          </TodoSubline>
+        {metaItems.length ? (
+          <TodoMeta>
+            {metaItems.map((item, index) => (
+              <Fragment key={index}>
+                {index > 0 ? <MetaDivider aria-hidden="true" /> : null}
+                {item}
+              </Fragment>
+            ))}
+          </TodoMeta>
         ) : null}
+        {detail ? <TodoDetailText>{detail}</TodoDetailText> : null}
       </TodoTextButton>
       {/* 남의 할 일에만, 아직 끝나지 않은 것에만 덮개가 올라옵니다. */}
       {!own && !todo.isCompleted && onBet ? (
@@ -532,19 +546,48 @@ const TodoTextButton = styled.button`
   }
 `;
 /*
- * 세부사항과 마감이 한 줄에 섭니다.
- *
- * 마감은 앞이 아니라 뒤에 둡니다 — 줄을 훑을 때 먼저 읽혀야 하는 것은 무슨
- * 일인지이고, 언제까지인지는 그다음입니다. 좁아지면 마감이 아래로 내려가되
- * 줄어들지는 않습니다: 세부사항은 잘려도 뜻이 남지만 `2시까지`는 잘리면
- * 남는 것이 없습니다.
+ * 상세정보는 두 줄입니다. 첫 줄은 마감 · 중요도 · 루틴, 둘째 줄은 세부사항으로
+ * 길면 자동으로 줄바꿈됩니다. 첫 줄의 항목은 모두 없을 수 있고, 있는 것끼리만
+ * 세로 구분선으로 나뉩니다.
  */
-const TodoSubline = styled.span`
+const TodoMeta = styled.span`
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 4px 8px;
   min-width: 0;
+`;
+const MetaDivider = styled.span`
+  width: 1px;
+  height: 10px;
+  background: ${theme.colors.line};
+`;
+const TodoDetailText = styled.small`
+  display: block;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+`;
+/* 높음은 빨강, 낮음은 파랑 — 색만으로도 갈리고, 글자로도 갈립니다. */
+const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
+  flex: none;
+  padding: 1px 8px;
+  border-radius: ${theme.radius.pill};
+  font-weight: 600;
+  && {
+    color: ${({ level }) => (level === "HIGH" ? theme.colors.red : theme.colors.blue)};
+    background: ${({ level }) =>
+      `color-mix(in srgb, ${level === "HIGH" ? theme.colors.red : theme.colors.blue} 16%, transparent)`};
+  }
+`;
+const RoutineBadge = styled.small`
+  flex: none;
+  padding: 0 7px;
+  border-radius: ${theme.radius.pill};
+  border: 1px solid ${theme.colors.line};
+  && {
+    color: ${theme.colors.secondary};
+  }
 `;
 const TodoDeadline = styled.small`
   flex: none;
