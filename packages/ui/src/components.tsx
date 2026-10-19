@@ -563,10 +563,12 @@ const TodoDetailText = styled.small`
 const IMPORTANCE_COLORS = { HIGH: "#f5a623", LOW: "#14b8a6" } as const;
 const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
   flex: none;
-  padding: 1px 8px;
+  padding: 0 8px;
   border-radius: ${theme.radius.pill};
   font-weight: 600;
+  line-height: 1.5;
   && {
+    font-size: ${theme.text.xs};
     color: ${({ level }) => IMPORTANCE_COLORS[level]};
     background: ${({ level }) => `color-mix(in srgb, ${IMPORTANCE_COLORS[level]} 16%, transparent)`};
   }
@@ -576,7 +578,9 @@ const RoutineBadge = styled.small`
   padding: 0 7px;
   border-radius: ${theme.radius.pill};
   border: 1px solid ${theme.colors.line};
+  line-height: 1.5;
   && {
+    font-size: ${theme.text.xs};
     color: ${theme.colors.secondary};
   }
 `;
