@@ -560,7 +560,10 @@ const TodoDetailText = styled.small`
   overflow-wrap: anywhere;
 `;
 /* 높음은 앰버, 낮음은 청록 — 마감의 빨강과 겹치지 않고, 글자로도 갈립니다. */
-const IMPORTANCE_COLORS = { HIGH: "#f5a623", LOW: "#14b8a6" } as const;
+const IMPORTANCE_STYLE = {
+  HIGH: { bg: extraTokens.importanceHighBg, text: extraTokens.importanceHighText },
+  LOW: { bg: extraTokens.importanceLowBg, text: extraTokens.importanceLowText },
+} as const;
 const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
   flex: none;
   padding: 0 8px;
@@ -569,8 +572,8 @@ const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
   line-height: 1.5;
   && {
     font-size: ${theme.text.xs};
-    color: ${({ level }) => IMPORTANCE_COLORS[level]};
-    background: ${({ level }) => `color-mix(in srgb, ${IMPORTANCE_COLORS[level]} 16%, transparent)`};
+    color: ${({ level }) => IMPORTANCE_STYLE[level].text};
+    background: ${({ level }) => IMPORTANCE_STYLE[level].bg};
   }
 `;
 const RoutineBadge = styled.small`
