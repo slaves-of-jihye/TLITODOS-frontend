@@ -88,6 +88,15 @@ export type CategoryTone = (typeof CATEGORY_PRESETS)[number]["key"];
  * - Kyobo Handwriting 2019: "수정 및 변경(디지털 포맷 변경)" 명시적 금지
  * - Goyang: 변형 후 재배포 금지
  * - Griun Fromsol: 폰트파일 개작·수정 금지
+ *
+ * 폰트마다 글자 폭과 줄 상자가 달라 같은 문장이 다른 자리에 놓였습니다. 파일을
+ * 고치지 않고 `@font-face`의 `size-adjust`/`ascent-override`/`descent-override`로
+ * 맞춥니다 — 기준은 기본 폰트인 Pretendard입니다. `sizeAdjust`는 한글 '가'의
+ * 글자 폭을 Pretendard와 같게(= 자간이 같게), `ascent`/`descent`는 줄 상자 높이를
+ * 같게 하면서 '가'가 줄 안에서 앉는 높이도 같게 둡니다. 줄 간격(`line-gap`)은 모두
+ * 0이라 `line-height`만이 줄 높이를 정합니다. 브라우저는 `ascent`/`descent`에도
+ * `size-adjust`를 곱하므로, 여기 적힌 값은 곱하기 전의 값입니다.
+ *
  * 나머지 셋은 OFL이라 변환이 가능하지만, 전송 단계의 brotli 압축이 WOFF2와
  * 거의 같은 크기를 내므로 굳이 포맷을 섞지 않고 원본으로 통일했습니다.
  */
@@ -98,6 +107,7 @@ export const FONT_PRESETS = [
     family: "Kyobo Handwriting 2019",
     file: "KyoboHandwriting2019.otf",
     format: "opentype",
+    metrics: { sizeAdjust: "103.5%", ascent: "86.3%", descent: "29.1%" },
   },
   {
     key: "PRETENDARD",
@@ -105,6 +115,7 @@ export const FONT_PRESETS = [
     family: "Pretendard",
     file: "Pretendard.otf",
     format: "opentype",
+    metrics: { sizeAdjust: "100.0%", ascent: "95.2%", descent: "24.1%" },
   },
   {
     key: "CAFE24_SSURROUND_AIR",
@@ -112,6 +123,7 @@ export const FONT_PRESETS = [
     family: "Cafe24 Ssurround Air",
     file: "Cafe24SsurroundAir.otf",
     format: "opentype",
+    metrics: { sizeAdjust: "91.0%", ascent: "93.6%", descent: "37.5%" },
   },
   {
     key: "GOYANG",
@@ -119,6 +131,7 @@ export const FONT_PRESETS = [
     family: "Goyang",
     file: "Goyang.otf",
     format: "opentype",
+    metrics: { sizeAdjust: "107.4%", ascent: "96.1%", descent: "15.0%" },
   },
   {
     key: "PAPERLOGY",
@@ -126,6 +139,7 @@ export const FONT_PRESETS = [
     family: "Paperlogy",
     file: "Paperlogy.ttf",
     format: "truetype",
+    metrics: { sizeAdjust: "98.2%", ascent: "99.7%", descent: "21.8%" },
   },
   {
     key: "GRIUN_FROMSOL",
@@ -133,6 +147,7 @@ export const FONT_PRESETS = [
     family: "Griun Fromsol",
     file: "GriunFromsol.ttf",
     format: "truetype",
+    metrics: { sizeAdjust: "104.8%", ascent: "87.2%", descent: "26.6%" },
   },
 ] as const;
 

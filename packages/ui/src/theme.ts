@@ -183,6 +183,10 @@ const fontFaces = FONT_PRESETS.map(
     font-style: normal;
     font-weight: 400;
     font-display: swap;
+    size-adjust: ${preset.metrics.sizeAdjust};
+    ascent-override: ${preset.metrics.ascent};
+    descent-override: ${preset.metrics.descent};
+    line-gap-override: 0%;
   }`,
 ).join("");
 
