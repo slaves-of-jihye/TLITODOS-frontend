@@ -559,16 +559,16 @@ const TodoDetailText = styled.small`
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 `;
-/* 높음은 빨강, 낮음은 파랑 — 색만으로도 갈리고, 글자로도 갈립니다. */
+/* 높음은 앰버, 낮음은 청록 — 마감의 빨강과 겹치지 않고, 글자로도 갈립니다. */
+const IMPORTANCE_COLORS = { HIGH: "#f5a623", LOW: "#14b8a6" } as const;
 const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
   flex: none;
   padding: 1px 8px;
   border-radius: ${theme.radius.pill};
   font-weight: 600;
   && {
-    color: ${({ level }) => (level === "HIGH" ? theme.colors.red : theme.colors.blue)};
-    background: ${({ level }) =>
-      `color-mix(in srgb, ${level === "HIGH" ? theme.colors.red : theme.colors.blue} 16%, transparent)`};
+    color: ${({ level }) => IMPORTANCE_COLORS[level]};
+    background: ${({ level }) => `color-mix(in srgb, ${IMPORTANCE_COLORS[level]} 16%, transparent)`};
   }
 `;
 const RoutineBadge = styled.small`
