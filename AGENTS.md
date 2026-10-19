@@ -113,6 +113,7 @@
 - Run typecheck and production build after each functional batch, then commit that batch.
 - Unless told otherwise, do the work on a new branch cut from `main`, never on `main` itself.
 - Commit when the work is done, unless the user has explicitly said not to commit. Silence on the subject means commit; only a clear "don't commit" holds it back.
+- Any change a browser can show is verified in WebKit and Firefox as well as Chrome, and in dark mode as well as light. These are required, not optional: Chrome alone has already hidden real breakage (`<input type="month">` degrading to a text box outside it, `crypto.randomUUID` blanking the page over plain http). Measure rather than guess — WebKit and Firefox builds are installed for Playwright, so run the page in both engines. For dark mode, set `data-theme="dark"` on `:root` and check colours, contrast and anything drawn from a token. Say in the hand-off which engines and modes were actually checked; one that could not be checked is reported as unchecked, never as fine.
 
 ## Commands
 
