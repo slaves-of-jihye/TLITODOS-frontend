@@ -91,9 +91,9 @@ export type CategoryTone = (typeof CATEGORY_PRESETS)[number]["key"];
  *
  * 폰트마다 글자 폭과 줄 상자가 달라 같은 문장이 다른 자리에 놓였습니다. 파일을
  * 고치지 않고 `@font-face`의 `size-adjust`/`ascent-override`/`descent-override`로
- * 맞춥니다 — 기준은 기본 폰트인 Pretendard입니다. `sizeAdjust`는 한글 '가'의
- * 글자 폭을 Pretendard와 같게(= 자간이 같게), `ascent`/`descent`는 줄 상자 높이를
- * 같게 하면서 '가'가 줄 안에서 앉는 높이도 같게 둡니다. 줄 간격(`line-gap`)은 모두
+ * 맞춥니다 — 기준은 기본 폰트인 Pretendard입니다. `sizeAdjust`는 완성형 한글 2350자의
+ * 평균 글자 폭을 Pretendard와 같게(= 자간이 같게), `ascent`/`descent`는 줄 상자 높이를
+ * 같게 하면서 글자가 줄 안에서 앉는 높이도 같게 둡니다. 줄 간격(`line-gap`)은 모두
  * 0이라 `line-height`만이 줄 높이를 정합니다. 브라우저는 `ascent`/`descent`에도
  * `size-adjust`를 곱하므로, 여기 적힌 값은 곱하기 전의 값입니다.
  *
@@ -107,7 +107,7 @@ export const FONT_PRESETS = [
     family: "Kyobo Handwriting 2019",
     file: "KyoboHandwriting2019.otf",
     format: "opentype",
-    metrics: { sizeAdjust: "103.5%", ascent: "86.3%", descent: "29.1%" },
+    metrics: { sizeAdjust: "119.7%", ascent: "77.3%", descent: "22.4%" },
   },
   {
     key: "PRETENDARD",
@@ -123,7 +123,7 @@ export const FONT_PRESETS = [
     family: "Cafe24 Ssurround Air",
     file: "Cafe24SsurroundAir.otf",
     format: "opentype",
-    metrics: { sizeAdjust: "91.0%", ascent: "93.6%", descent: "37.5%" },
+    metrics: { sizeAdjust: "91.0%", ascent: "94.3%", descent: "36.9%" },
   },
   {
     key: "GOYANG",
@@ -131,7 +131,7 @@ export const FONT_PRESETS = [
     family: "Goyang",
     file: "Goyang.otf",
     format: "opentype",
-    metrics: { sizeAdjust: "107.4%", ascent: "96.1%", descent: "15.0%" },
+    metrics: { sizeAdjust: "107.4%", ascent: "88.9%", descent: "22.2%" },
   },
   {
     key: "PAPERLOGY",
@@ -139,7 +139,7 @@ export const FONT_PRESETS = [
     family: "Paperlogy",
     file: "Paperlogy.ttf",
     format: "truetype",
-    metrics: { sizeAdjust: "98.2%", ascent: "99.7%", descent: "21.8%" },
+    metrics: { sizeAdjust: "98.2%", ascent: "100.0%", descent: "21.5%" },
   },
   {
     key: "GRIUN_FROMSOL",
@@ -147,7 +147,7 @@ export const FONT_PRESETS = [
     family: "Griun Fromsol",
     file: "GriunFromsol.ttf",
     format: "truetype",
-    metrics: { sizeAdjust: "104.8%", ascent: "87.2%", descent: "26.6%" },
+    metrics: { sizeAdjust: "112.9%", ascent: "83.1%", descent: "22.6%" },
   },
 ] as const;
 
