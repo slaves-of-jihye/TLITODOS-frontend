@@ -428,7 +428,7 @@ export const TodoRow = ({
   betClosed?: boolean;
 }) => {
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
-  // 첫 줄: 마감 · 중요도 · 루틴. 있는 것만 구분선으로 이어 붙입니다.
+  // 첫 줄: 마감 · 중요도 · 루틴. 있는 것만 나란히 놓습니다.
   const metaItems: ReactNode[] = [];
   if (deadline) metaItems.push(<TodoDeadline>{deadline}</TodoDeadline>);
   if (todo.importance === "HIGH" || todo.importance === "LOW") {
@@ -460,10 +460,7 @@ export const TodoRow = ({
         {metaItems.length ? (
           <TodoMeta>
             {metaItems.map((item, index) => (
-              <Fragment key={index}>
-                {index > 0 ? <MetaDivider aria-hidden="true" /> : null}
-                {item}
-              </Fragment>
+              <Fragment key={index}>{item}</Fragment>
             ))}
           </TodoMeta>
         ) : null}
@@ -547,20 +544,14 @@ const TodoTextButton = styled.button`
 `;
 /*
  * 상세정보는 두 줄입니다. 첫 줄은 마감 · 중요도 · 루틴, 둘째 줄은 세부사항으로
- * 길면 자동으로 줄바꿈됩니다. 첫 줄의 항목은 모두 없을 수 있고, 있는 것끼리만
- * 세로 구분선으로 나뉩니다.
+ * 길면 자동으로 줄바꿈됩니다. 첫 줄의 항목은 모두 없을 수 있고, 색과 모양으로 서로 구분됩니다.
  */
 const TodoMeta = styled.span`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 4px 6px;
   min-width: 0;
-`;
-const MetaDivider = styled.span`
-  width: 1px;
-  height: 10px;
-  background: ${theme.colors.line};
 `;
 const TodoDetailText = styled.small`
   display: block;
