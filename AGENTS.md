@@ -111,6 +111,8 @@
 - Keep TanStack Query keys stable and invalidate the narrowest relevant prefix after mutations.
 - Preserve the API contract's request/response casing and nullability.
 - Run typecheck and production build after each functional batch, then commit that batch.
+- Unless told otherwise, do the work on a new branch cut from `main`, never on `main` itself.
+- Commit when the work is done, unless the user has explicitly said not to commit. Silence on the subject means commit; only a clear "don't commit" holds it back.
 
 ## Commands
 
