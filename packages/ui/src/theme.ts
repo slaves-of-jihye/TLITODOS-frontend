@@ -40,6 +40,10 @@ const tokenNames = {
   sweep: "--tl-sweep",
   scrollThumb: "--tl-scroll-thumb",
   dangerTint: "--tl-danger-tint",
+  importanceHighBg: "--tl-importance-high-bg",
+  importanceLowBg: "--tl-importance-low-bg",
+  importanceHighText: "--tl-importance-high-text",
+  importanceLowText: "--tl-importance-low-text",
 } as const;
 
 type TokenKey = keyof typeof tokenNames;
@@ -70,6 +74,10 @@ export const extraTokens = {
   sweep: cssVar("sweep"),
   scrollThumb: cssVar("scrollThumb"),
   dangerTint: cssVar("dangerTint"),
+  importanceHighBg: cssVar("importanceHighBg"),
+  importanceLowBg: cssVar("importanceLowBg"),
+  importanceHighText: cssVar("importanceHighText"),
+  importanceLowText: cssVar("importanceLowText"),
 } as const;
 
 const lightTokens: Record<TokenKey, string> = {
@@ -91,6 +99,10 @@ const lightTokens: Record<TokenKey, string> = {
   sweep: "rgba(255, 255, 255, 0.7)",
   scrollThumb: "rgba(29, 29, 29, 0.22)",
   dangerTint: "#fff0f3",
+  importanceHighBg: "color-mix(in srgb, #f5a623 16%, transparent)",
+  importanceLowBg: "color-mix(in srgb, #14b8a6 16%, transparent)",
+  importanceHighText: "#f5a623",
+  importanceLowText: "#14b8a6",
 };
 
 /**
@@ -116,6 +128,11 @@ const darkTokens: Record<TokenKey, string> = {
   sweep: "rgba(255, 255, 255, 0.09)",
   scrollThumb: "rgba(255, 255, 255, 0.28)",
   dangerTint: "rgba(255, 98, 127, 0.16)",
+  // 어두운 바탕에서는 옅은 배경이 탁해 보여, 밝은 면에 어두운 글자를 얹습니다.
+  importanceHighBg: "#ffc15e",
+  importanceLowBg: "#4fd6c6",
+  importanceHighText: "#2a1d00",
+  importanceLowText: "#00302b",
 };
 
 const declarations = (set: Record<TokenKey, string>) =>
