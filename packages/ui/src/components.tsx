@@ -406,6 +406,8 @@ export const TodoRow = ({
   onEdit,
   onBet,
   betClosed,
+  blockedBy = 0,
+  blockedStyle = "both",
 }: {
   todo: Todo;
   accent: string;
@@ -426,7 +428,17 @@ export const TodoRow = ({
    * 알 길이 없어, 덮개는 그대로 뜨되 이유를 적고 눌리지 않게 합니다.
    */
   betClosed?: boolean;
+  /** 아직 끝나지 않은 선행 할 일의 수. 0이면 막혀 있지 않습니다. */
+  blockedBy?: number;
+  /**
+   * 막힌 줄을 어떻게 알릴지 — 알약(`badge`), 체크의 자물쇠(`lock`), 둘 다(`both`), 없음(`none`).
+   * 어느 쪽으로 갈지 정하는 동안만 있는 비교용 값입니다.
+   */
+  blockedStyle?: "badge" | "lock" | "both" | "none";
 }) => {
+  const blocked = blockedBy > 0 && !todo.isCompleted;
+  const showBadge = blocked && (blockedStyle === "badge" || blockedStyle === "both");
+  const showLock = blocked && (blockedStyle === "lock" || blockedStyle === "both");
   const detail = todo.description || todo.subtasks.map(item => item.content).join(" · ");
   // 첫 줄: 마감 · 중요도 · 루틴. 있는 것만 나란히 놓습니다.
   const metaItems: ReactNode[] = [];
@@ -437,12 +449,25 @@ export const TodoRow = ({
     );
   }
   if (todo.isRoutine || todo.routineId != null) metaItems.push(<RoutineBadge>루틴</RoutineBadge>);
+  if (showBadge) metaItems.push(<BlockedBadge>{`선행 ${blockedBy}개 남음`}</BlockedBadge>);
   // 완료하면 사분면이 카테고리 색으로 차고 체크가 올라갑니다.
   const fills = todo.isCompleted ? Array<string>(4).fill(accent) : [null, null, null, null];
   return (
     <TodoItem interactive={own}>
-      <CheckButton aria-label={todo.isCompleted ? "완료됨" : "완료하기"} disabled={!own} onClick={onToggle}>
+      <CheckButton
+        aria-label={
+          todo.isCompleted ? "완료됨" : showLock ? `선행 할 일 ${blockedBy}개가 남아 완료할 수 없어요` : "완료하기"
+        }
+        disabled={!own}
+        onClick={onToggle}
+      >
         <StatusCluster fills={fills} checked={todo.isCompleted} />
+        {showLock ? (
+          <LockMark aria-hidden="true" viewBox="0 0 16 16">
+            <rect x="3" y="7" width="10" height="7" rx="2" />
+            <path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" fill="none" strokeWidth="1.6" strokeLinecap="round" />
+          </LockMark>
+        ) : null}
       </CheckButton>
       {/*
        * 남의 할 일에서는 줄 자체가 내기 요청으로 이어집니다.
@@ -509,6 +534,7 @@ const TodoItem = styled.div<{ interactive: boolean }>`
   }
 `;
 const CheckButton = styled.button`
+  position: relative;
   display: grid;
   place-items: center;
   flex: none;
@@ -575,6 +601,31 @@ const ImportanceBadge = styled.small<{ level: "HIGH" | "LOW" }>`
     color: ${({ level }) => IMPORTANCE_STYLE[level].text};
     background: ${({ level }) => IMPORTANCE_STYLE[level].bg};
   }
+`;
+/* 선행이 남았다는 표시. 점선 테두리라 마감·중요도·루틴 어느 것과도 모양이 겹치지 않습니다. */
+const BlockedBadge = styled.small`
+  flex: none;
+  padding: 0 7px;
+  border-radius: ${theme.radius.pill};
+  border: 1px dashed ${palette.gray400};
+  line-height: 1.5;
+  && {
+    font-size: ${theme.text.xs};
+    color: ${theme.colors.muted};
+  }
+`;
+/* 완료 원의 오른쪽 아래에 걸치는 자물쇠. 바탕색 테두리로 원과 떼어 읽히게 합니다. */
+const LockMark = styled.svg`
+  position: absolute;
+  right: -4px;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  padding: 1px;
+  border-radius: 50%;
+  background: ${palette.white};
+  fill: ${palette.textMuted};
+  stroke: ${palette.textMuted};
 `;
 const RoutineBadge = styled.small`
   flex: none;

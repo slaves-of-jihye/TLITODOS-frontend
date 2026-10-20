@@ -8,6 +8,7 @@ import {
   buildDailyStatuses,
   sortTodos,
   todosForDate,
+  unresolvedDependencies,
   useCreateTodo,
   useDailyTodoStatuses,
   useRefillTodos,
@@ -19,6 +20,7 @@ import { BetRequestModal } from "@/features/bet-request";
 import { CategoryManageModal } from "@/features/category-rename";
 import { DiaryViewModal } from "@/features/diary-view";
 import { CalendarPanel } from "./CalendarPanel";
+import { DependencyStyleSwitch, useBlockedStyle } from "./DependencyStyleSwitch";
 import { CategorySection, TodoBoardSkeleton } from "./TodoBoard";
 import { TodoDetailModal } from "./TodoDetailModal";
 import { CategoryBoard, TodoArea } from "./boardStyles";
@@ -145,6 +147,12 @@ export const TodoWorkspace = ({
     [ownerTodos, completionOverrides, movedCategories],
   );
   const selectedTodos = useMemo(() => todosForDate(todos, selectedDate), [todos, selectedDate]);
+  const [blockedStyle, setBlockedStyle] = useBlockedStyle();
+  // 선행은 다른 카테고리에 있을 수 있어, 한 칸이 아니라 그날 전체를 놓고 셉니다.
+  const blockedCounts = useMemo(
+    () => new Map(selectedTodos.map(todo => [todo.todoId, unresolvedDependencies(todo, selectedTodos).length])),
+    [selectedTodos],
+  );
   /**
    * 달력에 찍을 날짜별 요약입니다.
    *
@@ -241,6 +249,7 @@ export const TodoWorkspace = ({
           />
         </div>
         <TodoArea>
+          <DependencyStyleSwitch value={blockedStyle} onChange={setBlockedStyle} />
           {loadError ? (
             <EmptyState>
               <ErrorText>{errorMessage(loadError)}</ErrorText>
@@ -290,6 +299,8 @@ export const TodoWorkspace = ({
                   onBet={own ? undefined : setBetTodo}
                   drag={own ? drag : undefined}
                   pending={pendingByCategory[category.categoryId] ?? 0}
+                  blockedCounts={blockedCounts}
+                  blockedStyle={blockedStyle}
                 />
               ))}
             </CategoryBoard>
