@@ -26,7 +26,6 @@ export const CategorySection = ({
   drag,
   pending = 0,
   blockedCounts,
-  blockedStyle,
 }: {
   category: Category;
   index: number;
@@ -50,7 +49,6 @@ export const CategorySection = ({
   pending?: number;
   /** 할 일마다 아직 끝나지 않은 선행의 수. 다른 카테고리의 선행도 셉니다. */
   blockedCounts?: Map<number, number>;
-  blockedStyle?: "badge" | "lock" | "both" | "none";
 }) => {
   const accent = categoryAccent(category.color, index);
   const hourCycle = useHourCycle();
@@ -78,7 +76,6 @@ export const CategorySection = ({
               // 기한이 지난 할 일에는 내기를 걸 수 없습니다 — 결과가 이미 나온 일입니다.
               betClosed={isOverdue(todo)}
               blockedBy={blockedCounts?.get(todo.todoId) ?? 0}
-              blockedStyle={blockedStyle}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
               onBet={onBet ? () => onBet(todo) : undefined}
