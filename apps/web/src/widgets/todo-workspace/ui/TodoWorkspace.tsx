@@ -8,6 +8,7 @@ import {
   buildDailyStatuses,
   sortTodos,
   todosForDate,
+  unresolvedDependencies,
   useCreateTodo,
   useDailyTodoStatuses,
   useRefillTodos,
@@ -145,6 +146,11 @@ export const TodoWorkspace = ({
     [ownerTodos, completionOverrides, movedCategories],
   );
   const selectedTodos = useMemo(() => todosForDate(todos, selectedDate), [todos, selectedDate]);
+  // 선행은 다른 카테고리에 있을 수 있어, 한 칸이 아니라 그날 전체를 놓고 셉니다.
+  const blockedCounts = useMemo(
+    () => new Map(selectedTodos.map(todo => [todo.todoId, unresolvedDependencies(todo, selectedTodos).length])),
+    [selectedTodos],
+  );
   /**
    * 달력에 찍을 날짜별 요약입니다.
    *
@@ -290,6 +296,7 @@ export const TodoWorkspace = ({
                   onBet={own ? undefined : setBetTodo}
                   drag={own ? drag : undefined}
                   pending={pendingByCategory[category.categoryId] ?? 0}
+                  blockedCounts={blockedCounts}
                 />
               ))}
             </CategoryBoard>

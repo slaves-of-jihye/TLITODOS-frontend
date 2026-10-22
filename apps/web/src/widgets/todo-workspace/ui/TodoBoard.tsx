@@ -25,6 +25,7 @@ export const CategorySection = ({
   onBet,
   drag,
   pending = 0,
+  blockedCounts,
 }: {
   category: Category;
   index: number;
@@ -46,6 +47,8 @@ export const CategorySection = ({
   drag?: TodoDrag;
   /** 방금 만들어 아직 목록에 없는 할 일의 수. 그만큼 빈 줄을 잡아 둡니다. */
   pending?: number;
+  /** 할 일마다 아직 끝나지 않은 선행의 수. 다른 카테고리의 선행도 셉니다. */
+  blockedCounts?: Map<number, number>;
 }) => {
   const accent = categoryAccent(category.color, index);
   const hourCycle = useHourCycle();
@@ -72,6 +75,7 @@ export const CategorySection = ({
               deadline={formatDeadline(todo, hourCycle, selectedDate)}
               // 기한이 지난 할 일에는 내기를 걸 수 없습니다 — 결과가 이미 나온 일입니다.
               betClosed={isOverdue(todo)}
+              blockedBy={blockedCounts?.get(todo.todoId) ?? 0}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
               onBet={onBet ? () => onBet(todo) : undefined}
