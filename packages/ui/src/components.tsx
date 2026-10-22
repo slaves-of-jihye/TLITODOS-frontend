@@ -976,7 +976,6 @@ export const Modal = ({
   children,
   onClose,
   nested = false,
-  login = false,
   sheet = false,
   compact = false,
   "aria-label": ariaLabel,
@@ -986,7 +985,6 @@ export const Modal = ({
   children: ReactNode;
   onClose?: () => void;
   nested?: boolean;
-  login?: boolean;
   /** 디자인의 상세 시트처럼 넓은 화면에서도 아래에 붙는 형태입니다. */
   sheet?: boolean;
   /**
@@ -1007,39 +1005,31 @@ export const Modal = ({
 }) =>
   open ? (
     <Overlay
-      login={login}
       sheet={sheet}
       onMouseDown={event => {
         if (event.target === event.currentTarget && !nested) onClose?.();
       }}
     >
-      <Dialog
-        login={login}
-        sheet={sheet}
-        compact={compact}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title ?? ariaLabel}
-      >
+      <Dialog sheet={sheet} compact={compact} role="dialog" aria-modal="true" aria-label={title ?? ariaLabel}>
         {title ? <h2>{title}</h2> : null}
         {children}
       </Dialog>
     </Overlay>
   ) : null;
-const Overlay = styled.div<{ login: boolean; sheet: boolean }>`
+const Overlay = styled.div<{ sheet: boolean }>`
   position: fixed;
   inset: 0;
   z-index: 100;
   display: grid;
   place-items: ${({ sheet }) => (sheet ? "end center" : "center")};
   padding: ${({ sheet }) => (sheet ? "22px 22px 0" : "22px")};
-  background: ${({ login }) => (login ? theme.colors.loginOverlay : theme.colors.overlay)};
+  background: ${theme.colors.overlay};
   @media (max-width: 600px) {
-    place-items: ${({ login }) => (login ? "center" : "end center")};
-    padding: ${({ login }) => (login ? "16px" : "0")};
+    place-items: end center;
+    padding: 0;
   }
 `;
-const Dialog = styled.div<{ login: boolean; sheet: boolean; compact: boolean }>`
+const Dialog = styled.div<{ sheet: boolean; compact: boolean }>`
   width: ${({ compact }) => (compact ? "min(420px, 100%)" : "min(800px, 100%)")};
   max-height: calc(100vh - 44px);
   overflow: auto;
@@ -1053,8 +1043,8 @@ const Dialog = styled.div<{ login: boolean; sheet: boolean; compact: boolean }>`
   @media (max-width: 600px) {
     width: 100%;
     max-height: calc(100dvh - 24px);
-    padding: ${({ login }) => (login ? "28px 18px" : "30px 20px calc(24px + env(safe-area-inset-bottom))")};
-    border-radius: ${({ login }) => (login ? "26px" : "28px 28px 0 0")};
+    padding: 30px 20px calc(24px + env(safe-area-inset-bottom));
+    border-radius: 28px 28px 0 0;
     overscroll-behavior: contain;
     h2 {
       margin-bottom: 24px;

@@ -1,2 +1,2 @@
 export * from "./model/googleScript";
-export * from "./ui/LoginModal";
+export * from "./model/useGoogleLogin";

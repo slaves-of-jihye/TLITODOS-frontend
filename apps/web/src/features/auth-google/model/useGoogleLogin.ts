@@ -1,12 +1,10 @@
-import styled from "@emotion/styled";
 import { useCallback, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { CATEGORY_PRESETS, sortCategories } from "@/entities/category";
 import { useApi } from "@/shared/api";
 import { errorMessage, randomId } from "@/shared/lib";
 import { useSessionStore } from "@/shared/model";
-import { ErrorText, Modal, palette, theme } from "@/shared/ui";
-import { loadGoogleScript } from "../model/googleScript";
+import { loadGoogleScript } from "./googleScript";
 
 const googleOAuthResultKey = "tlitodos-google-oauth-result";
 
@@ -71,7 +69,7 @@ const redirectError =
 /**
  * 돌아온 토큰. 한 번 쓰고 비웁니다.
  *
- * 로그아웃하면 이 모달이 다시 뜨는데, 그때 같은 토큰을 또 내밀면 안 됩니다.
+ * 로그아웃하면 랜딩이 다시 뜨는데, 그때 같은 토큰을 또 내밀면 안 됩니다.
  */
 let pendingRedirectToken =
   redirectResult && redirectResult !== "unreadable" ? (redirectResult.accessToken ?? null) : null;
@@ -84,7 +82,15 @@ const redirectToGoogle = (clientId: string) => {
   window.location.assign(buildGoogleOAuthUrl(clientId, state));
 };
 
-export const LoginModal = () => {
+/**
+ * 구글 로그인을 시작하고 그 결과를 세션으로 바꿉니다.
+ *
+ * 로그인 화면(랜딩)이 한 번만 부르고 `login`/`loading`/`error`를 아래로 내려 줍니다 —
+ * 헤더 버튼과 본문의 시작 버튼이 같은 상태를 보도록, 훅을 둘 이상 세우지 않습니다.
+ * 리다이렉트로 돌아온 토큰은 모듈 변수 하나에 있어 한 번만 쓰이므로, 두 번 세우면
+ * 먼저 세운 쪽이 가져가 버립니다.
+ */
+export const useGoogleLogin = () => {
   const accessToken = useSessionStore(state => state.accessToken);
   const setSession = useSessionStore(state => state.setSession);
   const api = useApi();
@@ -162,7 +168,7 @@ export const LoginModal = () => {
   /*
    * 로그인 화면이 떠 있는 동안에만 구글 스크립트를 받아 둡니다.
    *
-   * 이 모달은 늘 붙어 있고 `accessToken`이 없을 때만 펼쳐지므로, 들어와 있는
+   * 이 훅은 로그인 화면에만 붙어 있고 `accessToken`이 없을 때만 받으므로, 들어와 있는
    * 사람은 이 스크립트를 아예 받지 않습니다. 버튼을 누르는 순간에 받으면 늦습니다 —
    * 기다리는 사이 사용자의 손짓이 끊겨 팝업이 막히기 때문입니다.
    */
@@ -225,48 +231,5 @@ export const LoginModal = () => {
     }
     redirectToGoogle(clientId);
   };
-  return (
-    <Modal open={!accessToken} login title="TLITODOS에 오신 걸 환영해요">
-      <LoginCopy>오늘 할 일과 하루의 기록을 한곳에서 관리해 보세요.</LoginCopy>
-      {error ? <ErrorText>{error}</ErrorText> : null}
-      <GoogleButton type="button" onClick={login} disabled={loading}>
-        <GoogleMark>G</GoogleMark>
-        {loading ? "로그인 중..." : "Google로 로그인하기"}
-      </GoogleButton>
-    </Modal>
-  );
+  return { login, loading, error };
 };
-
-const LoginCopy = styled.p`
-  margin: -14px 0 28px;
-  color: ${theme.colors.muted};
-  @media (max-width: 600px) {
-    margin: -8px 0 24px;
-  }
-`;
-
-const GoogleButton = styled.button`
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  border: 0;
-  border-radius: 12px;
-  background: ${palette.gray200};
-  padding: 10px 20px;
-  font-size: ${theme.text.s};
-  color: ${theme.colors.ink};
-  &:disabled {
-    opacity: 0.45;
-    cursor: progress;
-  }
-`;
-/* 구글 마크는 브랜드 색과 서체를 그대로 씁니다. */
-
-/* 구글 마크는 브랜드 색과 서체를 그대로 씁니다. */
-const GoogleMark = styled.span`
-  font-family: Arial, sans-serif;
-  font-size: 20px;
-  color: #4285f4;
-`;
